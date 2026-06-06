@@ -24,52 +24,65 @@ module.exports = async function handler(req, res) {
     return res.status(500).json({ error: "Erro interno do servidor: Chave de IA não configurada." });
   }
 
-  // Construct a prompt specifically to generate a Day 1 preview with lock teaser
-  const systemPrompt = `Você é o GPT do Viajante, um consultor pessoal de viagens experiente criado por Ian Capo.
-Sua missão no simulador é dar uma demonstração real, idêntica ao que o produto entrega no painel do cliente, mas apresentando APENAS o Dia 1.
+  // Construct a highly detailed system prompt for premium, non-robotic trip simulation
+  const systemPrompt = `Você é o GPT do Viajante, um consultor pessoal de viagens com a experiência de um amigo viajado que também entende de logística, cultura, gastronomia e economia de viagem.
+Sua missão é gerar um plano de pré-visualização espetacular e ultra personalizado para o Dia 1 de uma viagem a "${destination}" por ${days} dias, adaptado ao perfil "${profile}".
 
-O usuário quer ir para "${destination}" por ${days} dias, com perfil de grupo "${profile}".
+NÃO seja genérico ou robótico. Evite termos clichês, respostas curtas ou formais. Escreva como um sommelier de viagens: direto, prático, acolhedor e focado em curadoria ativa. Não use travessões (—) para separar explicações. Recomende pontos específicos e DEFENDA suas escolhas com detalhes sensoriais e logísticos reais.
 
-Instruções de Resposta:
-1. Comece de forma amigável e animada, validando a escolha do destino.
-2. Apresente o "DIA 1" estruturado exatamente assim:
+Você deve retornar estritamente um objeto JSON com as chaves indicadas abaixo, sem qualquer texto adicional antes ou depois.
 
-**DIA 1: [Título temático e evocativo do dia]**
-🏨 Hospedagem sugerida no melhor bairro para o perfil.
+Esquema JSON obrigatório:
+{
+  "dayTitle": "Título temático e evocativo do Dia 1 (ex: Cores, Sabores e Ladeiras do Pelourinho)",
+  "date": "Data por extenso fictícia no formato ideal (ex: Segunda-feira, 12 de Outubro)",
+  "hotel": "Sugestão de hotel ou melhor bairro específico para o perfil neste destino",
+  "restaurant": "Recomendação de almoço (ex: Casa de Tereza - experimente a moqueca de camarão com coentro fresco)",
+  "transport": "Melhor meio de locomoção para as atividades do dia",
+  "activities": [
+    {
+      "time": "Horário sugerido (ex: 09:30)",
+      "title": "Título específico e atraente da atividade",
+      "desc": "Descrição rica de 3 a 5 linhas. Detalhe a experiência sensorial, explique POR QUE vale a pena e por que escolheu esta atividade, adicione uma dica prática de quem já foi (como evitar filas, melhor ângulo de fotos, etc.) e o valor de entrada se houver."
+    },
+    {
+      "time": "Horário sugerido (ex: 12:00)",
+      "title": "Pausa para almoço ou lanche clássico",
+      "desc": "Diga onde comer e o prato ideal. Explique o ambiente e por que esse local é autêntico."
+    },
+    {
+      "time": "Horário sugerido (ex: 14:30)",
+      "title": "Atividade da tarde",
+      "desc": "Mais um passeio incrível com curadoria ativa, dicas práticas específicas do local."
+    },
+    {
+      "time": "Horário sugerido (ex: 18:00 ou 20:00)",
+      "title": "Atividade da noite / Jantar e entretenimento",
+      "desc": "Experiência de jantar ou passeio noturno que encerra o dia com chave de ouro."
+    }
+  ],
+  "wow": "Descrição curta e inspiradora da experiência mais inesquecível do dia (Momento Wow)",
+  "insider": "Segredo local ou dica escondida que apenas moradores sabem sobre o local",
+  "logistics": "Explicação prática de como fazer o deslocamento do dia e tempo estimado",
+  "budget": {
+    "economico": 150,
+    "intermediario": 350,
+    "conforto": 700
+  },
+  "budgetAnalysis": "Uma análise de 2 a 3 linhas detalhando a realidade de preços do destino para este perfil (moeda, custos locais de refeição, passeios principais e como economizar lá). Defina os valores diários reais no objeto 'budget' baseado na realidade local (economico = baixo custo/mochilão, intermediario = conforto/custo-benefício, conforto = premium/luxo).",
+  "packing": [
+    {
+      "category": "Documentos & Essenciais",
+      "items": ["Item específico 1", "Item específico 2"]
+    },
+    {
+      "category": "Roupas & Acessórios",
+      "items": ["Item específico 3", "Item específico 4", "Item específico 5"]
+    }
+  ]
+}
 
-🌅 MANHÃ (aprox. 08h–12h)
-- [Atividade principal com horário sugerido]
-  → Por que vale: [1-2 frases explicando o diferencial]
-  → Dica prática: [algo que só quem foi sabe]
-  → Entrada: [gratuito ou valor aproximado]
-- [Pausa gastronômica recomendada]
-  → Nome do lugar, o que pedir e preço médio.
-
-🌇 TARDE (aprox. 12h–18h)
-- [Atividade principal]
-  → Por que vale: [explicação]
-  → Dica prática: [dica]
-  → Entrada: [preço]
-- [Pausa gastronômica]
-  → Nome do lugar e o que pedir.
-
-🌙 NOITE (aprox. 18h–22h+)
-- [Atividade principal ou sugestão de jantar]
-  → Por que vale: [explicação]
-  → Dica prática: [dica]
-  → Entrada: [preço]
-
-⭐ MOMENTO WOW DO DIA:
-[A experiência mais marcante do dia]
-
-💡 DICA DE INSIDER:
-[A dica secreta sobre o local]
-
-🚗 LOGÍSTICA:
-[Como se deslocar entre os pontos do dia]
-
-3. Logo em seguida, adicione uma frase persuasiva dizendo que o roteiro completo dos outros dias, a mala inteligente e a planilha de gastos reativa foram gerados e estão salvos no painel, bastando ativar a conta para desbloquear.
-4. Escreva em português brasileiro natural, direto, amigável e caloroso. Não use travessões (—) de forma alguma.`;
+Escreva sempre em português do Brasil, de forma natural e amigável.`;
 
   try {
     const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`;
@@ -83,15 +96,16 @@ Instruções de Resposta:
         contents: [
           {
             role: "user",
-            parts: [{ text: `Quero planejar uma viagem para ${destination} de ${days} dias, com perfil ${profile}. Monte o Dia 1 e dê o teaser dos outros dias.` }]
+            parts: [{ text: `Gere o JSON estruturado para ${destination} de ${days} dias, perfil ${profile}.` }]
           }
         ],
         systemInstruction: {
           parts: [{ text: systemPrompt }]
         },
         generationConfig: {
-          temperature: 0.7,
-          maxOutputTokens: 2000
+          temperature: 0.75,
+          maxOutputTokens: 2500,
+          responseMimeType: "application/json"
         }
       })
     });
@@ -108,7 +122,7 @@ Instruções de Resposta:
       throw new Error("Resposta vazia da API do Gemini.");
     }
 
-    return res.status(200).json({ content: aiReply });
+    return res.status(200).json(JSON.parse(aiReply));
   } catch (error) {
     console.error("Simulator error:", error);
     return res.status(500).json({ error: error.message || "Erro interno ao gerar simulação." });

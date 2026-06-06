@@ -125,48 +125,194 @@ function setupItinerarySimulator() {
               🌙 <strong>NOITE (aprox. 18h–22h+)</strong><br>
               Jantar panorâmico ou caminhada por mirante iluminado.<br>
               <span class="sim-detail-line">→ <strong>Por que vale:</strong> Ver a silhueta da cidade acesa com atmosfera local vibrante e romântica.</span><br>
-              <span class="sim-detail-line">→ <strong>Dica prática:</strong> Reserve a mesa com antecedência para garantir a melhor vista na janela.</span>
+        <div style="text-align: center; padding: 50px 20px;">
+          <i class="fa-solid fa-circle-notch fa-spin" style="font-size: 1.6rem; color: var(--primary); margin-bottom: 12px; display: inline-block;"></i>
+          <p style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.4; margin: 0;">Consultando Inteligência de Viagem...<br><span style="font-size: 0.72rem; opacity: 0.8; display: block; margin-top: 4px;">Gerando roteiro exclusivo para ${destination}</span></p>
+        </div>
+      `;
+    }
+
+    // Configura os itens de malas e abas enquanto carrega
+    setupSimTabs();
+
+    try {
+      const response = await fetch("/api/simular", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ destination, days, profile: profileText })
+      });
+
+      if (!response.ok) throw new Error("Erro na simulação.");
+      const data = await response.json();
+
+      // Renderiza o Dia 1 dinamicamente com os dados retornados pela IA
+      if (simTabRoteiro) {
+        let activitiesHtml = "";
+        if (data.activities && Array.isArray(data.activities)) {
+          data.activities.forEach(act => {
+            const isFood = /almoço|jantar|almoço|almoço|jantar|restaurante|comer|café|culinária|gastronomia/i.test(act.title + " " + act.desc);
+            let foodLinks = "";
+            if (isFood) {
+              foodLinks = `
+                <div class="sim-restaurant-links" style="margin-top: 8px; display: flex; gap: 8px;">
+                  <a href="https://www.tripadvisor.com.br/Search?q=${encodeURIComponent(act.title + ' ' + destination)}" target="_blank" class="sim-restaurant-link-btn" style="padding: 4px 8px; font-size: 0.7rem; background: #00af87; color: white; border-radius: 4px; text-decoration: none; display: inline-flex; align-items: center; gap: 4px;"><i class="fa-solid fa-map-location-dot"></i> TripAdvisor</a>
+                  <a href="https://www.google.com/maps/search/${encodeURIComponent(act.title + ' ' + destination)}" target="_blank" class="sim-restaurant-link-btn" style="padding: 4px 8px; font-size: 0.7rem; background: #4285f4; color: white; border-radius: 4px; text-decoration: none; display: inline-flex; align-items: center; gap: 4px;"><i class="fa-solid fa-location-dot"></i> Google Maps</a>
+                </div>
+              `;
+            }
+
+            activitiesHtml += `
+              <div class="sim-turn" style="border-bottom: 1px dashed rgba(255,255,255,0.06); padding-bottom: 12px; margin-bottom: 12px;">
+                <span style="font-family: var(--font-heading); font-weight: 700; color: var(--accent); font-size: 0.8rem; display: block; margin-bottom: 3px;">
+                  <i class="fa-regular fa-clock"></i> ${act.time || '09:00'} — ${act.title}
+                </span>
+                <p style="font-size: 0.78rem; color: var(--text-light); line-height: 1.45; margin: 0;">${act.desc}</p>
+                ${foodLinks}
+              </div>
+            `;
+          });
+        }
+
+        simTabRoteiro.innerHTML = `
+          <div class="sim-day-card">
+            <div class="sim-day-card-header" style="border-bottom: 1px solid var(--border-color); padding-bottom: 10px; margin-bottom: 12px;">
+              <strong>DIA 1: ${data.dayTitle || 'Chegada & Reconhecimento'}</strong>
+              <span style="font-size: 0.72rem; color: var(--text-muted); font-weight: 500;">${data.date || ''}</span>
             </div>
             
-            <div class="sim-turn-extra" style="border-top: 1px dashed rgba(255,255,255,0.08); padding-top: 8px; margin-top: 8px;">
-              ⭐ <strong>MOMENTO WOW DO DIA:</strong> Ver o entardecer do principal mirante de ${destination} com vista panorâmica.<br>
-              💡 <strong>DICA DE INSIDER:</strong> Fuja dos táxis na saída do aeroporto, use o aplicativo oficial do local que economiza até 40% do trajeto.<br>
-              🚗 <strong>LOGÍSTICA:</strong> Deslocamento a pé pelas atrações da tarde. Uber para o restaurante noturno (aprox. 15 minutos).
+            <div class="sim-day-turns" style="display: flex; flex-direction: column; text-align: left;">
+              ${activitiesHtml}
+              
+              <!-- Footer Details exactly like in the product -->
+              <div class="timeline-footer-details" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 10px; padding-top: 12px; border-top: 1px solid var(--border-color);">
+                <div class="footer-detail-item" style="display: flex; gap: 6px;">
+                  <i class="fa-solid fa-bed" style="color: var(--text-muted); font-size: 0.8rem; margin-top: 2px;"></i>
+                  <div class="footer-detail-text">
+                    <h5 style="font-size: 0.62rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700;">HOSPEDAGEM</h5>
+                    <p style="font-size: 0.72rem; color: var(--text-main); font-weight: 500; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${data.hotel || ''}">${data.hotel || 'Pelo perfil'}</p>
+                  </div>
+                </div>
+                <div class="footer-detail-item" style="display: flex; gap: 6px;">
+                  <i class="fa-solid fa-utensils" style="color: var(--text-muted); font-size: 0.8rem; margin-top: 2px;"></i>
+                  <div class="footer-detail-text">
+                    <h5 style="font-size: 0.62rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700;">REFEIÇÃO</h5>
+                    <p style="font-size: 0.72rem; color: var(--text-main); font-weight: 500; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${data.restaurant || ''}">${data.restaurant || 'Livre'}</p>
+                  </div>
+                </div>
+                <div class="footer-detail-item" style="display: flex; gap: 6px;">
+                  <i class="fa-solid fa-car" style="color: var(--text-muted); font-size: 0.8rem; margin-top: 2px;"></i>
+                  <div class="footer-detail-text">
+                    <h5 style="font-size: 0.62rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700;">TRANSPORTE</h5>
+                    <p style="font-size: 0.72rem; color: var(--text-main); font-weight: 500; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${data.transport || ''}">${data.transport || 'Público'}</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Extra sections for WoW moment, Insider and Logistics -->
+              <div class="sim-turn-extra" style="border-top: 1px dashed rgba(255,255,255,0.08); padding-top: 10px; margin-top: 12px; font-size: 0.74rem; color: var(--text-light); line-height: 1.45; text-align: left; display: flex; flex-direction: column; gap: 6px;">
+                <div>⭐ <strong>MOMENTO WOW:</strong> ${data.wow}</div>
+                <div>💡 <strong>SEGREDOS DE INSIDER:</strong> ${data.insider}</div>
+                <div>🚗 <strong>LOGÍSTICA:</strong> ${data.logistics}</div>
+              </div>
             </div>
           </div>
-        </div>
-        <div class="sim-day-card blurred">
-          <div class="sim-day-card-header">
-            <strong>DIA 2: Exploração Cultural & Dicas de Segurança</strong>
-            <i class="fa-solid fa-lock lock-icon-inline"></i>
+          
+          <div class="sim-day-card blurred" style="margin-top: 8px;">
+            <div class="sim-day-card-header">
+              <strong>DIA 2: Roteiro Avançado & Dicas de Segurança</strong>
+              <i class="fa-solid fa-lock lock-icon-inline"></i>
+            </div>
           </div>
-        </div>
-        <div class="sim-day-card blurred">
-          <div class="sim-day-card-header">
-            <strong>DIA 3: Rota Secreta de ${destination} & Experiência Wow</strong>
-            <i class="fa-solid fa-lock lock-icon-inline"></i>
+          <div class="sim-day-card blurred">
+            <div class="sim-day-card-header">
+              <strong>DIA 3: Rota Secreta & Experiência Gastronômica</strong>
+              <i class="fa-solid fa-lock lock-icon-inline"></i>
+            </div>
           </div>
-        </div>
-      `;
-    }
+        `;
+      }
 
-    // Configura os itens de malas dinâmicos baseados no destino
-    const simTabMala = document.getElementById("simTabMala");
-    if (simTabMala) {
-      const isWarm = ["bahia", "salvador", "fortaleza", "rio", "recife", "natal", "praia", "nordeste"].some(v => destination.toLowerCase().includes(v));
-      const clothingTip = isWarm ? "Roupas leves e roupa de banho para praia" : "Roupas versáteis e casaco leve para as noites";
-      
-      simTabMala.innerHTML = `
-        <div class="sim-packing-list">
-          <div class="sim-pack-item"><i class="fa-solid fa-square-check"></i> Documentos da viagem e reservas para ${destination}</div>
-          <div class="sim-pack-item"><i class="fa-solid fa-square-check"></i> ${clothingTip}</div>
-          <div class="sim-pack-item blurred-item"><i class="fa-solid fa-lock"></i> Itens de higiene recomendados para o clima local</div>
-          <div class="sim-pack-item blurred-item"><i class="fa-solid fa-lock"></i> Calçados ideais para as atividades do roteiro</div>
-        </div>
-      `;
-    }
+      // Preenche os custos reais gerados pela inteligência da IA
+      if (data.budget) {
+        const ecoVal = data.budget.economico * days;
+        const confVal = data.budget.intermediario * days;
+        const premVal = data.budget.conforto * days;
 
-    setupSimTabs();
+        document.getElementById("simBudgetValueEco").textContent = `R$ ${ecoVal.toLocaleString("pt-BR")}`;
+        document.getElementById("simBudgetValueConf").textContent = `R$ ${confVal.toLocaleString("pt-BR")}`;
+        document.getElementById("simBudgetValuePrem").textContent = `R$ ${premVal.toLocaleString("pt-BR")}`;
+      }
+
+      // Insere a análise financeira personalizada feita pela IA
+      const simBudgetDesc = document.querySelector(".sim-budget-desc");
+      if (simBudgetDesc && data.budgetAnalysis) {
+        simBudgetDesc.innerHTML = `<strong>Análise de Custo Real:</strong> ${data.budgetAnalysis}<br><span style="font-size: 0.68rem; opacity: 0.7; margin-top: 6px; display: block;">Estimativa total calculada para ${days} dias.</span>`;
+      }
+
+      // Preenche a mala dinâmica baseada na IA
+      const simTabMala = document.getElementById("simTabMala");
+      if (simTabMala && data.packing && Array.isArray(data.packing)) {
+        let packingHtml = `<div class="sim-packing-list">`;
+        
+        // Loop over the first category and show its items as checked
+        const firstCat = data.packing[0];
+        if (firstCat && firstCat.items) {
+          firstCat.items.forEach(item => {
+            packingHtml += `<div class="sim-pack-item"><i class="fa-solid fa-square-check"></i> ${item} (${firstCat.category})</div>`;
+          });
+        }
+        
+        // Add blurred items for other categories
+        packingHtml += `
+          <div class="sim-pack-item blurred-item"><i class="fa-solid fa-lock"></i> Itens de higiene e remédios para ${destination}</div>
+          <div class="sim-pack-item blurred-item"><i class="fa-solid fa-lock"></i> Roupas específicas recomendadas para o clima local</div>
+        </div>`;
+        
+        simTabMala.innerHTML = packingHtml;
+      }
+
+    } catch (err) {
+      console.error("Simulation request failed:", err);
+      // Fallback estático estruturado caso dê erro para não quebrar a página
+      if (simTabRoteiro) {
+        simTabRoteiro.innerHTML = `
+          <div class="sim-day-card">
+            <div class="sim-day-card-header">
+              <strong>DIA 1: Primeiro Contato com ${destination}</strong>
+            </div>
+            <div class="sim-day-turns" style="display: flex; flex-direction: column; gap: 14px; text-align: left;">
+              <div class="sim-turn">
+                🌅 <strong>MANHÃ (aprox. 08h–12h)</strong><br>
+                Chegada e reconhecimento dos arredores da hospedagem.<br>
+                <span class="sim-detail-line">→ <strong>Por que vale:</strong> Se situar no destino e fazer o check-in sem pressa para carregar baterias.</span><br>
+                <span class="sim-detail-line">→ <strong>Dica prática:</strong> Garanta o chip de internet e o cartão de transporte local direto no saguão de desembarque.</span><br>
+                <span class="sim-detail-line">→ <strong>Entrada:</strong> Gratuito</span>
+              </div>
+              
+              <div class="sim-turn">
+                🌇 <strong>TARDE (aprox. 12h–18h)</strong><br>
+                Caminhada guiada pelo centro histórico de ${destination}.<br>
+                <span class="sim-detail-line">→ <strong>Por que vale:</strong> Conectar com a essência cultural e ver os marcos históricos mais emblemáticos do local de perto.</span><br>
+                <span class="sim-detail-line">→ <strong>Dica prática:</strong> Vá com calçado confortável, pois as ruas centrais são de paralelepípedo antigo.</span><br>
+                <span class="sim-detail-line">→ <strong>Entrada:</strong> Gratuito</span>
+              </div>
+              
+              <div class="sim-turn-extra" style="border-top: 1px dashed rgba(255,255,255,0.08); padding-top: 8px; margin-top: 8px; font-size: 0.76rem; color: var(--text-light); line-height: 1.5; text-align: left;">
+                ⭐ <strong>MOMENTO WOW DO DIA:</strong> Ver o entardecer do principal mirante de ${destination}.<br>
+                💡 <strong>DICA DE INSIDER:</strong> Fuja dos táxis credenciados no aeroporto, peça carro de aplicativo para economizar.<br>
+                🚗 <strong>LOGÍSTICA:</strong> Deslocamentos a pé e por metrô no centro.
+              </div>
+            </div>
+          </div>
+          <div class="sim-day-card blurred">
+            <div class="sim-day-card-header">
+              <strong>DIA 2: Exploração Cultural & Dicas de Segurança</strong>
+              <i class="fa-solid fa-lock lock-icon-inline"></i>
+            </div>
+          </div>
+        `;
+      }
+    }
   });
 
   // Configura a troca de abas no simulador
