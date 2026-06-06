@@ -472,7 +472,7 @@ h1, h2, h3, h4 {
 .simulator-screen {
   display: flex;
   flex-direction: column;
-  min-height: 320px;
+  min-height: 420px;
 }
 
 /* Meta de Destino do Simulador */
@@ -528,11 +528,33 @@ h1, h2, h3, h4 {
 
 /* Containers de Conteúdo das Abas */
 .sim-tab-content-container {
-  min-height: 180px;
-  max-height: 240px;
+  min-height: 280px;
+  max-height: 360px;
   overflow-y: auto;
   margin-bottom: 15px;
   padding-right: 4px;
+}
+
+.sim-detail-line {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+  padding-left: 8px;
+  display: inline-block;
+  margin-top: 2px;
+}
+
+.sim-turn-extra {
+  font-size: 0.76rem;
+  color: var(--text-light);
+  line-height: 1.5;
+}
+
+.sim-restaurant-link-btn {
+  transition: var(--transition);
+}
+
+.sim-restaurant-link-btn:hover {
+  filter: brightness(1.2);
 }
 
 .sim-tab-content {

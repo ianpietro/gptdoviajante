@@ -91,12 +91,48 @@ function setupItinerarySimulator() {
       simTabRoteiro.innerHTML = `
         <div class="sim-day-card">
           <div class="sim-day-card-header">
-            <strong>DIA 1: Chegada em ${destination}</strong>
+            <strong>DIA 1: Primeiro Contato com ${destination}</strong>
           </div>
-          <div class="sim-day-turns">
-            <div class="sim-turn">🌅 <strong>Manhã:</strong> Chegada em ${destination}, transfer e check-in na hospedagem reservada.</div>
-            <div class="sim-turn">🌇 <strong>Tarde:</strong> Passeio inicial de aclimatação pelos arredores e pontos turísticos próximos.</div>
-            <div class="sim-turn">🌙 <strong>Noite:</strong> Jantar de boas-vindas com o melhor da culinária de ${destination}.</div>
+          <div class="sim-day-turns" style="display: flex; flex-direction: column; gap: 14px;">
+            <div class="sim-turn">
+              🌅 <strong>MANHÃ (aprox. 08h–12h)</strong><br>
+              Chegada e reconhecimento dos arredores da hospedagem.<br>
+              <span class="sim-detail-line">→ <strong>Por que vale:</strong> Se situar no destino e fazer o check-in sem pressa para carregar baterias.</span><br>
+              <span class="sim-detail-line">→ <strong>Dica prática:</strong> Garanta o chip de internet e o cartão de transporte local direto no saguão de desembarque.</span><br>
+              <span class="sim-detail-line">→ <strong>Entrada:</strong> Gratuito</span>
+            </div>
+            
+            <div class="sim-turn">
+              🌇 <strong>TARDE (aprox. 12h–18h)</strong><br>
+              Caminhada guiada pelo centro histórico de ${destination}.<br>
+              <span class="sim-detail-line">→ <strong>Por que vale:</strong> Conectar com a essência cultural e ver os marcos históricos mais emblemáticos do local de perto.</span><br>
+              <span class="sim-detail-line">→ <strong>Dica prática:</strong> Vá com calçado confortável, pois as ruas centrais são de paralelepípedo antigo.</span><br>
+              <span class="sim-detail-line">→ <strong>Entrada:</strong> Gratuito</span>
+            </div>
+            
+            <div class="sim-turn">
+              🍔 <strong>Pausa Gastronômica Recomendada</strong><br>
+              Restaurante local tradicional de ${destination}.<br>
+              <span class="sim-detail-line">→ <strong>Indicação:</strong> Peça o prato assinatura da casa para começar a viagem com o pé direito.</span><br>
+              <span class="sim-detail-line">→ <strong>Preço médio:</strong> R$ 45 a R$ 60 por pessoa</span><br>
+              <div class="sim-restaurant-links" style="margin-top: 8px; display: flex; gap: 8px;">
+                <a href="https://tripadvisor.com" target="_blank" class="sim-restaurant-link-btn" style="padding: 4px 8px; font-size: 0.7rem; background: #00af87; color: white; border-radius: 4px; text-decoration: none;"><i class="fa-solid fa-map-location-dot"></i> TripAdvisor</a>
+                <a href="https://google.com/maps" target="_blank" class="sim-restaurant-link-btn" style="padding: 4px 8px; font-size: 0.7rem; background: #4285f4; color: white; border-radius: 4px; text-decoration: none;"><i class="fa-solid fa-location-dot"></i> Google Maps</a>
+              </div>
+            </div>
+
+            <div class="sim-turn">
+              🌙 <strong>NOITE (aprox. 18h–22h+)</strong><br>
+              Jantar panorâmico ou caminhada por mirante iluminado.<br>
+              <span class="sim-detail-line">→ <strong>Por que vale:</strong> Ver a silhueta da cidade acesa com atmosfera local vibrante e romântica.</span><br>
+              <span class="sim-detail-line">→ <strong>Dica prática:</strong> Reserve a mesa com antecedência para garantir a melhor vista na janela.</span>
+            </div>
+            
+            <div class="sim-turn-extra" style="border-top: 1px dashed rgba(255,255,255,0.08); padding-top: 8px; margin-top: 8px;">
+              ⭐ <strong>MOMENTO WOW DO DIA:</strong> Ver o entardecer do principal mirante de ${destination} com vista panorâmica.<br>
+              💡 <strong>DICA DE INSIDER:</strong> Fuja dos táxis na saída do aeroporto, use o aplicativo oficial do local que economiza até 40% do trajeto.<br>
+              🚗 <strong>LOGÍSTICA:</strong> Deslocamento a pé pelas atrações da tarde. Uber para o restaurante noturno (aprox. 15 minutos).
+            </div>
           </div>
         </div>
         <div class="sim-day-card blurred">
