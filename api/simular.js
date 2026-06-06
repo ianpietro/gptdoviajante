@@ -104,7 +104,6 @@ Escreva sempre em português do Brasil, de forma natural e amigável.`;
         },
         generationConfig: {
           temperature: 0.7,
-          maxOutputTokens: 2500,
           responseMimeType: "application/json"
         }
       })
@@ -116,13 +115,19 @@ Escreva sempre em português do Brasil, de forma natural e amigável.`;
     }
 
     const resData = await response.json();
+    console.log("CANDIDATES INFO:", JSON.stringify(resData.candidates, null, 2));
     const aiReply = resData.candidates?.[0]?.content?.parts?.[0]?.text;
 
     if (!aiReply) {
       throw new Error("Resposta vazia da API do Gemini.");
     }
 
-    return res.status(200).json(JSON.parse(aiReply));
+    try {
+      return res.status(200).json(JSON.parse(aiReply));
+    } catch (parseError) {
+      console.error("RAW AI REPLY THAT FAILED PARSING:", aiReply);
+      throw parseError;
+    }
   } catch (error) {
     console.error("Simulator error:", error);
     return res.status(500).json({ error: error.message || "Erro interno ao gerar simulação." });
