@@ -1,0 +1,10 @@
+node_modules/
+.env
+.env.local
+.env.production
+.vercel
+.DS_Store
+*.log
+.env*
+historico_chat.jsonl
+allowed_emails.txt

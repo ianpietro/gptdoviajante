@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>GPT do Viajante - Robô Planejador de Viagens Inteligente</title>
+  <meta name="description" content="Eu criei um robô que planeja sua viagem inteira e te entrega tudo pronto. Roteiro dia a dia personalizado, mala inteligente, orçamento e guia local por R$ 49,90.">
+  
+  <!-- SEO OpenGraph Meta Tags -->
+  <meta property="og:title" content="GPT do Viajante - Roteiro Completo Sem Enrolação">
+  <meta property="og:description" content="Planeje sua viagem dos sonhos em minutos com inteligência de viajante de verdade. Roteiro interativo, mala de viagem e finanças em um só lugar.">
+  <meta property="og:type" content="website">
+  
+  <!-- Modern Typography (Google Fonts) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Main Stylesheet (LP Isolated) -->
+  <link rel="stylesheet" href="vendas.css">
+</head>
+<body>
+
+  <!-- 1. Header / Barra de Navegação -->
+  <nav class="header-nav" id="mainHeader">
+    <div class="container nav-wrapper">
+      <a href="#" class="logo-container" id="brandLogo">
+        <div class="logo-icon"><i class="fa-solid fa-compass"></i></div>
+        <div class="logo-text">GPT do Viajante</div>
+      </a>
+      <div class="nav-actions">
+        <a href="/app" class="nav-login" id="linkToLogin"><i class="fa-solid fa-right-to-bracket"></i> Já sou cliente</a>
+        <a href="#oferta" class="btn btn-primary nav-btn-sm" id="btnHeaderCta">Começar Agora</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- 2. Hero Section: Headline Impactante + Simulador Interativo -->
+  <header class="hero-section" id="heroSection">
+    <div class="container hero-grid">
+      
+      <!-- Lado Esquerdo: Copys Persuasivas -->
+      <div class="hero-content-left">
+        <span class="badge" id="heroBadge"><i class="fa-solid fa-wand-magic-sparkles"></i> Inteligência Artificial de Viagens</span>
+        <h1 class="hero-title" id="mainTitle">Eu criei um robô que planeja sua viagem inteira.</h1>
+        <p class="hero-description" id="mainDesc">
+          Você diz como quer viajar. Ele devolve o roteiro dia a dia completo, estimativa de custos e mala inteligente. Baseado em experiências reais, feito sob medida para você — não para a internet.
+        </p>
+        
+        <div class="hero-ctas">
+          <a href="#oferta" class="btn btn-accent" id="btnHeroBuy"><i class="fa-solid fa-plane-departure"></i> Garantir Meu Acesso</a>
+          <a href="#como-funciona" class="btn btn-outline" id="btnHeroLearn">Ver Como Funciona</a>
+        </div>
+        
+        <div class="hero-trust" id="heroTrust">
+          <div class="hero-trust-stars">
+            <i class="fa-solid fa-star"></i>
+            <i class="fa-solid fa-star"></i>
+            <i class="fa-solid fa-star"></i>
+            <i class="fa-solid fa-star"></i>
+            <i class="fa-solid fa-star"></i>
+          </div>
+          <span>Mais de 1.200 roteiros gerados esta semana</span>
+        </div>
+      </div>
+      
+      <!-- Lado Direito: Simulador de Roteiro Interativo -->
+      <div class="glass-card simulator-widget" id="simulatorWidget">
+        
+        <!-- Estado 1: Formulário de Configuração -->
+        <div class="simulator-form" id="simFormState">
+          <div class="simulator-header">
+            <h3><i class="fa-solid fa-sliders"></i> Simule Seu Roteiro</h3>
+            <span class="simulator-badge"><i class="fa-solid fa-bolt"></i> Grátis</span>
+          </div>
+          
+          <div class="sim-input-group">
+            <label for="simDest">Qual o destino dos sonhos?</label>
+            <input type="text" id="simDest" class="sim-input" placeholder="Ex: Paris, Santiago, Salvador..." required>
+          </div>
+          
+          <div class="sim-input-group">
+            <div class="sim-days-value">
+              <label>Quantos dias de viagem?</label>
+              <span id="simDaysLabel">5 Dias</span>
+            </div>
+            <input type="range" id="simDays" class="sim-slider" min="1" max="15" value="5">
+          </div>
+          
+          <div class="sim-input-group">
+            <label for="simProfile">Quem vai viajar com você?</label>
+            <select id="simProfile" class="sim-input sim-select">
+              <option value="casal">Casal (Romântico & Conforto)</option>
+              <option value="familia">Família (Diversão & Logística)</option>
+              <option value="mochila">Mochilão (Econômico & Aventura)</option>
+              <option value="amigos">Grupo de Amigos (Vida Noturna & Passeios)</option>
+            </select>
+          </div>
+          
+          <button type="button" class="btn-generate" id="btnSimulate"><i class="fa-solid fa-wand-magic-sparkles"></i> Gerar Roteiro Simulado</button>
+        </div>
+        
+        <!-- Estado 2: Console de Chat Inteligente (Escondido por padrão) -->
+        <div class="simulator-screen hidden" id="simChatState">
+          <div class="simulator-header">
+            <h3><i class="fa-solid fa-robot"></i> Inteligência IA</h3>
+            <span class="simulator-badge"><i class="fa-solid fa-spinner fa-spin"></i> Processando...</span>
+          </div>
+          
+          <div class="sim-chat-area" id="simChatArea">
+            <!-- Balões dinâmicos injetados por vendas.js -->
+          </div>
+          
+          <!-- Botão ou Bloco de Checkout integrado pós-simulação (Escondido por padrão) -->
+          <div class="sim-lock-overlay hidden" id="simLockOverlay">
+            <div class="lock-icon"><i class="fa-solid fa-lock"></i></div>
+            <h4 class="sim-lock-title">Roteiro Personalizado Criado!</h4>
+            <p class="sim-lock-text">
+              Para desbloquear seu cronograma interativo completo, mala inteligente e planilha financeira reativa, garanta seu acesso completo.
+            </p>
+            <a href="#oferta" class="btn btn-accent btn-lock-unlock" id="btnSimUnlock"><i class="fa-solid fa-cart-shopping"></i> Desbloquear Por Apenas R$ 49,90</a>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </header>
+
+  <!-- 3. Seção A Dor: O Caos do Planejamento Comum -->
+  <section class="section-padding pain-section" id="a-dor">
+    <div class="container">
+      <div class="section-header">
+        <span class="badge badge-accent"><i class="fa-solid fa-triangle-exclamation"></i> O Grande Problema</span>
+        <h2 class="section-title">Planejar uma viagem sozinho dá muito trabalho.</h2>
+        <p class="section-subtitle">
+          Você já deve ter passado por isso: Abre 12 abas de blogs, entra em grupos cheios de opiniões conflitantes e gasta horas pesquisando no YouTube. No final, termina exausto e inseguro.
+        </p>
+      </div>
+      
+      <div class="pain-grid">
+        <div class="glass-card pain-card">
+          <div class="pain-card-icon"><i class="fa-solid fa-hourglass-half"></i></div>
+          <h3>Horas Perdidas</h3>
+          <p>Passar noites em claro comparando hotéis, analisando avaliações confusas e tentando traçar mapas de atração.</p>
+        </div>
+        
+        <div class="glass-card pain-card">
+          <div class="pain-card-icon"><i class="fa-solid fa-dollar-sign"></i></div>
+          <h3>Ciladas Financeiras</h3>
+          <p>Não saber calcular os gastos reais com alimentação e transporte local, caindo em armadilhas de turistas caros.</p>
+        </div>
+        
+        <div class="glass-card pain-card">
+          <div class="pain-card-icon"><i class="fa-solid fa-shield-halved"></i></div>
+          <h3>Medo e Incerteza</h3>
+          <p>Montar um roteiro engessado, ignorar dicas de segurança essenciais da região e esquecer itens cruciais na mala.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. Seção Solução: O Que o GPT do Viajante Entrega -->
+  <section class="section-padding" id="o-que-entrega">
+    <div class="container">
+      <div class="section-header">
+        <span class="badge"><i class="fa-solid fa-circle-check"></i> A Solução</span>
+        <h2 class="section-title">Um consultor de bolso. Do seu jeito.</h2>
+        <p class="section-subtitle">
+          Esqueça os roteiros copiados da internet. O GPT do Viajante pensa como um mochileiro experiente, calculando tudo sob medida.
+        </p>
+      </div>
+      
+      <div class="features-grid">
+        
+        <div class="glass-card feature-item">
+          <div class="feature-icon-box"><i class="fa-solid fa-calendar-day"></i></div>
+          <div class="feature-body">
+            <h3>Roteiro Dia a Dia Prático</h3>
+            <p>Atrações organizadas por turnos (Manhã, Tarde e Noite) para aproveitar ao máximo o tempo sem correria desnecessária.</p>
+          </div>
+        </div>
+        
+        <div class="glass-card feature-item accent-theme">
+          <div class="feature-icon-box"><i class="fa-solid fa-wallet"></i></div>
+          <div class="feature-body">
+            <h3>Orçamento Reativo em 3 Níveis</h3>
+            <p>Estimativas claras para perfis Econômico, Intermediário e Conforto. Você ajusta os sliders e vê os totais em tempo real.</p>
+          </div>
+        </div>
+        
+        <div class="glass-card feature-item purple-theme">
+          <div class="feature-icon-box"><i class="fa-solid fa-suitcase-rolling"></i></div>
+          <div class="feature-body">
+            <h3>Mala Inteligente Automatizada</h3>
+            <p>Lista de roupas e acessórios gerada com base no clima e tipo de destino. Nunca mais esqueça o casaco ou protetor solar.</p>
+          </div>
+        </div>
+        
+        <div class="glass-card feature-item yellow-theme">
+          <div class="feature-icon-box"><i class="fa-solid fa-compass"></i></div>
+          <div class="feature-body">
+            <h3>Guia Local "Na Viagem"</h3>
+            <p>Está perdido no destino? Mande uma mensagem para o robô dizendo onde está e ele iniciará um tour imersivo guiado.</p>
+          </div>
+        </div>
+
+        <div class="glass-card feature-item cyan-theme">
+          <div class="feature-icon-box"><i class="fa-solid fa-plane-departure"></i></div>
+          <div class="feature-body">
+            <h3>Busca e Comparador de Voos</h3>
+            <p>Pesquise preços de passagens aéreas e compare o valor de datas próximas em um painel limpo. Rastreie status e bagagens em tempo real.</p>
+          </div>
+        </div>
+
+        <div class="glass-card feature-item orange-theme">
+          <div class="feature-icon-box"><i class="fa-solid fa-scale-balanced"></i></div>
+          <div class="feature-body">
+            <h3>Divisor de Despesas (Splitwise)</h3>
+            <p>Vai viajar em grupo? Cadastre gastos compartilhados e o app calcula automaticamente quem deve quanto para quem, sem estresse.</p>
+          </div>
+        </div>
+        
+      </div>
+    </div>
+  </section>
+
+  <!-- 5. Como Funciona -->
+  <section class="section-padding how-section" id="como-funciona">
+    <div class="container">
+      <div class="section-header">
+        <span class="badge badge-accent"><i class="fa-solid fa-circle-play"></i> Simples & Rápido</span>
+        <h2 class="section-title">Como o Planejador Funciona?</h2>
+        <p class="section-subtitle">
+          Esqueça integrações difíceis ou cadastros chatos. Você resolve tudo em 3 etapas intuitivas.
+        </p>
+      </div>
+      
+      <div class="steps-grid">
+        
+        <div class="glass-card step-card">
+          <div class="step-number">1</div>
+          <h3>Faça o Briefing</h3>
+          <p>Conte ao robô seus interesses, para onde quer viajar, datas e com quem você vai dividir a aventura.</p>
+        </div>
+        
+        <div class="glass-card step-card">
+          <div class="step-number">2</div>
+          <h3>Ajuste e Refine</h3>
+          <p>O robô cria o roteiro e você pode pedir alterações: "troque o museu por uma trilha" ou "adicione restaurante de massas".</p>
+        </div>
+        
+        <div class="glass-card step-card">
+          <div class="step-number">3</div>
+          <h3>Leve na Viagem</h3>
+          <p>Acesse o painel direto do seu celular offline, exporte tudo em PDF e compartilhe com seu grupo no WhatsApp.</p>
+        </div>
+        
+      </div>
+    </div>
+  </section>
+
+  <!-- 6. Depoimentos de Clientes (Prova Social) -->
+  <section class="section-padding" id="depoimentos">
+    <div class="container">
+      <div class="section-header">
+        <span class="badge"><i class="fa-solid fa-comments"></i> Opinião de Quem Usou</span>
+        <h2 class="section-title">O que dizem os viajantes</h2>
+        <p class="section-subtitle">
+          Viajantes reais que economizaram tempo, dinheiro e evitaram ciladas nas estradas do mundo.
+        </p>
+      </div>
+      
+      <div class="testimonials-grid">
+        
+        <div class="glass-card testimonial-card">
+          <div class="testimonial-rating">
+            <i class="fa-solid fa-star"></i>
+            <i class="fa-solid fa-star"></i>
+            <i class="fa-solid fa-star"></i>
+            <i class="fa-solid fa-star"></i>
+            <i class="fa-solid fa-star"></i>
+          </div>
+          <p class="testimonial-text">
+            "Achei que seria só um chat comum de IA, mas o painel interativo mudou o jogo. O robô organizou o dia a dia e a checklist de malas calculou exatamente o que precisávamos levar para o Atacama. Valeu cada centavo!"
+          </p>
+          <div class="testimonial-user">
+            <img class="testimonial-avatar" src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=100" alt="Juliana V.">
+            <div class="testimonial-user-info">
+              <h4>Juliana V.</h4>
+              <span>Mochilão Casal (Atacama/Santiago)</span>
+            </div>
+          </div>
+        </div>
+        
+        <div class="glass-card testimonial-card">
+          <div class="testimonial-rating">
+            <i class="fa-solid fa-star"></i>
+            <i class="fa-solid fa-star"></i>
+            <i class="fa-solid fa-star"></i>
+            <i class="fa-solid fa-star"></i>
+            <i class="fa-solid fa-star"></i>
+          </div>
+          <p class="testimonial-text">
+            "Planejei minha viagem de Foz do Iguaçu em menos de 10 minutos. O orçamento em 3 faixas me deu a noção exata de quanto ia gastar por pessoa e as dicas de restaurantes tinham links diretos para localização. Recomendo muito!"
+          </p>
+          <div class="testimonial-user">
+            <img class="testimonial-avatar" src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=100" alt="Caio M.">
+            <div class="testimonial-user-info">
+              <h4>Caio M.</h4>
+              <span>Viagem Família (Foz do Iguaçu)</span>
+            </div>
+          </div>
+        </div>
+        
+      </div>
+    </div>
+  </section>
+
+  <!-- 7. Oferta Única / Preço -->
+  <section class="section-padding pricing-section" id="oferta">
+    <div class="container">
+      <div class="section-header">
+        <span class="badge badge-accent"><i class="fa-solid fa-tag"></i> Oferta de Lançamento</span>
+        <h2 class="section-title">Acesso Vitalício sem Mensalidades</h2>
+        <p class="section-subtitle">
+          Garanta o planejador agora e prepare quantas viagens quiser, para qualquer destino do mundo, para sempre.
+        </p>
+      </div>
+      
+      <div class="glass-card pricing-box" id="priceCard">
+        <div class="pricing-box-content">
+          <span class="pricing-title">Acesso Total Vitalício</span>
+          
+          <div class="price-container">
+            <span class="price-currency">R$</span>
+            <span class="price-val">49</span>
+            <span class="price-currency">,90</span>
+            <span class="price-period">único</span>
+          </div>
+          
+          <ul class="price-list">
+            <li><i class="fa-solid fa-circle-check"></i> Robô Planejador baseado na experiência de quem viaja, e muito (eu)</li>
+            <li><i class="fa-solid fa-circle-check"></i> Roteiros Ilimitados e Personalizados</li>
+            <li><i class="fa-solid fa-circle-check"></i> Comparador de Preços de Passagens</li>
+            <li><i class="fa-solid fa-circle-check"></i> Divisor de Contas de Grupo (Estilo Splitwise)</li>
+            <li><i class="fa-solid fa-circle-check"></i> Planilha de Orçamento Reativa</li>
+            <li><i class="fa-solid fa-circle-check"></i> Gerador de Mala de Viagem Inteligente</li>
+            <li><i class="fa-solid fa-circle-check"></i> Modo "Na Viagem" (Guia Local de Bolso)</li>
+            <li><i class="fa-solid fa-circle-check"></i> Exportação em PDF Fácil</li>
+          </ul>
+          
+          <!-- Botão direciona para checkout da Kirvano/Padrão -->
+          <a href="https://gptdoviajante.com/checkout" target="_blank" class="btn btn-accent" style="width: 100%; padding: 18px;" id="btnCheckoutPurchase">
+            <i class="fa-solid fa-cart-shopping"></i> Comprar Acesso Imediato
+          </a>
+          
+          <p class="price-note">Pagamento 100% seguro. Liberação imediata no seu e-mail.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 8. FAQ: Dúvidas Frequentes -->
+  <section class="section-padding" id="faq">
+    <div class="container">
+      <div class="section-header">
+        <span class="badge"><i class="fa-solid fa-circle-question"></i> FAQ</span>
+        <h2 class="section-title">Perguntas Frequentes</h2>
+        <p class="section-subtitle">
+          Ficou com alguma dúvida sobre o funcionamento do robô? Respondemos aqui.
+        </p>
+      </div>
+      
+      <div class="faq-list" id="faqAccordion">
+        
+        <div class="faq-item">
+          <button class="faq-question">
+            <span>Como recebo o acesso ao robô planejador?</span>
+            <i class="fa-solid fa-chevron-down faq-icon"></i>
+          </button>
+          <div class="faq-answer">
+            <div class="faq-answer-inner">
+              Assim que o pagamento de R$ 49,90 for confirmado, você receberá automaticamente um e-mail com as instruções de acesso. Basta fazer o login usando seu e-mail cadastrado e começar a planejar.
+            </div>
+          </div>
+        </div>
+        
+        <div class="faq-item">
+          <button class="faq-question">
+            <span>Posso planejar mais de uma viagem?</span>
+            <i class="fa-solid fa-chevron-down faq-icon"></i>
+          </button>
+          <div class="faq-answer">
+            <div class="faq-answer-inner">
+              Sim! O acesso é vitalício e ilimitado. Você pode planejar a viagem deste mês, resetar as configurações e criar uma viagem totalmente nova para o ano que vem. Não há limite de destinos ou de dias.
+            </div>
+          </div>
+        </div>
+        
+        <div class="faq-item">
+          <button class="faq-question">
+            <span>Preciso pagar alguma mensalidade?</span>
+            <i class="fa-solid fa-chevron-down faq-icon"></i>
+          </button>
+          <div class="faq-answer">
+            <div class="faq-answer-inner">
+              Não. O pagamento é único de R$ 49,90. Você não terá nenhuma cobrança recorrente, taxas surpresas ou necessidade de pagar assinaturas.
+            </div>
+          </div>
+        </div>
+        
+        <div class="faq-item">
+          <button class="faq-question">
+            <span>Como funciona a exportação em PDF?</span>
+            <i class="fa-solid fa-chevron-down faq-icon"></i>
+          </button>
+          <div class="faq-answer">
+            <div class="faq-answer-inner">
+              Dentro do seu painel de viagem, há um botão "Baixar Roteiro em PDF". Clicando nele, um arquivo otimizado contendo todo o seu cronograma, checklists de malas e finanças é gerado. Você pode salvá-lo no celular ou enviar diretamente no grupo de WhatsApp da família para abrir offline na estrada.
+            </div>
+          </div>
+        </div>
+        
+      </div>
+    </div>
+  </section>
+
+  <!-- 9. Rodapé / Footer -->
+  <footer class="main-footer" id="mainFooter">
+    <div class="container">
+      <a href="#" class="footer-logo">
+        <div class="logo-icon"><i class="fa-solid fa-compass"></i></div>
+        <div class="logo-text">GPT do Viajante</div>
+      </a>
+      
+      <ul class="footer-links">
+        <li><a href="#a-dor">O Problema</a></li>
+        <li><a href="#o-que-entrega">Benefícios</a></li>
+        <li><a href="#como-funciona">Como Funciona</a></li>
+        <li><a href="#oferta">Adquirir</a></li>
+        <li><a href="/app">Painel do Cliente</a></li>
+      </ul>
+      
+      <p class="footer-copy">
+        &copy; 2026 GPT do Viajante. Todos os direitos reservados.<br>
+        Esta aplicação usa a API do Gemini/OpenAI de forma segura. Seus dados estão protegidos sob nossa política de privacidade.
+      </p>
+    </div>
+  </footer>
+
+  <!-- Main JavaScript File (LP Isolated) -->
+  <script src="vendas.js"></script>
+</body>
+</html>

@@ -1,0 +1,1116 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>GPT do Viajante - Painel Interativo</title>
+  <meta name="description" content="Seu consultor de bolso para planejar a viagem perfeita. Roteiro interativo, mala inteligente e orçamento reativo.">
+  
+  <!-- Modern Typography (Google Fonts) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Stylesheet -->
+  <link rel="stylesheet" href="style.css?v=1.1.1">
+</head>
+<body>
+
+  <!-- Lightbox for Gallery or PDF views -->
+  <div class="lightbox" id="galleryLightbox">
+    <div class="lightbox-content">
+      <button class="lightbox-close" id="closeLightbox"><i class="fa-solid fa-xmark"></i></button>
+      <img src="" alt="" id="lightboxImg">
+      <div class="lightbox-caption" id="lightboxCaption">Legenda da Imagem</div>
+    </div>
+  </div>  <!-- Login Screen Overlay -->
+  <div class="login-screen hidden" id="loginScreen">
+    <div class="login-card glass-panel">
+      <div class="login-header">
+        <div class="brand-icon" style="width: 50px; height: 50px; font-size: 1.5rem; margin: 0 auto 12px; display: flex; align-items: center; justify-content: center;"><i class="fa-solid fa-robot"></i></div>
+        <h2>GPT do Viajante</h2>
+        <p>Acesse seu consultor de bolso inteligente</p>
+      </div>
+      
+      <div class="login-error hidden" id="loginError">E-mail ou senha incorretos.</div>
+      
+      <form class="login-form" id="loginForm">
+        <div class="input-group">
+          <label for="loginEmail">E-mail</label>
+          <input type="email" id="loginEmail" placeholder="Digite seu e-mail..." required autocomplete="username">
+        </div>
+        <div class="input-group">
+          <label for="loginPassword">Senha</label>
+          <input type="password" id="loginPassword" placeholder="Digite sua senha..." required autocomplete="current-password">
+        </div>
+        
+        <button type="submit" class="btn btn-primary" id="loginSubmitBtn" style="width: 100%; margin-top: 10px; padding: 12px;">
+          Entrar
+        </button>
+      </form>
+      
+      <div class="login-divider">
+        <span>ou</span>
+      </div>
+      
+      <button type="button" class="btn btn-secondary google-btn" id="googleLoginBtn" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px;">
+        <svg viewBox="0 0 24 24" width="18" height="18" xmlns="http://www.w3.org/2000/svg">
+          <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+          <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+          <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05"/>
+          <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335"/>
+        </svg>
+        Entrar com Google
+      </button>
+
+      <!-- Oferta de Compra para não cadastrados -->
+      <div class="purchase-offer" id="loginPurchaseOffer" style="margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--border-color); text-align: center;">
+        <span style="font-size: 0.82rem; color: var(--text-light); display: block; margin-bottom: 10px; font-weight: 500;">Não tem acesso ao GPT do Viajante?</span>
+        <a href="https://gptdoviajante.com/checkout" target="_blank" class="btn btn-accent buy-btn" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px; font-weight: 700; border-radius: var(--border-radius-md); text-decoration: none; box-sizing: border-box;">
+          <i class="fa-solid fa-cart-shopping"></i> Comprar Acesso
+        </a>
+      </div>
+
+      <div id="inAppBrowserWarning" class="in-app-warning hidden" style="margin-top: 12px; padding: 10px; background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.25); border-radius: var(--border-radius-sm); font-size: 0.78rem; color: #fbd38d; text-align: center; line-height: 1.4;">
+        ⚠️ <strong>Atenção:</strong> O navegador interno do WhatsApp/Instagram bloqueia o login do Google. Clique nos 3 pontinhos (ou ícone de bússola) no rodapé/topo e selecione <strong>"Abrir no Safari/Chrome"</strong> para usar o Google, ou acesse com <strong>E-mail e Senha</strong> acima.
+      </div>
+
+      <div class="login-toggle" style="text-align: center; margin-top: 16px; font-size: 0.82rem; color: var(--text-light);">
+        <span id="loginToggleText">Não tem uma conta?</span>
+        <a href="#" id="toggleRegisterLink" style="color: var(--primary); font-weight: 600; margin-left: 4px;">Cadastre-se</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Layout Container: Dashboard on Top, Chat on Bottom -->
+  <div class="app-container hidden">
+
+
+    <nav class="bottom-nav" id="bottomNav">
+      <button class="bottom-nav-btn active" data-tab="chat">
+        <i class="fa-solid fa-comments"></i>
+        <span>Chat</span>
+      </button>
+      <button class="bottom-nav-btn" data-tab="roteiro">
+        <i class="fa-solid fa-route"></i>
+        <span>Roteiro</span>
+      </button>
+      <button class="bottom-nav-btn" data-tab="orcamento">
+        <i class="fa-solid fa-wallet"></i>
+        <span>Orçamento</span>
+      </button>
+      <button class="bottom-nav-btn" data-tab="mala">
+        <i class="fa-solid fa-suitcase"></i>
+        <span>Mala</span>
+      </button>
+      <button class="bottom-nav-btn" data-tab="naviagem">
+        <i class="fa-solid fa-compass"></i>
+        <span>Na Viagem</span>
+      </button>
+      <button class="bottom-nav-btn" data-tab="voos">
+        <i class="fa-solid fa-plane"></i>
+        <span>Voos</span>
+      </button>
+    </nav>
+
+    <!-- TOP: INTERACTIVE TRAVEL DASHBOARD -->
+    <main class="dashboard-content" id="dashboardContent">
+
+      <!-- Banner compacto global para induzir ao chat em todas as abas -->
+      <div id="noItineraryBannerGlobal" class="hidden no-itinerary-banner-compact">
+        <div class="no-itinerary-compact-content">
+          <i class="fa-solid fa-wand-magic-sparkles no-itinerary-compact-icon"></i>
+          <span class="no-itinerary-compact-text">Você ainda não criou um roteiro. Use o chat para planejar!</span>
+        </div>
+        <button class="no-itinerary-compact-btn" onclick="switchTab('chat')">
+          <i class="fa-solid fa-comments"></i> Ir ao Chat
+        </button>
+      </div>
+
+      <!-- Hero Banner Section -->
+      <header class="hero">
+        <div class="hero-bg" id="heroBg"></div>
+        <div class="hero-overlay"></div>
+        <div class="hero-content">
+          <div class="hero-text-wrapper">
+            <span class="badge badge-accent"><i class="fa-solid fa-plane-departure"></i> GPT do Viajante</span>
+            <h1 id="tripTitle">Minha Próxima Viagem</h1>
+            <p id="tripSubtitle">Converse com o consultor abaixo para gerar seu roteiro personalizado!</p>
+            
+            <!-- Countdown Timer -->
+            <div class="countdown-container hidden" id="countdown">
+              <div class="countdown-box">
+                <span class="countdown-num" id="days">00</span>
+                <span class="countdown-label">Dias</span>
+              </div>
+              <div class="countdown-box">
+                <span class="countdown-num" id="hours">00</span>
+                <span class="countdown-label">Horas</span>
+              </div>
+              <div class="countdown-box">
+                <span class="countdown-num" id="minutes">00</span>
+                <span class="countdown-label">Min</span>
+              </div>
+              <div class="countdown-box">
+                <span class="countdown-num" id="seconds">00</span>
+                <span class="countdown-label">Seg</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Banner para induzir ao chat caso não tenha roteiro -->
+          <div id="noItineraryBannerHero" class="hidden no-itinerary-square-box">
+            <div class="no-itinerary-square-icon">
+              <i class="fa-solid fa-wand-magic-sparkles"></i>
+            </div>
+            <h4 class="no-itinerary-square-title">Comece a planejar!</h4>
+            <p class="no-itinerary-square-text">Você ainda não criou um roteiro. Use o chat inteligente em segundos.</p>
+            <button class="no-itinerary-square-btn" onclick="switchTab('chat')">
+              <i class="fa-solid fa-comments"></i> Ir ao Chat
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <!-- Dashboard Cards Section -->
+      <section class="container info-section">
+        <div class="info-grid">
+          <div class="glass-panel info-card">
+            <div class="info-card-icon"><i class="fa-solid fa-calendar-days"></i></div>
+            <div class="info-card-details">
+              <h3>Período</h3>
+              <p id="infoDates">A definir</p>
+            </div>
+          </div>
+          <div class="glass-panel info-card">
+            <div class="info-card-icon"><i class="fa-solid fa-cloud-sun"></i></div>
+            <div class="info-card-details">
+              <h3>Clima Médio</h3>
+              <p id="infoWeather">A definir</p>
+            </div>
+          </div>
+          <div class="glass-panel info-card">
+            <div class="info-card-icon"><i class="fa-solid fa-users"></i></div>
+            <div class="info-card-details">
+              <h3>Grupo</h3>
+              <p id="infoGroup">A definir</p>
+            </div>
+          </div>
+          <div class="glass-panel info-card">
+            <div class="info-card-icon"><i class="fa-solid fa-hotel"></i></div>
+            <div class="info-card-details">
+              <h3>Hospedagem</h3>
+              <p id="infoHotel">A definir</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+
+      <!-- Flights Section -->
+      <section class="container section-padding" id="flightsSection">
+        <div class="section-title-wrapper">
+          <span class="badge badge-primary"><i class="fa-solid fa-plane"></i> Voos</span>
+          <h2 class="section-title">Busca e Rastreamento de Voos</h2>
+          <p class="section-subtitle">Pesquise os voos mais baratos e acompanhe o status de embarque e bagagens em tempo real.</p>
+        </div>
+
+        <!-- Sub-tabs within Flights Section -->
+        <div class="flights-sub-nav" style="display: flex; gap: 12px; margin-bottom: 24px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 12px;">
+          <button class="btn btn-secondary btn-sm sub-tab-btn active" id="subTabSearchBtn" data-sub-tab="search" style="border-radius: 20px; padding: 6px 16px;">
+            <i class="fa-solid fa-magnifying-glass"></i> Buscar Passagens
+          </button>
+          <button class="btn btn-secondary btn-sm sub-tab-btn" id="subTabTrackBtn" data-sub-tab="track" style="border-radius: 20px; padding: 6px 16px;">
+            <i class="fa-solid fa-clock"></i> Rastrear Voos
+          </button>
+        </div>
+
+        <!-- 1. Flight Search Section -->
+        <div class="flights-sub-section" id="flightSearchSubSection">
+          <div class="glass-panel" style="padding: 24px; margin-bottom: 24px;">
+            <h3 style="font-size: 1rem; font-weight: 700; color: white; margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
+              <i class="fa-solid fa-search" style="color: var(--primary);"></i> Buscar Preços de Passagens
+            </h3>
+            
+            <form id="flightSearchForm" style="display: flex; flex-direction: column; gap: 16px;">
+              <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                <div class="input-group" style="flex: 1; min-width: 140px; display: flex; flex-direction: column; gap: 6px;">
+                  <label for="flightSearchOrigin" style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: var(--text-light); letter-spacing: 0.05em;">Origem (IATA) *</label>
+                  <input type="text" id="flightSearchOrigin" placeholder="Ex: GRU" required style="background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 10px 12px; color: white; outline: none; font-size: 0.9rem; text-transform: uppercase;">
+                </div>
+                
+                <div class="input-group" style="flex: 1; min-width: 140px; display: flex; flex-direction: column; gap: 6px;">
+                  <label for="flightSearchDest" style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: var(--text-light); letter-spacing: 0.05em;">Destino (IATA) *</label>
+                  <input type="text" id="flightSearchDest" placeholder="Ex: CDG" required style="background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 10px 12px; color: white; outline: none; font-size: 0.9rem; text-transform: uppercase;">
+                </div>
+                
+                <div class="input-group" style="flex: 1; min-width: 160px; display: flex; flex-direction: column; gap: 6px;">
+                  <label for="flightSearchDate" style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: var(--text-light); letter-spacing: 0.05em;">Data de Partida *</label>
+                  <input type="date" id="flightSearchDate" required style="background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 10px 12px; color: white; outline: none; font-size: 0.9rem;">
+                </div>
+              </div>
+              
+              <button type="submit" class="btn btn-primary" id="btnRunFlightSearch" style="padding: 12px; font-weight: 700; font-size: 0.9rem; display: flex; align-items: center; justify-content: center; gap: 8px; background: linear-gradient(135deg, var(--primary) 0%, #1d4ed8 100%); border: none; cursor: pointer; border-radius: var(--border-radius-md); transition: all 0.2s;">
+                <i class="fa-solid fa-magnifying-glass"></i> Buscar Melhores Preços
+              </button>
+            </form>
+          </div>
+          
+          <!-- Loading State -->
+          <div id="flightSearchGlobalLoading" class="hidden" style="text-align: center; padding: 40px 20px;">
+            <i class="fa-solid fa-circle-notch fa-spin" style="font-size: 2.5rem; color: var(--primary); margin-bottom: 16px;"></i>
+            <p style="font-size: 0.9rem; color: var(--text-light); margin-bottom: 4px;">Pesquisando voos e comparando preços de datas adjacentes...</p>
+            <span style="font-size: 0.78rem; color: var(--text-muted);">Isso pode levar alguns segundos...</span>
+          </div>
+
+          <!-- Error State -->
+          <div id="flightSearchGlobalError" class="hidden" style="padding: 16px; background: rgba(234, 67, 53, 0.1); border: 1px solid rgba(234, 67, 53, 0.2); border-radius: var(--border-radius-md); text-align: center; color: #f87171; font-size: 0.88rem; margin-bottom: 24px;">
+            <i class="fa-solid fa-triangle-exclamation" style="margin-right: 6px;"></i> <span id="flightSearchGlobalErrorText">Ocorreu um erro ao pesquisar voos.</span>
+          </div>
+
+          <!-- Results Container -->
+          <div id="flightSearchResultsContainer" class="hidden" style="display: flex; flex-direction: column; gap: 20px;">
+            <!-- Natural Recommendation Alert -->
+            <div class="natural-recommendation-alert" style="background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(99, 102, 241, 0.1) 100%); border: 1px solid rgba(59, 130, 246, 0.25); border-radius: var(--border-radius-md); padding: 18px; display: flex; gap: 14px; align-items: flex-start; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+              <div style="font-size: 1.5rem; color: #60a5fa; padding-top: 2px;"><i class="fa-solid fa-lightbulb"></i></div>
+              <div style="display: flex; flex-direction: column; gap: 4px; text-align: left;">
+                <h4 style="font-size: 0.92rem; font-weight: 700; color: white; margin: 0;">Análise do Especialista</h4>
+                <p id="flightSearchExplanationText" style="font-size: 0.85rem; color: var(--text-light); line-height: 1.5; margin: 0;"></p>
+              </div>
+            </div>
+            
+            <!-- Main requested flight details -->
+            <div class="glass-panel" style="padding: 20px;">
+              <h4 style="font-size: 0.85rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.05em; margin-bottom: 12px; text-align: left;">Voo na data solicitada</h4>
+              <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+                <div style="text-align: left;">
+                  <h3 id="flightSearchReqDate" style="font-size: 1.15rem; font-weight: 800; color: white; margin: 0;">05/06/2026</h3>
+                  <p id="flightSearchReqAirline" style="font-size: 0.82rem; color: var(--text-light); margin: 4px 0 0;"></p>
+                </div>
+                <div style="text-align: right;">
+                  <span id="flightSearchReqPrice" style="font-size: 1.5rem; font-weight: 800; color: #10b981;">R$ 1.500</span>
+                  <p id="flightSearchReqStops" style="font-size: 0.78rem; color: var(--text-muted); margin: 4px 0 0;"></p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Price Comparison Grid (Table-like or cards) -->
+            <div class="glass-panel" style="padding: 20px;">
+              <h4 style="font-size: 0.85rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.05em; margin-bottom: 16px; text-align: left;">Comparação de datas próximas</h4>
+              <div id="flightSearchGrid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px;">
+                <!-- Dynamically populated comparison cards -->
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. Flight Tracking Section -->
+        <div class="flights-sub-section hidden" id="flightTrackSubSection">
+          <div style="display: flex; justify-content: flex-end; margin-bottom: 20px;">
+            <button class="btn btn-primary btn-sm" id="openAddFlightModalBtn">
+              <i class="fa-solid fa-plus"></i> Adicionar Voo
+            </button>
+          </div>
+
+          <div class="timeline-empty" id="flightsEmpty">
+            <div class="empty-icon"><i class="fa-solid fa-plane-slash"></i></div>
+            <h3>Nenhum voo cadastrado</h3>
+            <p>Clique no botão acima para cadastrar seu primeiro voo e acompanhar os dados reais!</p>
+          </div>
+
+          <div class="flights-container" id="flightsContainer" style="display: flex; flex-direction: column; gap: 16px;">
+            <!-- Flight cards dynamically injected by JS -->
+          </div>
+        </div>
+      </section>
+
+      <!-- Timeline / Itinerary Section -->
+      <section class="container section-padding" id="itinerarySection">
+        <div class="section-title-wrapper">
+          <span class="badge badge-primary"><i class="fa-solid fa-route"></i> O Cronograma</span>
+          <h2 class="section-title">Programação Dia a Dia</h2>
+          <p class="section-subtitle">O roteiro gerado aparecerá organizado aqui. Clique nos dias para ver detalhes.</p>
+        </div>
+
+        <div class="timeline-empty" id="timelineEmpty">
+          <div class="chat-cta-card" id="chatCtaCard">
+            <div class="chat-cta-glow"></div>
+            <div class="chat-cta-icon">
+              <i class="fa-solid fa-robot"></i>
+            </div>
+            <h3 class="chat-cta-title">Sua viagem começa aqui ✈️</h3>
+            <p class="chat-cta-subtitle">Conte para onde você quer ir, quando e com quem — seu roteiro completo será montado automaticamente!</p>
+            <div class="chat-cta-examples">
+              <span>"Quero ir a Lisboa em julho com minha namorada"</span>
+              <span>"10 dias em Buenos Aires com família, orçamento médio"</span>
+              <span>"Mochilão pela Europa em agosto"</span>
+            </div>
+            <button class="chat-cta-btn" onclick="switchTab('chat')">
+              <i class="fa-solid fa-comments"></i> Começar no Chat
+              <i class="fa-solid fa-arrow-right chat-cta-arrow"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="timeline-nav hidden" id="timelineNav">
+          <!-- Filter buttons dynamically injected by JS -->
+        </div>
+
+        <div class="timeline-container hidden" id="timelineContainer">
+          <!-- Timeline cards dynamically injected by JS -->
+        </div>
+
+        <!-- Footer & Export Panel -->
+        <footer style="margin-top: 40px; border-radius: var(--border-radius-md);">
+          <div class="footer-brand">GPT do Viajante</div>
+          <p>Desenvolvido para transformar conversas em roteiros dinâmicos e fáceis de usar.</p>
+          <div class="footer-actions">
+            <button class="btn btn-accent" id="exportPdfBtn"><i class="fa-solid fa-file-pdf"></i> Baixar Roteiro em PDF</button>
+          </div>
+          <p class="footer-note" style="margin: 0 auto;">Gere o arquivo offline para mandar no WhatsApp de familiares. Abre interativamente e sem internet em qualquer celular!</p>
+        </footer>
+      </section>
+
+      <!-- Budget Section -->
+      <section class="section-padding" id="budgetSection" style="background: var(--bg-card); border-top: 1px solid var(--border-color); border-bottom: 1px solid var(--border-color);">
+        <div class="container">
+          <div class="section-title-wrapper">
+            <span class="badge badge-primary"><i class="fa-solid fa-wallet"></i> Finanças</span>
+            <h2 class="section-title">Orçamento Inteligente</h2>
+            <p class="section-subtitle">Gerencie suas finanças pessoais ou divida as despesas da viagem com amigos.</p>
+          </div>
+
+          <!-- Sub-abas Finanças -->
+          <div class="sub-tab-bar" style="display: flex; gap: 8px; margin-bottom: 24px; border-bottom: 1px solid var(--border-color); padding-bottom: 12px;">
+            <button class="btn btn-sm btn-sub-tab active" id="subTabMyBudgetBtn" style="border-radius: var(--border-radius-md); padding: 8px 16px; font-weight: 600; display: flex; align-items: center; gap: 6px;">
+              <i class="fa-solid fa-user"></i> Meu Orçamento
+            </button>
+            <button class="btn btn-sm btn-sub-tab" id="subTabSplitwiseBtn" style="border-radius: var(--border-radius-md); padding: 8px 16px; font-weight: 600; display: flex; align-items: center; gap: 6px;">
+              <i class="fa-solid fa-users-arrows"></i> Dividir Despesas
+            </button>
+          </div>
+
+          <div class="glass-panel budget-grid" id="myBudgetPanel">
+            
+            <!-- Sliders -->
+            <div class="budget-controls">
+              <div class="budget-input-group">
+                <div class="budget-label-wrapper">
+                  <span>Hospedagem &amp; Voos</span>
+                  <span id="labelHospedagem">R$ 0</span>
+                </div>
+                <input type="range" class="budget-slider" id="slideHospedagem" min="0" max="10000" step="100" value="0" oninput="updateBudget()">
+              </div>
+              
+              <div class="budget-input-group">
+                <div class="budget-label-wrapper">
+                  <span>Alimentação</span>
+                  <span id="labelAlimentacao">R$ 0</span>
+                </div>
+                <input type="range" class="budget-slider" id="slideAlimentacao" min="0" max="5000" step="50" value="0" oninput="updateBudget()">
+              </div>
+              
+              <div class="budget-input-group">
+                <div class="budget-label-wrapper">
+                  <span>Passeios &amp; Atrações</span>
+                  <span id="labelPasseios">R$ 0</span>
+                </div>
+                <input type="range" class="budget-slider" id="slidePasseios" min="0" max="5000" step="50" value="0" oninput="updateBudget()">
+              </div>
+              
+              <div class="budget-input-group">
+                <div class="budget-label-wrapper">
+                  <span>Compras &amp; Emergências</span>
+                  <span id="labelCompras">R$ 0</span>
+                </div>
+                <input type="range" class="budget-slider" id="slideCompras" min="0" max="5000" step="50" value="0" oninput="updateBudget()">
+              </div>
+            </div>
+            
+            <!-- Result Donut Ring -->
+            <div class="budget-chart-container">
+              <div class="budget-chart-donut" id="budgetDonut">
+                <div class="budget-total-box">
+                  <h4>Total Estimado</h4>
+                  <div class="budget-total-val" id="budgetTotal">R$ 0</div>
+                  <p style="font-size: 0.78rem; opacity: 0.8; margin-top: 4px;">Por Viajante</p>
+                </div>
+              </div>
+              
+              <div class="budget-legend">
+                <div class="legend-item">
+                  <div class="legend-color" style="background: var(--primary);"></div>
+                  <span>Hospedagem (<span id="pctHospedagem">0%</span>)</span>
+                </div>
+                <div class="legend-item">
+                  <div class="legend-color" style="background: var(--secondary);"></div>
+                  <span>Alimentação (<span id="pctAlimentacao">0%</span>)</span>
+                </div>
+                <div class="legend-item">
+                  <div class="legend-color" style="background: var(--accent);"></div>
+                  <span>Passeios (<span id="pctPasseios">0%</span>)</span>
+                </div>
+                <div class="legend-item">
+                  <div class="legend-color" style="background: var(--text-muted);"></div>
+                  <span>Outros (<span id="pctCompras">0%</span>)</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Splitwise Panel -->
+          <div class="glass-panel hidden" id="splitwisePanel" style="padding: 24px; display: flex; flex-direction: column; gap: 20px;">
+            
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed var(--border-color); padding-bottom: 12px; margin-bottom: 4px;">
+              <h2 style="font-size: 1.1rem; font-weight: 800; color: var(--text-main); margin: 0; display: flex; align-items: center; gap: 8px;">
+                <i class="fa-solid fa-users-arrows" style="color: var(--accent);"></i> Divisão de Contas
+              </h2>
+              <button class="btn btn-secondary btn-sm" id="shareSplitwiseBtn" style="padding: 8px 14px; font-size: 0.8rem; display: flex; align-items: center; gap: 6px;">
+                <i class="fa-solid fa-share-nodes"></i> Compartilhar Link
+              </button>
+            </div>
+            
+            <!-- Grupo & Participantes -->
+            <div class="splitwise-section" style="border-bottom: 1px dashed var(--border-color); padding-bottom: 20px;">
+              <h3 style="font-size: 1rem; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; color: var(--text-main);">
+                <i class="fa-solid fa-users" style="color: var(--primary);"></i> Participantes do Grupo
+              </h3>
+              <form id="addMemberForm" style="display: flex; gap: 10px; margin-bottom: 15px;">
+                <input type="text" id="newMemberNameInput" placeholder="Nome do amigo (ex: Maria)" required style="flex: 1; background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 8px 12px; color: white; outline: none; font-size: 0.88rem;">
+                <button type="submit" class="btn btn-primary" style="padding: 8px 16px; font-weight: 600; font-size: 0.85rem;">Adicionar</button>
+              </form>
+              <div id="membersList" style="display: flex; flex-wrap: wrap; gap: 8px;">
+                <!-- Member chips injected dynamically -->
+              </div>
+            </div>
+            
+            <!-- Saldos Simplificados -->
+            <div class="splitwise-section" style="border-bottom: 1px dashed var(--border-color); padding-bottom: 20px;">
+              <h3 style="font-size: 1rem; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; color: var(--text-main);">
+                <i class="fa-solid fa-scale-balanced" style="color: var(--accent);"></i> Acerto de Contas (Saldos Simplificados)
+              </h3>
+              <div id="splitwiseBalancesEmpty" style="font-size: 0.82rem; color: var(--text-muted); padding: 10px 0; text-align: center;">
+                Tudo limpo! Nenhuma dívida pendente no grupo.
+              </div>
+              <div id="splitwiseBalancesList" style="display: flex; flex-direction: column; gap: 10px;">
+                <!-- Dynamic balances and settle buttons -->
+              </div>
+            </div>
+            
+            <!-- Despesas -->
+            <div class="splitwise-section">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h3 style="font-size: 1rem; font-weight: 700; margin: 0; display: flex; align-items: center; gap: 8px; color: var(--text-main);">
+                  <i class="fa-solid fa-receipt" style="color: #38bdf8;"></i> Histórico de Despesas
+                </h3>
+                <button class="btn btn-accent btn-sm" id="openAddExpenseModalBtn">
+                  <i class="fa-solid fa-plus"></i> Adicionar Despesa
+                </button>
+              </div>
+              <div id="splitwiseExpensesEmpty" style="font-size: 0.82rem; color: var(--text-muted); padding: 20px 0; text-align: center;">
+                Nenhuma despesa de grupo cadastrada ainda.
+              </div>
+              <div id="splitwiseExpensesList" style="display: flex; flex-direction: column; gap: 12px;">
+                <!-- Expense items injected dynamically -->
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
+      <!-- Packing Checklist Section -->
+      <section class="container section-padding" id="packingSection">
+        <div class="section-title-wrapper">
+          <span class="badge badge-primary"><i class="fa-solid fa-suitcase"></i> Bagagem</span>
+          <h2 class="section-title">Checklist de Mala Inteligente</h2>
+          <p class="section-subtitle">Itens recomendados com base no destino e clima. Guardou na mala? É só marcar.</p>
+        </div>
+
+        <div class="timeline-empty" id="packingEmpty">
+          <div class="empty-icon"><i class="fa-solid fa-suitcase-rolling"></i></div>
+          <h3>Sem checklist ativo</h3>
+          <p>Mude o destino no chat para obter uma checklist de malas personalizada automaticamente.</p>
+        </div>
+
+        <div class="glass-panel hidden" id="packingContainer" style="padding: 30px;">
+          <!-- Packing Checklist Title -->
+          <div class="packing-header-title" style="margin-bottom: 20px; padding-bottom: 12px; border-bottom: 1px dashed rgba(255,255,255,0.12);">
+            <h3 id="packingTripTitle" style="font-size: 1.1rem; font-weight: 700; color: white; margin: 0; display: flex; align-items: center; gap: 8px;">
+              <i class="fa-solid fa-suitcase" style="color: var(--primary);"></i>
+              <span id="packingTripTitleText">Mala da Viagem</span>
+            </h3>
+          </div>
+          
+          <!-- Progress Bar -->
+          <div class="packing-progress-bar">
+            <div class="packing-progress-fill" id="packingProgressFill"></div>
+          </div>
+          <div class="packing-progress-text" id="packingProgressText">0 de 0 itens guardados (0%)</div>
+          
+          <div id="packingCategories">
+            <!-- Dynamically populated categories -->
+          </div>
+        </div>
+      </section>
+
+
+
+    </main>
+
+    <!-- BOTTOM: AI TRAVEL CONSULTANT CHAT -->
+    <aside class="chat-sidebar" id="chatSidebar">
+
+      <!-- Chat Top Bar: brand + tutorial + user -->
+      <div class="chat-header">
+        <div class="brand">
+          <div class="brand-icon"><i class="fa-solid fa-robot"></i></div>
+          <div class="brand-text">
+            <h2>GPT do Viajante</h2>
+            <span id="chatModeLabel">Planejar Roteiro</span>
+          </div>
+        </div>
+        <div class="header-actions">
+          <div class="travel-badge hidden" id="travelModeBadge">✈ Na Viagem</div>
+          <button class="btn btn-secondary btn-sm tutorial-trigger-btn" id="tutorialBtn" title="Tutorial do App" style="padding: 6px 12px; font-size: 0.78rem; display: flex; align-items: center; gap: 6px; border-radius: 20px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); color: var(--text-light); cursor: pointer;">
+            <i class="fa-solid fa-circle-question"></i> Tutorial
+          </button>
+          <div class="user-profile hidden" id="userProfile" style="display: flex; align-items: center; gap: 8px;">
+            <img src="" alt="Avatar" id="userAvatar" class="user-avatar" style="width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--border-color-glow); object-fit: cover;">
+            <button class="icon-btn" id="toggleSettings" title="Configurações do App"><i class="fa-solid fa-gear"></i></button>
+            <button class="icon-btn" id="logoutBtn" title="Sair"><i class="fa-solid fa-right-from-bracket"></i></button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Settings Dropdown (Collapsible) -->
+      <div class="settings-panel hidden" id="settingsPanel">
+        <h3><i class="fa-solid fa-sliders"></i> Configurações do App</h3>
+        <p>Gerencie seus dados locais salvos no navegador.</p>
+        <div class="settings-buttons">
+          <button class="btn btn-secondary btn-sm" id="clearDataBtn" style="width: 100%;">Resetar Todos os Dados</button>
+        </div>
+      </div>
+
+      <!-- ── PLANNING CHAT (tab: chat) ─────────────────────────── -->
+      <div class="chat-panel" id="planChatPanel">
+        <!-- Context card -->
+        <div class="chat-context-card plan-card">
+          <div class="ctx-icon"><i class="fa-solid fa-map-location-dot"></i></div>
+          <div class="ctx-body">
+            <strong>Chat de Planejamento</strong>
+            <p>Use o chat para montar seu roteiro, sugerir destinos, calcular orçamento, criar lista de mala e muito mais.</p>
+          </div>
+        </div>
+        <!-- Messages -->
+        <div class="chat-messages" id="chatMessages">
+          <div class="message assistant">
+            <div class="message-bubble">
+              <p>🌍 <strong>Olá, viajante! Eu sou o GPT do Viajante.</strong></p>
+              <p>Estou pronto para montar a sua viagem perfeita. Me conta: para onde você quer ir, quando e com quem?</p>
+            </div>
+            <span class="message-time">Agora</span>
+          </div>
+        </div>
+        <!-- Input -->
+        <input type="file" id="planFileInput" style="display: none;" accept="image/*,application/pdf,text/*">
+        <input type="file" id="planCameraInput" style="display: none;" accept="image/*" capture="environment">
+        <div id="planAttachmentPreview" class="attachment-preview-container hidden" style="align-items: center; gap: 10px; padding: 8px 12px; background: rgba(255,255,255,0.04); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); margin: 8px 16px 0; display: none;"></div>
+        <div class="chat-input-area">
+          <textarea id="chatInput" placeholder="Ex: Quero ir a Lisboa em julho por 10 dias..." rows="1"></textarea>
+          <div class="input-actions">
+            <button class="input-btn" id="attachBtn" title="Anexar Arquivo"><i class="fa-solid fa-paperclip"></i></button>
+            <button class="input-btn" id="cameraBtn" title="Tirar Foto"><i class="fa-solid fa-camera"></i></button>
+            <button class="send-btn" id="sendBtn"><i class="fa-solid fa-paper-plane"></i></button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── TRAVEL CHAT (tab: naviagem) ───────────────────────── -->
+      <div class="chat-panel hidden" id="travelChatPanel">
+        <!-- Context card -->
+        <div class="chat-context-card travel-card">
+          <div class="ctx-icon"><i class="fa-solid fa-compass"></i></div>
+          <div class="ctx-body">
+            <strong>Chat Na Viagem</strong>
+            <p>Você está viajando agora! Peça dicas de restaurantes, traduções, pontos turísticos e ajuda em tempo real.</p>
+          </div>
+        </div>
+        <!-- Messages -->
+        <div class="chat-messages" id="travelChatMessages">
+          <div class="message assistant">
+            <div class="message-bubble travel-bubble">
+              <p>✈️ <strong>Modo Na Viagem ativado!</strong></p>
+              <p>Estou aqui como seu guia em tempo real. Me conta onde você está ou o que quer explorar agora!</p>
+              
+              <div class="tour-info-box">
+                <div class="tour-info-title">
+                  <i class="fa-solid fa-masks-theater"></i> Como ativar o Tour Imersivo:
+                </div>
+                <p class="tour-info-text">
+                  Diga frases como: <strong>"Estou em [lugar]"</strong>, <strong>"Me leva num tour"</strong> ou <strong>"Quero conhecer tal lugar"</strong> para iniciar uma experiência de guia local interativo.
+                </p>
+                <div class="tour-info-title" style="margin-top: 10px;">
+                  <i class="fa-solid fa-sparkles"></i> O que o guia oferece:
+                </div>
+                <ul class="tour-info-list">
+                  <li>🧭 <strong>Direções em tempo real:</strong> "Olhe para o seu lado...", "Caminhe 50m..."</li>
+                  <li>🎭 <strong>Histórias & Curiosidades:</strong> Lendas urbanas e segredos históricos.</li>
+                  <li>🌟 <strong>Experiência Sensorial:</strong> Foco em luzes, sons, texturas e aromas locais.</li>
+                  <li>🍽️ <strong>Dicas do Bairro:</strong> Portinhas locais, pratos típicos e como evitar filas.</li>
+                </ul>
+              </div>
+            </div>
+            <span class="message-time">Agora</span>
+          </div>
+        </div>
+        <!-- Input -->
+        <input type="file" id="travelFileInput" style="display: none;" accept="image/*,application/pdf,text/*">
+        <input type="file" id="travelCameraInput" style="display: none;" accept="image/*" capture="environment">
+        <div id="travelAttachmentPreview" class="attachment-preview-container hidden" style="align-items: center; gap: 10px; padding: 8px 12px; background: rgba(255,255,255,0.04); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); margin: 8px 16px 0; display: none;"></div>
+        <div class="chat-input-area">
+          <textarea id="travelChatInput" placeholder="Ex: Qual restaurante perto de mim tem fado?" rows="1"></textarea>
+          <div class="input-actions">
+            <button class="input-btn" id="travelAttachBtn" title="Anexar Arquivo"><i class="fa-solid fa-paperclip"></i></button>
+            <button class="input-btn" id="travelCameraBtn" title="Tirar Foto"><i class="fa-solid fa-camera"></i></button>
+            <button class="send-btn" id="travelSendBtn"><i class="fa-solid fa-paper-plane"></i></button>
+          </div>
+        </div>
+      </div>
+
+    </aside>
+
+
+  </div>
+
+  <!-- Flight Modal Overlay -->
+  <div class="modal-overlay hidden" id="flightModal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 100000; padding: 20px; box-sizing: border-box;">
+    <div class="modal-card glass-panel" style="max-width: 480px; width: 100%; max-height: 90vh; overflow-y: auto; padding: 30px; border-radius: var(--border-radius-lg); box-shadow: var(--shadow-lg);">
+      <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--border-color); padding-bottom: 12px;">
+        <h3 id="flightModalTitle" style="margin: 0; font-size: 1.2rem; font-weight: 700; color: var(--text-main);"><i class="fa-solid fa-plane-arrival" style="color: var(--primary); margin-right: 8px;"></i> Adicionar Voo</h3>
+        <button class="modal-close" id="closeFlightModal" style="background: transparent; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.2rem;"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      
+      <form class="modal-form" id="flightForm" style="display: flex; flex-direction: column; gap: 14px;">
+        <input type="hidden" id="editFlightIndex" value="">
+        
+        <div style="display: flex; gap: 12px;">
+          <div class="input-group" style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
+            <label for="flightNumberInput" style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: var(--text-light); letter-spacing: 0.05em;">Nº do Voo *</label>
+            <input type="text" id="flightNumberInput" placeholder="Ex: AD4132" required style="background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 10px 12px; color: white; outline: none; font-size: 0.9rem;">
+          </div>
+          <div class="input-group" style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
+            <label for="flightDateInput" style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: var(--text-light); letter-spacing: 0.05em;">Data *</label>
+            <input type="date" id="flightDateInput" required style="background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 10px 12px; color: white; outline: none; font-size: 0.9rem;">
+          </div>
+        </div>
+
+        <button type="button" class="btn" id="searchFlightOnlineBtn" style="padding: 12px; font-weight: 700; font-size: 0.85rem; display: flex; align-items: center; justify-content: center; gap: 8px; background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%); color: white; border: none; box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3); cursor: pointer; transition: all 0.2s ease;">
+          <i class="fa-solid fa-wand-magic-sparkles"></i> Completar dados do voo
+        </button>
+
+        <div id="flightSearchLoading" class="hidden" style="text-align: center; font-size: 0.82rem; color: var(--primary); padding: 10px 0;">
+          <i class="fa-solid fa-circle-notch fa-spin"></i> Consultando assistente e buscando voo...
+        </div>
+        
+        <div id="flightSearchSuccess" class="hidden" style="text-align: center; font-size: 0.82rem; color: #34a853; padding: 6px 0; background: rgba(52, 168, 83, 0.1); border-radius: var(--border-radius-sm);">
+          ✓ Voo encontrado com sucesso!
+        </div>
+
+        <div id="flightSearchError" class="hidden" style="text-align: center; font-size: 0.82rem; color: #ea4335; padding: 6px 0; background: rgba(234, 67, 53, 0.1); border-radius: var(--border-radius-sm);">
+          ✕ Voo não encontrado. Preencha manualmente abaixo.
+        </div>
+
+        <!-- Manual Fields Section -->
+        <div style="border-top: 1px solid var(--border-color); padding-top: 14px; display: flex; flex-direction: column; gap: 12px;">
+          <h4 style="margin: 0 0 4px; font-size: 0.82rem; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.05em;">Dados do Voo</h4>
+          
+          <div style="display: flex; gap: 12px;">
+            <div class="input-group" style="flex: 2; display: flex; flex-direction: column; gap: 6px;">
+              <label for="flightAirlineInput" style="font-size: 0.68rem; font-weight: 700; color: var(--text-light);">Companhia Aérea</label>
+              <input type="text" id="flightAirlineInput" placeholder="Ex: Azul" style="background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 8px 10px; color: white; outline: none; font-size: 0.85rem;">
+            </div>
+            <div class="input-group" style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
+              <label for="flightStatusInput" style="font-size: 0.68rem; font-weight: 700; color: var(--text-light);">Status</label>
+              <select id="flightStatusInput" style="background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 8px 10px; color: white; outline: none; font-size: 0.85rem; height: 34px;">
+                <option value="Confirmado">Confirmado</option>
+                <option value="Embarque">Embarque</option>
+                <option value="Em Voo">Em Voo</option>
+                <option value="Pousou">Pousou</option>
+                <option value="Atrasado">Atrasado</option>
+                <option value="Cancelado">Cancelado</option>
+              </select>
+            </div>
+          </div>
+
+          <div style="display: flex; gap: 12px;">
+            <div class="input-group" style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
+              <label for="flightDepAirportInput" style="font-size: 0.68rem; font-weight: 700; color: var(--text-light);">Origem (IATA)</label>
+              <input type="text" id="flightDepAirportInput" placeholder="Ex: GRU" style="background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 8px 10px; color: white; outline: none; font-size: 0.85rem; text-transform: uppercase;">
+            </div>
+            <div class="input-group" style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
+              <label for="flightDepCityInput" style="font-size: 0.68rem; font-weight: 700; color: var(--text-light);">Cidade de Origem</label>
+              <input type="text" id="flightDepCityInput" placeholder="Ex: São Paulo" style="background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 8px 10px; color: white; outline: none; font-size: 0.85rem;">
+            </div>
+          </div>
+
+          <div style="display: flex; gap: 12px;">
+            <div class="input-group" style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
+              <label for="flightArrAirportInput" style="font-size: 0.68rem; font-weight: 700; color: var(--text-light);">Destino (IATA)</label>
+              <input type="text" id="flightArrAirportInput" placeholder="Ex: SDU" style="background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 8px 10px; color: white; outline: none; font-size: 0.85rem; text-transform: uppercase;">
+            </div>
+            <div class="input-group" style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
+              <label for="flightArrCityInput" style="font-size: 0.68rem; font-weight: 700; color: var(--text-light);">Cidade de Destino</label>
+              <input type="text" id="flightArrCityInput" placeholder="Ex: Rio de Janeiro" style="background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 8px 10px; color: white; outline: none; font-size: 0.85rem;">
+            </div>
+          </div>
+
+          <div style="display: flex; gap: 12px;">
+            <div class="input-group" style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
+              <label for="flightDepTimeInput" style="font-size: 0.68rem; font-weight: 700; color: var(--text-light);">Partida (Prevista)</label>
+              <input type="text" id="flightDepTimeInput" placeholder="Ex: 10:15" style="background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 8px 10px; color: white; outline: none; font-size: 0.85rem;">
+            </div>
+            <div class="input-group" style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
+              <label for="flightArrTimeInput" style="font-size: 0.68rem; font-weight: 700; color: var(--text-light);">Chegada (Prevista)</label>
+              <input type="text" id="flightArrTimeInput" placeholder="Ex: 11:30" style="background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 8px 10px; color: white; outline: none; font-size: 0.85rem;">
+            </div>
+          </div>
+
+          <div style="display: flex; gap: 12px;">
+            <div class="input-group" style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
+              <label for="flightTerminalInput" style="font-size: 0.68rem; font-weight: 700; color: var(--text-light);">Terminal</label>
+              <input type="text" id="flightTerminalInput" placeholder="Ex: T2" style="background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 8px 10px; color: white; outline: none; font-size: 0.85rem;">
+            </div>
+            <div class="input-group" style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
+              <label for="flightGateInput" style="font-size: 0.68rem; font-weight: 700; color: var(--text-light);">Portão</label>
+              <input type="text" id="flightGateInput" placeholder="Ex: 204" style="background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 8px 10px; color: white; outline: none; font-size: 0.85rem;">
+            </div>
+            <div class="input-group" style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
+              <label for="flightCarouselInput" style="font-size: 0.68rem; font-weight: 700; color: var(--text-light);">Esteira</label>
+              <input type="text" id="flightCarouselInput" placeholder="Ex: 5" style="background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 8px 10px; color: white; outline: none; font-size: 0.85rem;">
+            </div>
+          </div>
+        </div>
+
+        <div class="form-actions" style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; border-top: 1px solid var(--border-color); padding-top: 14px;">
+          <button type="button" class="btn btn-secondary" id="cancelFlightModalBtn" style="padding: 10px 18px;">Cancelar</button>
+          <button type="submit" class="btn btn-primary" id="submitFlightModalBtn" style="padding: 10px 22px;">Salvar Voo</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  
+  <!-- Expense Modal Overlay (Splitwise) -->
+  <div class="modal-overlay hidden" id="expenseModal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 100000; padding: 20px; box-sizing: border-box;">
+    <div class="modal-card glass-panel" style="max-width: 440px; width: 100%; max-height: 90vh; overflow-y: auto; padding: 30px; border-radius: var(--border-radius-lg); box-shadow: var(--shadow-lg);">
+      <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--border-color); padding-bottom: 12px;">
+        <h3 id="expenseModalTitle" style="margin: 0; font-size: 1.2rem; font-weight: 700; color: var(--text-main);"><i class="fa-solid fa-receipt" style="color: var(--primary); margin-right: 8px;"></i> Adicionar Despesa</h3>
+        <button class="modal-close" id="closeExpenseModal" style="background: transparent; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.2rem;"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      
+      <form class="modal-form" id="expenseForm" style="display: flex; flex-direction: column; gap: 14px;">
+        <input type="hidden" id="editExpenseIndex" value="">
+        
+        <div class="input-group" style="display: flex; flex-direction: column; gap: 6px;">
+          <label for="expenseDescInput" style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: var(--text-light); letter-spacing: 0.05em;">Descrição *</label>
+          <input type="text" id="expenseDescInput" placeholder="Ex: Jantar, Gasolina, Pedágio" required style="background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 10px 12px; color: white; outline: none; font-size: 0.9rem;">
+        </div>
+
+        <div style="display: flex; gap: 12px;">
+          <div class="input-group" style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
+            <label for="expenseAmountInput" style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: var(--text-light); letter-spacing: 0.05em;">Valor (R$) *</label>
+            <input type="number" id="expenseAmountInput" step="0.01" min="0.01" placeholder="0.00" required style="background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 10px 12px; color: white; outline: none; font-size: 0.9rem;">
+          </div>
+          <div class="input-group" style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
+            <label for="expensePayerSelect" style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: var(--text-light); letter-spacing: 0.05em;">Quem Pagou? *</label>
+            <select id="expensePayerSelect" required style="background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 10px 12px; color: white; outline: none; font-size: 0.9rem; height: 40px;">
+              <!-- Dynamic members list options -->
+            </select>
+          </div>
+        </div>
+
+        <!-- Participantes Checklist -->
+        <div class="input-group" style="display: flex; flex-direction: column; gap: 6px; border-top: 1px solid var(--border-color); padding-top: 14px; margin-top: 5px;">
+          <label style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: var(--text-light); letter-spacing: 0.05em; margin-bottom: 4px;">Dividir com quem? *</label>
+          <div id="expenseParticipantsChecklist" style="display: flex; flex-direction: column; gap: 10px; max-height: 150px; overflow-y: auto; background: rgba(0, 0, 0, 0.2); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 12px;">
+            <!-- Dynamic checkboxes injected here -->
+          </div>
+        </div>
+
+        <!-- Como dividir -->
+        <div class="input-group" style="display: flex; flex-direction: column; gap: 6px; border-top: 1px solid var(--border-color); padding-top: 14px; margin-top: 5px;">
+          <label style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: var(--text-light); letter-spacing: 0.05em; margin-bottom: 4px;">Como dividir? *</label>
+          <div style="display: flex; background: rgba(0, 0, 0, 0.3); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 3px; gap: 4px;">
+            <button type="button" id="btnSplitEqual" class="active" style="flex: 1; border: none; background: var(--primary); color: white; padding: 6px 12px; font-size: 0.8rem; font-weight: 600; border-radius: var(--border-radius-sm); cursor: pointer; transition: all 0.2s;">Igual</button>
+            <button type="button" id="btnSplitCustom" style="flex: 1; border: none; background: transparent; color: var(--text-muted); padding: 6px 12px; font-size: 0.8rem; font-weight: 600; border-radius: var(--border-radius-sm); cursor: pointer; transition: all 0.2s;">Personalizado</button>
+          </div>
+        </div>
+
+        <!-- Valores Individuais (Custom Shares) -->
+        <div id="customSharesWrapper" class="hidden" style="display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--border-color); padding-top: 14px;">
+          <label style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: var(--text-light); letter-spacing: 0.05em; margin-bottom: 4px;">Valores individuais (R$)</label>
+          <div id="customSharesList" style="display: flex; flex-direction: column; gap: 8px; max-height: 180px; overflow-y: auto; background: rgba(0, 0, 0, 0.2); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 12px;">
+            <!-- Dynamic inputs injected here -->
+          </div>
+          <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; padding: 0 4px;">
+            <span style="color: var(--text-muted);">Soma: R$ <span id="customSharesSum">0.00</span></span>
+            <span style="color: var(--text-muted);">Total: R$ <span id="customSharesTotalTarget">0.00</span></span>
+          </div>
+          <div id="customSharesValidationMsg" style="font-size: 0.75rem; color: #ea4335; text-align: right; display: none;">
+            ⚠️ A soma deve ser igual ao valor total.
+          </div>
+        </div>
+
+        <div class="form-actions" style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; border-top: 1px solid var(--border-color); padding-top: 14px;">
+          <button type="button" class="btn btn-secondary" id="cancelExpenseModalBtn" style="padding: 10px 18px;">Cancelar</button>
+          <button type="submit" class="btn btn-primary" id="submitExpenseModalBtn" style="padding: 10px 22px;">Salvar Despesa</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════
+       TUTORIAL MODAL
+  ═══════════════════════════════════════════════════════════════ -->
+  <div class="tutorial-overlay hidden" id="tutorialModal" role="dialog" aria-modal="true" aria-label="Tutorial do GPT do Viajante">
+    <div class="tutorial-card">
+
+      <!-- Close -->
+      <button class="tutorial-close" id="tutorialClose" aria-label="Fechar tutorial">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+
+      <!-- Slides wrapper -->
+      <div class="tutorial-slides" id="tutorialSlides">
+
+        <!-- Slide 1: Welcome -->
+        <div class="tutorial-slide active" data-slide="0">
+          <div class="slide-icon slide-icon--blue"><i class="fa-solid fa-robot"></i></div>
+          <h2>Bem-vindo ao<br><span class="slide-brand">GPT do Viajante</span></h2>
+          <p>Seu assistente de viagem completo. Do planejamento até a experiência no destino, tudo em um só lugar.</p>
+          <ul class="slide-list">
+            <li><i class="fa-solid fa-check"></i> Roteiro gerado automaticamente, do seu jeito</li>
+            <li><i class="fa-solid fa-check"></i> Orçamento e divisão de despesas</li>
+            <li><i class="fa-solid fa-check"></i> Lista de mala personalizada</li>
+            <li><i class="fa-solid fa-check"></i> Guia em tempo real durante a viagem</li>
+          </ul>
+        </div>
+
+        <!-- Slide 2: Chat Planejamento -->
+        <div class="tutorial-slide" data-slide="1">
+          <div class="slide-icon slide-icon--blue"><i class="fa-solid fa-map-location-dot"></i></div>
+          <h2>Chat de <span class="slide-accent-blue">Planejamento</span></h2>
+          <p>Use o Chat principal para planejar toda a sua viagem conversando naturalmente.</p>
+          <ul class="slide-list">
+            <li><i class="fa-solid fa-comments"></i> <strong>Destino e datas:</strong> "Quero ir a Lisboa em julho"</li>
+            <li><i class="fa-solid fa-comments"></i> <strong>Roteiro:</strong> "Monte um roteiro de 7 dias"</li>
+            <li><i class="fa-solid fa-comments"></i> <strong>Orçamento:</strong> "Qual o custo médio por dia?"</li>
+            <li><i class="fa-solid fa-comments"></i> <strong>Mala:</strong> "Crie uma lista de mala para praia"</li>
+          </ul>
+          <div class="slide-tip"><i class="fa-solid fa-lightbulb"></i> Quanto mais detalhes você der, melhor o roteiro!</div>
+        </div>
+
+        <!-- Slide 3: Chat Na Viagem -->
+        <div class="tutorial-slide" data-slide="2">
+          <div class="slide-icon slide-icon--green"><i class="fa-solid fa-compass"></i></div>
+          <h2>Chat <span class="slide-accent-green">Na Viagem</span></h2>
+          <p>Quando estiver no destino, mude para o Chat Na Viagem (aba inferior). O assistente vira seu guia em tempo real.</p>
+          <ul class="slide-list">
+            <li><i class="fa-solid fa-utensils"></i> <strong>Restaurantes:</strong> "Onde comer perto do Bairro Alto?"</li>
+            <li><i class="fa-solid fa-language"></i> <strong>Traduções:</strong> "Como peço a conta em português?"</li>
+            <li><i class="fa-solid fa-map-pin"></i> <strong>Pontos turísticos:</strong> "O que fazer hoje à tarde?"</li>
+            <li><i class="fa-solid fa-shield-halved"></i> <strong>Emergências:</strong> "Qual o número da polícia aqui?"</li>
+          </ul>
+          <div class="slide-tip slide-tip--green"><i class="fa-solid fa-lightbulb"></i> Cada chat tem histórico separado!</div>
+        </div>
+
+        <!-- Slide 4: Roteiro -->
+        <div class="tutorial-slide" data-slide="3">
+          <div class="slide-icon slide-icon--purple"><i class="fa-solid fa-route"></i></div>
+          <h2>Aba <span class="slide-accent-purple">Roteiro</span></h2>
+          <p>Visualize o itinerário completo gerado, organizado por dia com horários e atividades.</p>
+          <ul class="slide-list">
+            <li><i class="fa-solid fa-calendar-days"></i> Dias e atividades em ordem cronológica</li>
+            <li><i class="fa-solid fa-clock"></i> Horários sugeridos para cada atividade</li>
+            <li><i class="fa-solid fa-circle-info"></i> Informações de clima, hotel e datas no topo</li>
+            <li><i class="fa-solid fa-file-pdf"></i> Exportar roteiro como PDF</li>
+          </ul>
+          <div class="slide-tip slide-tip--purple"><i class="fa-solid fa-lightbulb"></i> Se não tiver roteiro ainda, inicie uma conversa no Chat de Planejamento!</div>
+        </div>
+
+        <!-- Slide 5: Orçamento -->
+        <div class="tutorial-slide" data-slide="4">
+          <div class="slide-icon slide-icon--amber"><i class="fa-solid fa-wallet"></i></div>
+          <h2>Aba <span class="slide-accent-amber">Orçamento</span></h2>
+          <p>Acompanhe os gastos estimados da viagem e divida as despesas entre os participantes do grupo.</p>
+          <ul class="slide-list">
+            <li><i class="fa-solid fa-chart-pie"></i> Gráfico de orçamento por categoria</li>
+            <li><i class="fa-solid fa-users"></i> Adicionar membros do grupo</li>
+            <li><i class="fa-solid fa-receipt"></i> Registrar despesas e dividir entre todos</li>
+            <li><i class="fa-solid fa-scale-balanced"></i> Ver quem deve quanto para quem</li>
+          </ul>
+          <div class="slide-tip slide-tip--amber"><i class="fa-solid fa-lightbulb"></i> O orçamento é preenchido automaticamente durante o planejamento.</div>
+        </div>
+
+        <!-- Slide 6: Mala -->
+        <div class="tutorial-slide" data-slide="5">
+          <div class="slide-icon slide-icon--teal"><i class="fa-solid fa-suitcase"></i></div>
+          <h2>Aba <span class="slide-accent-teal">Mala</span></h2>
+          <p>Lista de mala inteligente gerada automaticamente com base no seu destino e perfil de viagem.</p>
+          <ul class="slide-list">
+            <li><i class="fa-solid fa-wand-magic-sparkles"></i> Gerada automaticamente com base no destino</li>
+            <li><i class="fa-solid fa-check-square"></i> Marque os itens conforme faz as malas</li>
+            <li><i class="fa-solid fa-pen"></i> Adicione itens personalizados</li>
+            <li><i class="fa-solid fa-trash"></i> Remova o que não precisa</li>
+          </ul>
+          <div class="slide-tip slide-tip--teal"><i class="fa-solid fa-lightbulb"></i> Peça no chat: "Crie lista de mala para lua de mel em Paris"</div>
+        </div>
+
+        <!-- Slide 7: Voos -->
+        <div class="tutorial-slide" data-slide="6">
+          <div class="slide-icon slide-icon--indigo"><i class="fa-solid fa-plane"></i></div>
+          <h2>Aba <span class="slide-accent-indigo">Voos</span></h2>
+          <p>Registre seus voos e acompanhe todos os detalhes da sua viagem aérea em um só lugar.</p>
+          <ul class="slide-list">
+            <li><i class="fa-solid fa-plus"></i> Adicionar voos de ida e volta</li>
+            <li><i class="fa-solid fa-magnifying-glass"></i> Buscar status do voo online</li>
+            <li><i class="fa-solid fa-clock"></i> Ver horários de partida e chegada</li>
+            <li><i class="fa-solid fa-pen"></i> Editar ou remover voos registrados</li>
+          </ul>
+          <div class="slide-tip slide-tip--indigo"><i class="fa-solid fa-lightbulb"></i> Use o número do voo (ex: AD4132) para buscar informações em tempo real.</div>
+        </div>
+
+        <!-- Slide 8: Como Instalar no Celular -->
+        <div class="tutorial-slide" data-slide="7">
+          <div class="slide-icon slide-icon--amber"><i class="fa-solid fa-mobile-screen-button"></i></div>
+          <h2>Como Instalar no <span class="slide-accent-amber">Celular</span></h2>
+          <p>Adicione o GPT do Viajante à tela inicial do seu celular para usá-lo como um aplicativo nativo.</p>
+          <ul class="slide-list" style="gap: 8px;">
+            <li>
+              <i class="fa-brands fa-apple" style="color: #a3a3a3; font-size: 0.95rem; margin-right: 4px;"></i> <strong>iPhone (iOS):</strong>
+              <span style="font-size: 0.78rem; display: block; color: var(--text-light); margin-left: 20px; line-height: 1.35; margin-top: 2px;">
+                Abra o link no navegador <strong>Safari</strong>, toque no ícone de <strong>Compartilhar</strong> (quadrado com seta para cima) e escolha <strong>"Adicionar à Tela de Início"</strong>.
+              </span>
+            </li>
+            <li style="margin-top: 8px;">
+              <i class="fa-brands fa-android" style="color: #a4c639; font-size: 0.95rem; margin-right: 4px;"></i> <strong>Android:</strong>
+              <span style="font-size: 0.78rem; display: block; color: var(--text-light); margin-left: 20px; line-height: 1.35; margin-top: 2px;">
+                Abra o link no navegador <strong>Chrome</strong>, toque no menu de <strong>3 pontinhos</strong> (canto superior direito) e escolha <strong>"Instalar aplicativo"</strong> ou <strong>"Adicionar à Tela inicial"</strong>.
+              </span>
+            </li>
+          </ul>
+          <div class="slide-tip slide-tip--amber"><i class="fa-solid fa-lightbulb"></i> Ao instalar o app, ele economiza espaço no seu aparelho e fica acessível com um toque!</div>
+        </div>
+
+      </div>
+
+      <!-- Navigation -->
+      <div class="tutorial-nav">
+        <button class="tut-nav-btn" id="tutPrev" aria-label="Slide anterior">
+          <i class="fa-solid fa-chevron-left"></i>
+        </button>
+
+        <div class="tutorial-dots" id="tutorialDots">
+          <button class="tut-dot active" data-dot="0" aria-label="Slide 1"></button>
+          <button class="tut-dot" data-dot="1" aria-label="Slide 2"></button>
+          <button class="tut-dot" data-dot="2" aria-label="Slide 3"></button>
+          <button class="tut-dot" data-dot="3" aria-label="Slide 4"></button>
+          <button class="tut-dot" data-dot="4" aria-label="Slide 5"></button>
+          <button class="tut-dot" data-dot="5" aria-label="Slide 6"></button>
+          <button class="tut-dot" data-dot="6" aria-label="Slide 7"></button>
+          <button class="tut-dot" data-dot="7" aria-label="Slide 8"></button>
+        </div>
+
+        <button class="tut-nav-btn" id="tutNext" aria-label="Próximo slide">
+          <i class="fa-solid fa-chevron-right"></i>
+        </button>
+      </div>
+
+      <button class="tut-finish-btn hidden" id="tutFinish">
+        <i class="fa-solid fa-rocket"></i> Começar a usar!
+      </button>
+
+    </div>
+  </div>
+
+  <div id="sharedSplitwiseContainer" class="hidden" style="height: 100vh; height: 100dvh; background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: var(--text-main); font-family: var(--font-main); display: flex; flex-direction: column; align-items: center; padding: 40px 20px; box-sizing: border-box; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; position: relative;">
+    
+    <!-- Background glow/effects for premium feel -->
+    <div style="position: absolute; top: -10%; left: -10%; width: 50%; height: 50%; background: radial-gradient(circle, rgba(99, 102, 241, 0.15) 0%, rgba(0,0,0,0) 70%); z-index: 1; pointer-events: none;"></div>
+    <div style="position: absolute; bottom: -10%; right: -10%; width: 50%; height: 50%; background: radial-gradient(circle, rgba(16, 185, 129, 0.1) 0%, rgba(0,0,0,0) 70%); z-index: 1; pointer-events: none;"></div>
+
+    <div style="max-width: 600px; width: 100%; z-index: 2; display: flex; flex-direction: column; gap: 24px;">
+      
+      <!-- Brand Header -->
+      <div style="display: flex; flex-direction: column; align-items: center; text-align: center; margin-bottom: 10px;">
+        <div style="width: 60px; height: 60px; border-radius: 18px; background: linear-gradient(135deg, #3b82f6, #6366f1); display: flex; align-items: center; justify-content: center; font-size: 1.8rem; color: white; margin-bottom: 16px; box-shadow: 0 8px 20px rgba(59, 130, 246, 0.3);">
+          <i class="fa-solid fa-users-arrows"></i>
+        </div>
+        <h1 style="font-size: 1.8rem; font-weight: 800; margin: 0; color: white;">Divisão de Despesas</h1>
+        <p style="font-size: 0.9rem; color: var(--text-light); margin: 6px 0 0;">Visualizando tabela compartilhada no GPT do Viajante</p>
+      </div>
+
+      <!-- Glass Panel for shared details -->
+      <div class="glass-panel" style="padding: 24px; display: flex; flex-direction: column; gap: 24px;">
+        
+        <!-- Shared Participants Section -->
+        <div>
+          <h3 style="font-size: 0.95rem; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; color: white; text-transform: uppercase; letter-spacing: 0.05em;">
+            <i class="fa-solid fa-users" style="color: var(--primary);"></i> Participantes
+          </h3>
+          <div id="sharedMembersList" style="display: flex; flex-wrap: wrap; gap: 8px;">
+            <!-- Member chips injected dynamically -->
+          </div>
+        </div>
+
+        <!-- Shared Balances Section -->
+        <div style="border-top: 1px dashed var(--border-color); padding-top: 20px;">
+          <h3 style="font-size: 0.95rem; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; color: white; text-transform: uppercase; letter-spacing: 0.05em;">
+            <i class="fa-solid fa-scale-balanced" style="color: var(--accent);"></i> Acerto de Contas
+          </h3>
+          <div id="sharedBalancesList" style="display: flex; flex-direction: column; gap: 10px;">
+            <!-- Dynamic balances -->
+          </div>
+          <div id="sharedBalancesEmpty" style="font-size: 0.82rem; color: var(--text-muted); padding: 10px 0; text-align: center; display: none;">
+            Tudo limpo! Nenhuma dívida pendente.
+          </div>
+        </div>
+
+        <!-- Shared Expense History Section -->
+        <div style="border-top: 1px dashed var(--border-color); padding-top: 20px;">
+          <h3 style="font-size: 0.95rem; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; color: white; text-transform: uppercase; letter-spacing: 0.05em;">
+            <i class="fa-solid fa-receipt" style="color: #38bdf8;"></i> Histórico de Despesas
+          </h3>
+          <div id="sharedExpensesList" style="display: flex; flex-direction: column; gap: 12px;">
+            <!-- Dynamic expenses -->
+          </div>
+          <div id="sharedExpensesEmpty" style="font-size: 0.82rem; color: var(--text-muted); padding: 10px 0; text-align: center; display: none;">
+            Nenhuma despesa cadastrada.
+          </div>
+        </div>
+
+      </div>
+
+      <!-- PREMIUM CALL TO ACTION CARD (Marketing Hook) -->
+      <div style="background: linear-gradient(135deg, rgba(59, 130, 246, 0.12) 0%, rgba(99, 102, 241, 0.12) 100%); border: 1.5px solid rgba(59, 130, 246, 0.3); border-radius: var(--border-radius-lg); padding: 28px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 14px; box-shadow: 0 10px 30px rgba(0,0,0,0.25); position: relative; overflow: hidden; margin-top: 10px;">
+        <div style="position: absolute; top: -50px; right: -50px; width: 100px; height: 100px; background: rgba(59, 130, 246, 0.2); filter: blur(40px); border-radius: 50%;"></div>
+        <div style="font-size: 2rem; color: #60a5fa; margin-bottom: 4px;"><i class="fa-solid fa-map-location-dot"></i></div>
+        <h2 style="font-size: 1.25rem; font-weight: 800; color: white; margin: 0; line-height: 1.3;">Planeje sua próxima viagem!</h2>
+        <p style="font-size: 0.85rem; color: var(--text-light); line-height: 1.5; margin: 0; max-width: 440px;">Crie roteiros personalizados, checklists de malas automáticos, acompanhe voos e gerencie despesas em grupo de forma extremamente fácil.</p>
+        <a href="/" style="text-decoration: none; display: inline-flex; align-items: center; gap: 8px; background: linear-gradient(135deg, #3b82f6, #6366f1); color: white; padding: 12px 24px; border-radius: 50px; font-weight: 700; font-size: 0.95rem; box-shadow: 0 4px 18px rgba(59, 130, 246, 0.4); transition: transform 0.2s, box-shadow 0.2s; margin-top: 6px;" onmouseover="this.style.transform='translateY(-2px)';" onmouseout="this.style.transform='translateY(0)';" onclick="window.location.href='/'">
+          Começar a Planejar <i class="fa-solid fa-arrow-right"></i>
+        </a>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Javascript Logic -->
+  <script type="module" src="app.js"></script>
+</body>
+</html>
