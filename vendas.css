@@ -1116,3 +1116,67 @@ h1, h2, h3, h4 {
     width: 100%;
   }
 }
+
+/* 14. Seção Criador (Quem Criou) */
+.creator-section {
+  background: rgba(255, 255, 255, 0.01);
+  border-top: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.creator-grid {
+  display: grid;
+  grid-template-columns: 1fr 1.5fr;
+  gap: 60px;
+  align-items: center;
+}
+
+.creator-image-box {
+  position: relative;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+  max-width: 380px;
+  margin: 0 auto;
+}
+
+.creator-img {
+  width: 100%;
+  height: auto;
+  display: block;
+  filter: contrast(102%);
+}
+
+.creator-badge {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  background: var(--primary);
+  color: white;
+  padding: 8px 16px;
+  border-radius: 30px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  z-index: 2;
+  box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+}
+
+.creator-content {
+  text-align: left;
+}
+
+.creator-text {
+  font-size: 1.05rem;
+  color: var(--text-light);
+  line-height: 1.7;
+  margin-top: 20px;
+}
+
+@media (max-width: 1024px) {
+  .creator-grid {
+    grid-template-columns: 1fr;
+    gap: 40px;
+  }
+}
+
