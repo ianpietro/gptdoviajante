@@ -103,21 +103,85 @@
           <button type="button" class="btn-generate" id="btnSimulate"><i class="fa-solid fa-wand-magic-sparkles"></i> Gerar Roteiro Simulado</button>
         </div>
         
-        <!-- Estado 2: Console de Chat Inteligente (Escondido por padrão) -->
+        <!-- Estado 2: Painel de Pré-visualização Interativa (Escondido por padrão) -->
         <div class="simulator-screen hidden" id="simChatState">
           <div class="simulator-header">
-            <h3><i class="fa-solid fa-robot"></i> Inteligência IA</h3>
-            <span class="simulator-badge"><i class="fa-solid fa-spinner fa-spin"></i> Processando...</span>
+            <h3><i class="fa-solid fa-compass"></i> Demonstrador do Painel</h3>
+            <span class="simulator-badge success" style="background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.2);"><i class="fa-solid fa-circle-check"></i> Criado</span>
           </div>
           
-          <div class="sim-chat-area" id="simChatArea">
-            <!-- Balões dinâmicos injetados por vendas.js -->
+          <div class="sim-preview-meta">
+            <span id="simMetaDest">Destino</span> • <span id="simMetaDays">5 Dias</span> • <span id="simMetaProfile">Perfil</span>
+          </div>
+
+          <!-- Abas da Simulação -->
+          <div class="sim-tabs">
+            <button type="button" class="sim-tab active" data-sim-tab="roteiro"><i class="fa-solid fa-calendar-day"></i> Roteiro</button>
+            <button type="button" class="sim-tab" data-sim-tab="orcamento"><i class="fa-solid fa-wallet"></i> Custos</button>
+            <button type="button" class="sim-tab" data-sim-tab="mala"><i class="fa-solid fa-suitcase"></i> Mala</button>
+          </div>
+
+          <div class="sim-tab-content-container">
+            <!-- Aba Roteiro -->
+            <div class="sim-tab-content active" id="simTabRoteiro">
+              <div class="sim-day-card">
+                <div class="sim-day-card-header">
+                  <strong>DIA 1: Chegada & Primeiro Contato</strong>
+                </div>
+                <div class="sim-day-turns">
+                  <div class="sim-turn">🌅 <strong>Manhã:</strong> Chegada no aeroporto e check-in na hospedagem recomendada.</div>
+                  <div class="sim-turn">🌇 <strong>Tarde:</strong> Caminhada leve de reconhecimento e pontos icônicos da região.</div>
+                  <div class="sim-turn">🌙 <strong>Noite:</strong> Jantar de boas-vindas com prato típico local sugerido.</div>
+                </div>
+              </div>
+              <div class="sim-day-card blurred">
+                <div class="sim-day-card-header">
+                  <strong>DIA 2: Exploração Cultural</strong>
+                  <i class="fa-solid fa-lock lock-icon-inline"></i>
+                </div>
+              </div>
+              <div class="sim-day-card blurred">
+                <div class="sim-day-card-header">
+                  <strong>DIA 3: Segredos Locais & Experiência Wow</strong>
+                  <i class="fa-solid fa-lock lock-icon-inline"></i>
+                </div>
+              </div>
+            </div>
+
+            <!-- Aba Orçamento -->
+            <div class="sim-tab-content" id="simTabOrcamento">
+              <div class="sim-budget-cards">
+                <div class="sim-budget-card">
+                  <span class="budget-card-title">Econômico</span>
+                  <strong class="budget-card-val" id="simBudgetValueEco">R$ 0</strong>
+                </div>
+                <div class="sim-budget-card recommended">
+                  <span class="budget-card-title">Conforto</span>
+                  <strong class="budget-card-val" id="simBudgetValueConf">R$ 0</strong>
+                </div>
+                <div class="sim-budget-card">
+                  <span class="budget-card-title">Premium</span>
+                  <strong class="budget-card-val" id="simBudgetValuePrem">R$ 0</strong>
+                </div>
+              </div>
+              <p class="sim-budget-desc">Valores aproximados para alimentação, passeios e transporte local calculados sob medida.</p>
+            </div>
+
+            <!-- Aba Mala -->
+            <div class="sim-tab-content" id="simTabMala">
+              <div class="sim-packing-list">
+                <div class="sim-pack-item"><i class="fa-solid fa-square-check"></i> Documentos da viagem e reservas de hotel</div>
+                <div class="sim-pack-item"><i class="fa-solid fa-square-check"></i> Calçados confortáveis para caminhada diária</div>
+                <div class="sim-pack-item blurred-item"><i class="fa-solid fa-lock"></i> Itens de vestuário específicos para o clima local</div>
+                <div class="sim-pack-item blurred-item"><i class="fa-solid fa-lock"></i> Kit de remédios essenciais recomendados</div>
+              </div>
+            </div>
           </div>
           
-          <!-- Botão ou Bloco de Checkout integrado pós-simulação (Escondido por padrão) -->
-          <div class="sim-lock-overlay hidden" id="simLockOverlay">
+          <!-- Botão ou Bloco de Checkout integrado pós-simulação -->
+          <div class="sim-lock-overlay" id="simLockOverlay">
             <div class="lock-icon"><i class="fa-solid fa-lock"></i></div>
-            <h4 class="sim-lock-title">Roteiro Personalizado Criado!</h4>
+            <h4 class="sim-lock-title">Roteiro Completo Criado!</h4>
             <p class="sim-lock-text">
               Para desbloquear seu cronograma interativo completo, mala inteligente e planilha financeira reativa, garanta seu acesso completo.
             </p>

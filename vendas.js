@@ -51,8 +51,6 @@ function setupItinerarySimulator() {
   
   const formState = document.getElementById("simFormState");
   const chatState = document.getElementById("simChatState");
-  const chatArea = document.getElementById("simChatArea");
-  const lockOverlay = document.getElementById("simLockOverlay");
 
   if (!slider || !btnSimulate) return;
 
@@ -64,111 +62,106 @@ function setupItinerarySimulator() {
 
   // Ação de Simular Roteiro
   btnSimulate.addEventListener("click", () => {
-    const destination = document.getElementById("simDest").value.trim() || "Nova York";
-    const days = slider.value;
+    const destination = document.getElementById("simDest").value.trim() || "Salvador";
+    const days = parseInt(slider.value, 10);
     const profileSelect = document.getElementById("simProfile");
     const profileText = profileSelect.options[profileSelect.selectedIndex].text.split(" (")[0];
 
-    // Transição de estado: Formulário -> Chat
+    // Transição de estado: Formulário -> Pré-visualização
     formState.classList.add("hidden");
     chatState.classList.remove("hidden");
 
-    // Inicia a sequência de mensagens simuladas
-    runSimulationSequence(destination, days, profileText);
-  });
+    // Preenche as metainformações da viagem
+    document.getElementById("simMetaDest").textContent = destination;
+    document.getElementById("simMetaDays").textContent = `${days} ${days === 1 ? 'Dia' : 'Dias'}`;
+    document.getElementById("simMetaProfile").textContent = profileText;
 
-  async function runSimulationSequence(dest, days, profile) {
-    // 1. Mensagem do Usuário
-    appendSimMessage("user", `Quero planejar uma viagem para <strong>${dest}</strong> por <strong>${days} ${days == 1 ? 'dia' : 'dias'}</strong> no estilo <strong>${profile}</strong>. Pode montar o roteiro?`);
+    // Calcula estimativa de custos dinâmica
+    const ecoVal = days * 120;
+    const confVal = days * 320;
+    const premVal = days * 780;
 
-    // 2. Typing indicator (loader) da IA
-    const loader = appendSimLoader("Consultando Inteligência de Viagem...");
+    document.getElementById("simBudgetValueEco").textContent = `R$ ${ecoVal.toLocaleString("pt-BR")}`;
+    document.getElementById("simBudgetValueConf").textContent = `R$ ${confVal.toLocaleString("pt-BR")}`;
+    document.getElementById("simBudgetValuePrem").textContent = `R$ ${premVal.toLocaleString("pt-BR")}`;
 
-    try {
-      // 3. Chamar API real do simulador
-      const response = await fetch("/api/simular", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ destination: dest, days: days, profile: profile })
-      });
-
-      if (!response.ok) {
-        throw new Error("Erro na resposta do simulador backend.");
-      }
-
-      const data = await response.json();
-      loader.remove();
-
-      // Formatar Markdown simples (negritos e quebras de linha)
-      const formattedContent = data.content
-        .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
-        .replace(/\n/g, "<br>");
-
-      // 4. Mostrar resposta real da IA
-      appendSimMessage("assistant", formattedContent);
-
-    } catch (err) {
-      console.warn("Simulação com IA real falhou, usando fallback estático:", err);
-      
-      // Fallback estático caso a rede ou a chave falhem
-      setTimeout(() => {
-        loader.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> <span>Processando informações de destinos e clima...</span>`;
-        
-        setTimeout(() => {
-          loader.remove();
-          appendSimMessage("assistant", `🌍 <strong>Análise concluída para ${dest}!</strong><br>
-          Identifiquei a melhor logística para <strong>${profile}</strong>. Vou estruturar seus ${days} dias divididos em turnos equilibrados (Manhã, Tarde e Noite) para evitar correria e garantir uma experiência incrível.`);
-          
-          setTimeout(() => {
-            const loader2 = appendSimLoader("Construindo atrações, gastronomia e mala recomendada...");
-            
-            setTimeout(() => {
-              loader2.remove();
-              appendSimMessage("assistant", `🗓️ <strong>Roteiro Sob Medida: ${dest} (${days} Dias)</strong><br><br>
-              <strong>Dia 1: Chegada, Check-in & Primeiro Contato</strong><br>
-              • <strong>Manhã:</strong> Chegada no aeroporto, transporte sugerido por aplicativo/metrô até o hotel. Check-in e descanso.<br>
-              • <strong>Tarde:</strong> Passeio a pé leve pela praça central ou parque próximo para aclimatação física.<br>
-              • <strong>Noite:</strong> Jantar de boas-vindas em restaurante tradicional fora do radar turístico comum.`);
-              
-              // Exibe o overlay de bloqueio com o CTA de compra
-              lockOverlay.classList.remove("hidden");
-              chatArea.scrollTop = chatArea.scrollHeight;
-            }, 2500);
-
-          }, 1000);
-
-        }, 2000);
-
-      }, 800);
-      return;
+    // Configura os textos dinâmicos do Dia 1 para parecer ultra personalizado
+    const simTabRoteiro = document.getElementById("simTabRoteiro");
+    if (simTabRoteiro) {
+      simTabRoteiro.innerHTML = `
+        <div class="sim-day-card">
+          <div class="sim-day-card-header">
+            <strong>DIA 1: Chegada em ${destination}</strong>
+          </div>
+          <div class="sim-day-turns">
+            <div class="sim-turn">🌅 <strong>Manhã:</strong> Chegada em ${destination}, transfer e check-in na hospedagem reservada.</div>
+            <div class="sim-turn">🌇 <strong>Tarde:</strong> Passeio inicial de aclimatação pelos arredores e pontos turísticos próximos.</div>
+            <div class="sim-turn">🌙 <strong>Noite:</strong> Jantar de boas-vindas com o melhor da culinária de ${destination}.</div>
+          </div>
+        </div>
+        <div class="sim-day-card blurred">
+          <div class="sim-day-card-header">
+            <strong>DIA 2: Exploração Cultural & Dicas de Segurança</strong>
+            <i class="fa-solid fa-lock lock-icon-inline"></i>
+          </div>
+        </div>
+        <div class="sim-day-card blurred">
+          <div class="sim-day-card-header">
+            <strong>DIA 3: Rota Secreta de ${destination} & Experiência Wow</strong>
+            <i class="fa-solid fa-lock lock-icon-inline"></i>
+          </div>
+        </div>
+      `;
     }
 
-    // Exibe o overlay de bloqueio com o CTA de compra
-    lockOverlay.classList.remove("hidden");
-    chatArea.scrollTop = chatArea.scrollHeight;
-  }
+    // Configura os itens de malas dinâmicos baseados no destino
+    const simTabMala = document.getElementById("simTabMala");
+    if (simTabMala) {
+      const isWarm = ["bahia", "salvador", "fortaleza", "rio", "recife", "natal", "praia", "nordeste"].some(v => destination.toLowerCase().includes(v));
+      const clothingTip = isWarm ? "Roupas leves e roupa de banho para praia" : "Roupas versáteis e casaco leve para as noites";
+      
+      simTabMala.innerHTML = `
+        <div class="sim-packing-list">
+          <div class="sim-pack-item"><i class="fa-solid fa-square-check"></i> Documentos da viagem e reservas para ${destination}</div>
+          <div class="sim-pack-item"><i class="fa-solid fa-square-check"></i> ${clothingTip}</div>
+          <div class="sim-pack-item blurred-item"><i class="fa-solid fa-lock"></i> Itens de higiene recomendados para o clima local</div>
+          <div class="sim-pack-item blurred-item"><i class="fa-solid fa-lock"></i> Calçados ideais para as atividades do roteiro</div>
+        </div>
+      `;
+    }
 
-  function appendSimMessage(sender, htmlContent) {
-    const msgDiv = document.createElement("div");
-    msgDiv.className = `sim-msg ${sender}`;
-    msgDiv.innerHTML = `
-      <div class="sim-msg-bubble">
-        <p>${htmlContent}</p>
-      </div>
-    `;
-    chatArea.appendChild(msgDiv);
-    chatArea.scrollTop = chatArea.scrollHeight;
-  }
+    setupSimTabs();
+  });
 
-  function appendSimLoader(loadingText) {
-    const loaderDiv = document.createElement("div");
-    loaderDiv.className = "sim-loading-bubble";
-    loaderDiv.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> <span>${loadingText}</span>`;
-    chatArea.appendChild(loaderDiv);
-    chatArea.scrollTop = chatArea.scrollHeight;
-    return loaderDiv;
+  // Configura a troca de abas no simulador
+  function setupSimTabs() {
+    const tabs = document.querySelectorAll(".sim-tab");
+    const contents = document.querySelectorAll(".sim-tab-content");
+
+    tabs.forEach(tab => {
+      // Remover event listeners anteriores clonando o elemento se necessário, ou limpando
+      const newTab = tab.cloneNode(true);
+      tab.parentNode.replaceChild(newTab, tab);
+      
+      newTab.addEventListener("click", () => {
+        const target = newTab.dataset.simTab;
+
+        // Limpar estados ativos
+        document.querySelectorAll(".sim-tab").forEach(t => t.classList.remove("active"));
+        contents.forEach(c => c.classList.remove("active"));
+
+        // Ativar aba clicada
+        newTab.classList.add("active");
+        
+        if (target === "roteiro") {
+          document.getElementById("simTabRoteiro").classList.add("active");
+        } else if (target === "orcamento") {
+          document.getElementById("simTabOrcamento").classList.add("active");
+        } else if (target === "mala") {
+          document.getElementById("simTabMala").classList.add("active");
+        }
+      });
+    });
   }
 }
 

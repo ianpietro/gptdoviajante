@@ -475,58 +475,196 @@ h1, h2, h3, h4 {
   min-height: 320px;
 }
 
-.sim-chat-area {
+/* Meta de Destino do Simulador */
+.sim-preview-meta {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  text-align: center;
+  margin: 10px 0 15px;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  font-weight: 600;
+}
+
+/* Abas do Simulador */
+.sim-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 15px;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 8px;
+}
+
+.sim-tab {
   flex: 1;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  padding: 8px 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: var(--transition);
+}
+
+.sim-tab:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: white;
+}
+
+.sim-tab.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: white;
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.3);
+}
+
+/* Containers de Conteúdo das Abas */
+.sim-tab-content-container {
+  min-height: 180px;
+  max-height: 240px;
+  overflow-y: auto;
+  margin-bottom: 15px;
+  padding-right: 4px;
+}
+
+.sim-tab-content {
+  display: none;
+  animation: fadeUpIn 0.3s ease-out;
+}
+
+.sim-tab-content.active {
+  display: block;
+}
+
+/* Roteiro */
+.sim-day-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  text-align: left;
+}
+
+.sim-day-card-header {
+  font-size: 0.85rem;
+  color: white;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  font-family: var(--font-heading);
+}
+
+.sim-day-turns {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  overflow-y: auto;
-  max-height: 250px;
-  padding-right: 4px;
-  margin-bottom: 15px;
+  gap: 8px;
 }
 
-.sim-msg {
-  display: flex;
-  margin-bottom: 4px;
-  max-width: 85%;
-}
-
-.sim-msg-bubble {
-  padding: 12px 16px;
-  border-radius: var(--radius-md);
-  font-size: 0.88rem;
+.sim-turn {
+  font-size: 0.78rem;
+  color: var(--text-light);
   line-height: 1.4;
 }
 
-.sim-msg.user {
-  margin-left: auto;
+.sim-day-card.blurred {
+  filter: blur(2.5px);
+  opacity: 0.5;
+  user-select: none;
+  pointer-events: none;
 }
 
-.sim-msg.user .sim-msg-bubble {
-  background: var(--primary);
-  color: white;
-  border-bottom-right-radius: 2px;
+.lock-icon-inline {
+  color: var(--accent);
+  font-size: 0.8rem;
 }
 
-.sim-msg.assistant .sim-msg-bubble {
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--text-light);
-  border-bottom-left-radius: 2px;
+/* Orçamento */
+.sim-budget-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.sim-budget-card {
+  background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 12px 8px;
+  text-align: center;
 }
 
-.sim-loading-bubble {
+.sim-budget-card.recommended {
+  border-color: rgba(16, 185, 129, 0.4);
+  background: rgba(16, 185, 129, 0.04);
+}
+
+.budget-card-title {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  font-weight: 700;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.budget-card-val {
+  font-size: 0.95rem;
+  color: white;
+  font-weight: 800;
+}
+
+.sim-budget-card.recommended .budget-card-val {
+  color: var(--accent);
+}
+
+.sim-budget-desc {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-align: center;
+  margin-top: 12px;
+  line-height: 1.4;
+}
+
+/* Mala */
+.sim-packing-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+}
+
+.sim-pack-item {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 12px 18px;
-  background: rgba(255, 255, 255, 0.04);
+  gap: 8px;
+  font-size: 0.8rem;
+  color: var(--text-light);
+  background: rgba(255, 255, 255, 0.02);
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  border-bottom-left-radius: 2px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+}
+
+.sim-pack-item i {
+  color: var(--accent);
   font-size: 0.85rem;
-  color: var(--text-muted);
+}
+
+.sim-pack-item.blurred-item {
+  filter: blur(2px);
+  opacity: 0.4;
+  user-select: none;
 }
 
 /* Bloqueador de Roteiro Gerado */
