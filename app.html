@@ -35,6 +35,16 @@
         <p>Acesse seu consultor de bolso inteligente</p>
       </div>
       
+      <!-- Tabs for toggling Login / Registration -->
+      <div class="login-tabs" style="display: flex; border-bottom: 1px solid var(--border-color); margin-bottom: 24px; position: relative;">
+        <button type="button" class="login-tab active" id="tabLogin" style="flex: 1; text-align: center; padding: 12px; background: none; border: none; color: white; font-weight: 700; font-size: 0.95rem; cursor: pointer; border-bottom: 2px solid var(--primary); transition: all 0.2s; outline: none;">
+          Entrar
+        </button>
+        <button type="button" class="login-tab" id="tabRegister" style="flex: 1; text-align: center; padding: 12px; background: none; border: none; color: var(--text-muted); font-weight: 600; font-size: 0.95rem; cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.2s; outline: none;">
+          Criar Conta
+        </button>
+      </div>
+      
       <div class="login-error hidden" id="loginError">E-mail ou senha incorretos.</div>
       
       <form class="login-form" id="loginForm">

@@ -1746,7 +1746,7 @@ function setupAuthUI() {
       } catch (err) {
         let errMsg = "Erro de autenticação.";
         if (err.code === "auth/invalid-credential" || err.code === "auth/wrong-password" || err.code === "auth/user-not-found") {
-          errMsg = "E-mail ou senha incorretos.";
+          errMsg = `E-mail ou senha incorretos.<br><span style="font-size: 0.76rem; opacity: 0.9; display: block; margin-top: 6px; line-height: 1.35; font-weight: 500;">Se você acabou de comprar o acesso, lembre-se de clicar na aba <strong>"Criar Conta"</strong> no topo para cadastrar sua senha primeiro!</span>`;
         } else if (err.code === "auth/weak-password") {
           errMsg = "A senha deve conter pelo menos 6 caracteres.";
         } else if (err.code === "auth/email-already-in-use") {
@@ -1762,47 +1762,86 @@ function setupAuthUI() {
     });
   }
 
+  // Tabs for Auth Toggle
+  const tabLogin = document.getElementById("tabLogin");
+  const tabRegister = document.getElementById("tabRegister");
+
+  if (tabLogin) {
+    tabLogin.addEventListener("click", () => {
+      isRegisterMode = false;
+      syncAuthMode();
+    });
+  }
+  if (tabRegister) {
+    tabRegister.addEventListener("click", () => {
+      isRegisterMode = true;
+      syncAuthMode();
+    });
+  }
+
   if (toggleLink) {
     toggleLink.addEventListener("click", (e) => {
       e.preventDefault();
       isRegisterMode = !isRegisterMode;
-      
-      const toggleText = document.getElementById("loginToggleText");
-      const submitBtn = document.getElementById("loginSubmitBtn");
-      const title = document.querySelector(".login-header h2");
-      const subtitle = document.querySelector(".login-header p");
-
-      if (isRegisterMode) {
-        title.textContent = "Criar Conta";
-        subtitle.textContent = "Cadastre-se para planejar suas viagens";
-        submitBtn.textContent = "Cadastrar";
-        toggleText.textContent = "Já tem uma conta?";
-        toggleLink.textContent = "Entrar";
-      } else {
-        title.textContent = "GPT do Viajante";
-        subtitle.textContent = "Acesse seu consultor de bolso inteligente";
-        submitBtn.textContent = "Entrar";
-        toggleText.textContent = "Não tem uma conta?";
-        toggleLink.textContent = "Cadastre-se";
-      }
-      hideLoginError();
+      syncAuthMode();
     });
   }
 }
 
-function showLoginFormState() {
-  isRegisterMode = false;
+function syncAuthMode() {
   const toggleText = document.getElementById("loginToggleText");
   const toggleLink = document.getElementById("toggleRegisterLink");
   const submitBtn = document.getElementById("loginSubmitBtn");
   const title = document.querySelector(".login-header h2");
   const subtitle = document.querySelector(".login-header p");
+  const tabLogin = document.getElementById("tabLogin");
+  const tabRegister = document.getElementById("tabRegister");
 
-  if (title) title.textContent = "GPT do Viajante";
-  if (subtitle) subtitle.textContent = "Acesse seu consultor de bolso inteligente";
-  if (submitBtn) submitBtn.textContent = "Entrar";
-  if (toggleText) toggleText.textContent = "Não tem uma conta?";
-  if (toggleLink) toggleLink.textContent = "Cadastre-se";
+  if (isRegisterMode) {
+    if (title) title.textContent = "Criar Conta";
+    if (subtitle) subtitle.textContent = "Cadastre-se para planejar suas viagens";
+    if (submitBtn) submitBtn.textContent = "Cadastrar";
+    if (toggleText) toggleText.textContent = "Já tem uma conta?";
+    if (toggleLink) toggleLink.textContent = "Entrar";
+    
+    if (tabRegister) {
+      tabRegister.classList.add("active");
+      tabRegister.style.color = "white";
+      tabRegister.style.borderBottomColor = "var(--primary)";
+      tabRegister.style.fontWeight = "700";
+    }
+    if (tabLogin) {
+      tabLogin.classList.remove("active");
+      tabLogin.style.color = "var(--text-muted)";
+      tabLogin.style.borderBottomColor = "transparent";
+      tabLogin.style.fontWeight = "600";
+    }
+  } else {
+    if (title) title.textContent = "GPT do Viajante";
+    if (subtitle) subtitle.textContent = "Acesse seu consultor de bolso inteligente";
+    if (submitBtn) submitBtn.textContent = "Entrar";
+    if (toggleText) toggleText.textContent = "Não tem uma conta?";
+    if (toggleLink) toggleLink.textContent = "Cadastre-se";
+
+    if (tabLogin) {
+      tabLogin.classList.add("active");
+      tabLogin.style.color = "white";
+      tabLogin.style.borderBottomColor = "var(--primary)";
+      tabLogin.style.fontWeight = "700";
+    }
+    if (tabRegister) {
+      tabRegister.classList.remove("active");
+      tabRegister.style.color = "var(--text-muted)";
+      tabRegister.style.borderBottomColor = "transparent";
+      tabRegister.style.fontWeight = "600";
+    }
+  }
+  hideLoginError();
+}
+
+function showLoginFormState() {
+  isRegisterMode = false;
+  syncAuthMode();
   
   if (!authVerificationFailed) {
     hideLoginError();
