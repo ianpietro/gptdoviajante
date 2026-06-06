@@ -81,6 +81,10 @@ body {
 }
 
 /* 2. Utilitários e Layouts Comuns */
+.hidden {
+  display: none !important;
+}
+
 .container {
   max-width: 1200px;
   margin: 0 auto;
