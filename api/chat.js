@@ -113,7 +113,11 @@ Estrutura do JSON:
     "passeios": 850,
     "compras": 400
   },
-  "budgetAnalysis": "Análise personalizada sobre o custo da viagem baseada nas particularidades e valores locais reais do destino (ex: preços médios de refeições locais em restaurantes típicos, custo de transporte público ou passes locais, passeios principais, taxa de câmbio se aplicável, etc., tudo adaptado ao perfil do usuário)",
+  "budgetThresholds": {
+    "economico": 150,
+    "intermediario": 450
+  },
+  "budgetAnalysis": "Análise personalizada sobre o custo da viagem baseada nas particularidades e valores locais reais do destino (ex: preços médios de refeições locais em restaurantes típicos, custo de transporte público ou passes locais, passeios principais, taxa de câmbio se aplicável, etc., tudo adaptado ao perfil do usuário). IMPORTANTE: no objeto 'budgetThresholds' acima, defina limites de gastos diários reais por pessoa (em R$) para este destino específico para classificar as faixas de custo: 'economico' (limite diário máximo de custo mochilão/baixo custo no destino) e 'intermediario' (limite diário máximo de custo conforto/custo-benefício no destino; acima disso será premium/luxo). Ajuste estes valores de acordo com a realidade de preços do local.",
   "packing": [
     {
       "category": "Nome da Categoria (Ex: Documentos & Essenciais)",
