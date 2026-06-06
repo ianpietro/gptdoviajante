@@ -96,14 +96,14 @@ Escreva sempre em português do Brasil, de forma natural e amigável.`;
         contents: [
           {
             role: "user",
-            parts: [{ text: `Gere o JSON estruturado para ${destination} de ${days} dias, perfil ${profile}.` }]
+            parts: [{ text: `Gere o JSON estruturado para ${destination} de ${days} dias, perfil ${profile}. CRÍTICO: Não use aspas duplas (") dentro de nenhuma string de texto, se precisar citar algo use aspas simples ('). Não adicione quebras de linha literais dentro das strings do JSON.` }]
           }
         ],
         systemInstruction: {
-          parts: [{ text: systemPrompt }]
+          parts: [{ text: systemPrompt + "\n\nREGRAS CRÍTICAS DE ESCAPE JSON:\n1. NUNCA utilize aspas duplas (\") dentro dos textos das strings. Se precisar citar um nome, apelido, gíria ou estabelecimento, use aspas simples (').\n2. NUNCA insira quebras de linha reais/literais dentro dos textos das chaves. O JSON gerado deve ser uma string de linha contínua para cada propriedade." }]
         },
         generationConfig: {
-          temperature: 0.75,
+          temperature: 0.7,
           maxOutputTokens: 2500,
           responseMimeType: "application/json"
         }
