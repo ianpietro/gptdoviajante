@@ -1316,6 +1316,45 @@ function updateBudget() {
     modeEl.style.background = mode.color + '18';
   }
 
+  // Dynamic budget cost analysis
+  const hasItinerary = tripData.itinerary && tripData.itinerary.length > 0;
+  const analysisCard = document.getElementById("budgetAnalysisCard");
+  
+  if (analysisCard) {
+    if (hasItinerary) {
+      analysisCard.classList.remove("hidden");
+      
+      const numDays = tripData.itinerary.length;
+      const numMembers = tripData.members ? tripData.members.length : 1;
+      
+      const dailyAvg = total / numDays;
+      const groupTotal = total * numMembers;
+      
+      document.getElementById("budgetDailyAvg").textContent = `R$ ${Math.round(dailyAvg).toLocaleString("pt-BR")} / dia`;
+      document.getElementById("budgetDaysCount").textContent = numDays;
+      
+      document.getElementById("budgetGroupTotal").textContent = `R$ ${Math.round(groupTotal).toLocaleString("pt-BR")}`;
+      document.getElementById("budgetGroupCount").textContent = numMembers;
+      
+      // Dynamic feedback text based on daily average cost per person
+      let feedback = "";
+      if (total === 0) {
+        feedback = "Mova os sliders acima para ver as estimativas diárias e dicas do consultor para a sua viagem.";
+      } else if (dailyAvg < 150) {
+        feedback = "Você propôs um estilo **Econômico** (Mochilão). Ótima escolha para economizar! Dica do GPT: utilize transporte público e priorize alimentação em pequenos mercados ou feiras locais.";
+      } else if (dailyAvg <= 450) {
+        feedback = "Você propôs um estilo **Intermediário** (Custo-benefício). Esta faixa é super realista para a maioria dos destinos, garantindo conforto sem gastar demais. Dica: mescle refeições em restaurantes legais com lanches simples.";
+      } else {
+        feedback = "Você propôs um estilo **Premium / Luxo**. Excelente para aproveitar passeios exclusivos, gastronomia de alto nível e hotelaria diferenciada. Dica: lembre-se de reservar restaurantes renomados com bastante antecedência!";
+      }
+      
+      document.getElementById("budgetFeedbackText").innerHTML = feedback.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+      
+    } else {
+      analysisCard.classList.add("hidden");
+    }
+  }
+
   // Save budget changes in state
   tripData.budget.hospedagem = slideHospedagem;
   tripData.budget.alimentacao = slideAlimentacao;

@@ -56,7 +56,7 @@ Instruções de Resposta:
         },
         generationConfig: {
           temperature: 0.7,
-          maxOutputTokens: 500
+          maxOutputTokens: 2000
         }
       })
     });

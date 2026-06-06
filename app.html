@@ -459,6 +459,43 @@
                 </div>
               </div>
             </div>
+
+            <!-- Interactive Budget Analysis Card (Appears only after itinerary is built) -->
+            <div id="budgetAnalysisCard" class="budget-analysis-card hidden" style="grid-column: span 2; margin-top: 24px; padding-top: 20px; border-top: 1px dashed var(--border-color); display: flex; flex-direction: column; gap: 12px; text-align: left; width: 100%;">
+              <h4 style="font-size: 0.9rem; font-weight: 700; color: white; display: flex; align-items: center; gap: 8px; margin: 0;">
+                <i class="fa-solid fa-calculator" style="color: var(--primary);"></i>
+                Análise do Custo Médio da Viagem
+              </h4>
+              <div class="analysis-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-top: 6px;">
+                <div class="analysis-item" style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); padding: 12px;">
+                  <span style="font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700; display: block; letter-spacing: 0.05em;">Custo Médio Diário</span>
+                  <strong id="budgetDailyAvg" style="font-size: 1.25rem; font-weight: 800; color: var(--accent); display: block; margin-top: 4px;">R$ 0 / dia</strong>
+                  <span style="font-size: 0.68rem; color: var(--text-muted); display: block; margin-top: 2px;">Com base em <span id="budgetDaysCount">0</span> dias de roteiro</span>
+                </div>
+                <div class="analysis-item" style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); padding: 12px;">
+                  <span style="font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700; display: block; letter-spacing: 0.05em;">Total para o Grupo</span>
+                  <strong id="budgetGroupTotal" style="font-size: 1.25rem; font-weight: 800; color: #10b981; display: block; margin-top: 4px;">R$ 0</strong>
+                  <span style="font-size: 0.68rem; color: var(--text-muted); display: block; margin-top: 2px;">Para <span id="budgetGroupCount">1</span> viajante(s)</span>
+                </div>
+              </div>
+              <!-- AI Feedback message based on the budget proposal -->
+              <div class="analysis-feedback-box" style="background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.2); border-radius: var(--border-radius-sm); padding: 12px 16px; display: flex; flex-direction: column; gap: 12px; margin-top: 8px;">
+                <div id="aiBudgetAnalysisBlock" style="display: none; flex-direction: column; gap: 4px; text-align: left; padding-bottom: 10px; border-bottom: 1px dashed rgba(255, 255, 255, 0.08);">
+                  <strong style="font-size: 0.78rem; font-weight: 700; color: #60a5fa; display: flex; align-items: center; gap: 6px;">
+                    <i class="fa-solid fa-earth-americas"></i> Custos do Destino (Análise da IA)
+                  </strong>
+                  <p id="budgetAiAnalysisText" style="font-size: 0.74rem; color: var(--text-light); line-height: 1.45; margin: 0; text-align: left;"></p>
+                </div>
+                
+                <div style="display: flex; gap: 10px; align-items: flex-start; text-align: left;">
+                  <div style="font-size: 1rem; color: #10b981; padding-top: 2px; flex-shrink: 0;"><i class="fa-solid fa-sliders"></i></div>
+                  <div style="display: flex; flex-direction: column; gap: 4px;">
+                    <strong style="font-size: 0.78rem; font-weight: 700; color: white;">Perfil do Seu Ajuste</strong>
+                    <p id="budgetFeedbackText" style="font-size: 0.74rem; color: var(--text-light); line-height: 1.4; margin: 0; text-align: left;">Mova os sliders acima para ajustar sua estimativa de gastos.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
           <!-- Splitwise Panel -->

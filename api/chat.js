@@ -113,6 +113,7 @@ Estrutura do JSON:
     "passeios": 850,
     "compras": 400
   },
+  "budgetAnalysis": "Análise personalizada sobre o custo da viagem baseada nas particularidades e valores locais reais do destino (ex: preços médios de refeições locais em restaurantes típicos, custo de transporte público ou passes locais, passeios principais, taxa de câmbio se aplicável, etc., tudo adaptado ao perfil do usuário)",
   "packing": [
     {
       "category": "Nome da Categoria (Ex: Documentos & Essenciais)",

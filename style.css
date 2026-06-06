@@ -756,9 +756,8 @@ a:hover {
   font-weight: 600;
   color: var(--text-main);
   margin-top: 2px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  word-break: break-word;
+  line-height: 1.3;
 }
 
 /* ==========================================================================

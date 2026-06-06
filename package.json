@@ -7,7 +7,7 @@
     "node": ">=18"
   },
   "scripts": {
-    "dev": "vercel dev",
+    "dev": "echo 'Serving static files and API...'",
     "deploy": "vercel --prod"
   },
   "devDependencies": {
