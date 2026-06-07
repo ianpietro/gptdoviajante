@@ -61,7 +61,7 @@ function setupItinerarySimulator() {
   });
 
   // Ação de Simular Roteiro
-  btnSimulate.addEventListener("click", () => {
+  btnSimulate.addEventListener("click", async () => {
     const destination = document.getElementById("simDest").value.trim() || "Salvador";
     const days = parseInt(slider.value, 10);
     const profileSelect = document.getElementById("simProfile");
