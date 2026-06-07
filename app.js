@@ -1183,25 +1183,113 @@ function renderTimeline() {
   
   container.innerHTML = "";
 
+  // Helper to extract clean destination name
+  const getDestinationSuffix = () => {
+    if (!tripData.tripTitle) return "";
+    let dest = tripData.tripTitle.replace(/viagem\s+para\s+/i, "").trim();
+    dest = dest.replace(/viagem\s+a\s+/i, "").trim();
+    return dest;
+  };
+
+  // Helper to classify turn
+  const getTurnForActivity = (act, idx, total) => {
+    if (!act.time || act.time === '--:--') {
+      if (total === 1) return 'manha';
+      if (total === 2) return idx === 0 ? 'manha' : 'tarde';
+      if (idx === 0) return 'manha';
+      if (idx === 1) return 'tarde';
+      return 'noite';
+    }
+    const hourPart = parseInt(act.time.split(":")[0]);
+    if (isNaN(hourPart)) {
+      if (idx === 0) return 'manha';
+      if (idx === 1) return 'tarde';
+      return 'noite';
+    }
+    if (hourPart >= 5 && hourPart < 12) return 'manha';
+    if (hourPart >= 12 && hourPart < 18) return 'tarde';
+    return 'noite';
+  };
+
+  // Helper to generate Google Maps link
+  const getGoogleMapsRouteLink = (turnActs) => {
+    if (!turnActs || turnActs.length === 0) return "#";
+    const destSuffix = getDestinationSuffix();
+    const locations = turnActs.map(act => {
+      let loc = act.title.trim();
+      if (destSuffix) loc += `, ${destSuffix}`;
+      return encodeURIComponent(loc);
+    });
+
+    if (locations.length === 1) {
+      return `https://www.google.com/maps/search/?api=1&query=${locations[0]}`;
+    }
+    const origin = locations[0];
+    const destination = locations[locations.length - 1];
+    if (locations.length === 2) {
+      return `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}`;
+    }
+    const waypoints = locations.slice(1, -1).join("|");
+    return `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&waypoints=${waypoints}`;
+  };
+
   tripData.itinerary.forEach(day => {
     // Add Nav Button
     nav.innerHTML += `<button class="timeline-btn ${activeFilter == day.dayNum ? 'active' : ''}" onclick="filterTimeline(${day.dayNum})">Dia ${day.dayNum}</button>`;
 
     if (activeFilter !== 'all' && activeFilter != day.dayNum) return;
 
-    // Render activities blocks
+    // Group activities by turn
     let activitiesHtml = "";
-    if (day.activities) {
-      day.activities.forEach(act => {
-        activitiesHtml += `
-          <div class="activity-block">
-            <div class="activity-time">${act.time || '--:--'}</div>
-            <div class="activity-details">
-              <h4>${act.title}</h4>
-              <p>${act.desc}</p>
+    if (day.activities && day.activities.length > 0) {
+      const turns = {
+        manha: [],
+        tarde: [],
+        noite: []
+      };
+
+      day.activities.forEach((act, idx) => {
+        const turn = getTurnForActivity(act, idx, day.activities.length);
+        turns[turn].push(act);
+      });
+
+      // Render each turn group
+      const turnConfigs = [
+        { key: 'manha', label: 'Manhã', icon: 'fa-cloud-sun' },
+        { key: 'tarde', label: 'Tarde', icon: 'fa-sun' },
+        { key: 'noite', label: 'Noite', icon: 'fa-moon' }
+      ];
+
+      turnConfigs.forEach(cfg => {
+        const turnActs = turns[cfg.key];
+        if (turnActs && turnActs.length > 0) {
+          const routeLink = getGoogleMapsRouteLink(turnActs);
+          let turnActsHtml = "";
+          
+          turnActs.forEach(act => {
+            turnActsHtml += `
+              <div class="activity-block">
+                <div class="activity-time">${act.time || '--:--'}</div>
+                <div class="activity-details">
+                  <h4>${act.title}</h4>
+                  <p>${act.desc}</p>
+                </div>
+              </div>
+            `;
+          });
+
+          activitiesHtml += `
+            <div class="timeline-turn-group" onclick="event.stopPropagation()">
+              <div class="turn-header-row">
+                <h4 class="turn-title"><i class="fa-solid ${cfg.icon}"></i> ${cfg.label}</h4>
+                <a href="${routeLink}" target="_blank" class="btn-turn-route" onclick="event.stopPropagation()"><i class="fa-solid fa-map-location-dot"></i> Ver Rota</a>
+              </div>
+              <div class="turn-activities">
+                ${turnActsHtml}
+              </div>
             </div>
-          </div>
-        `;
+          `;
+        }
       });
     }
 
