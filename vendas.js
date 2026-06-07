@@ -1,5 +1,5 @@
 /* ==========================================================================
-   PÁGINA DE VENDAS - GPT DO VIAJANTE (Lógica de Interatividade)
+   PÁGINA DE VENDAS - COPILOTO DE VIAGEM (Lógica de Interatividade)
    ========================================================================== */
 
 document.addEventListener("DOMContentLoaded", () => {

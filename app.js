@@ -1,5 +1,5 @@
 /* ==========================================================================
-   GPT DO VIAJANTE - FRONTEND CONTROLLER (JavaScript)
+   COPILOTO DE VIAGEM - FRONTEND CONTROLLER (JavaScript)
    ========================================================================= */
 
 import { 
@@ -1817,8 +1817,8 @@ function syncAuthMode() {
       tabLogin.style.fontWeight = "600";
     }
   } else {
-    if (title) title.textContent = "GPT do Viajante";
-    if (subtitle) subtitle.textContent = "Acesse seu consultor de bolso inteligente";
+    if (title) title.textContent = "CoPiloto de Viagem";
+    if (subtitle) subtitle.textContent = "Acesse seu painel inteligente de viagem";
     if (submitBtn) submitBtn.textContent = "Entrar";
     if (toggleText) toggleText.textContent = "Não tem uma conta?";
     if (toggleLink) toggleLink.textContent = "Cadastre-se";

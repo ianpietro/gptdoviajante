@@ -1,7 +1,7 @@
 {
-  "name": "gpt-do-viajante",
+  "name": "copiloto-de-viagem",
   "version": "1.0.0",
-  "description": "GPT do Viajante - Consultor de Viagens com IA integrado a painel interativo",
+  "description": "CoPiloto de Viagem - Painel Inteligente de Planejamento de Viagem",
   "private": true,
   "engines": {
     "node": ">=18"

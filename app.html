@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>GPT do Viajante - Painel Interativo</title>
-  <meta name="description" content="Seu consultor de bolso para planejar a viagem perfeita. Roteiro interativo, mala inteligente e orçamento reativo.">
+  <title>CoPiloto de Viagem - Painel Interativo</title>
+  <meta name="description" content="Seu painel pessoal para planejar a viagem perfeita. Roteiro interativo, mala inteligente e orçamento reativo.">
   
   <!-- Modern Typography (Google Fonts) -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -30,9 +30,9 @@
   <div class="login-screen hidden" id="loginScreen">
     <div class="login-card glass-panel">
       <div class="login-header">
-        <div class="brand-icon" style="width: 50px; height: 50px; font-size: 1.5rem; margin: 0 auto 12px; display: flex; align-items: center; justify-content: center;"><i class="fa-solid fa-robot"></i></div>
-        <h2>GPT do Viajante</h2>
-        <p>Acesse seu consultor de bolso inteligente</p>
+        <div class="brand-icon" style="width: 50px; height: 50px; font-size: 1.5rem; margin: 0 auto 12px; display: flex; align-items: center; justify-content: center;"><i class="fa-solid fa-compass"></i></div>
+        <h2>CoPiloto de Viagem</h2>
+        <p>Acesse seu painel inteligente de viagem</p>
       </div>
       
       <!-- Tabs for toggling Login / Registration -->
@@ -78,9 +78,9 @@
 
       <!-- Oferta de Compra para não cadastrados -->
       <div class="purchase-offer" id="loginPurchaseOffer" style="margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--border-color); text-align: center;">
-        <span style="font-size: 0.82rem; color: var(--text-light); display: block; margin-bottom: 10px; font-weight: 500;">Não tem acesso ao GPT do Viajante?</span>
+        <span style="font-size: 0.82rem; color: var(--text-light); display: block; margin-bottom: 10px; font-weight: 500;">Não tem acesso ao CoPiloto de Viagem?</span>
         <a href="https://gptdoviajante.com/checkout" target="_blank" class="btn btn-accent buy-btn" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px; font-weight: 700; border-radius: var(--border-radius-md); text-decoration: none; box-sizing: border-box;">
-          <i class="fa-solid fa-cart-shopping"></i> Comprar Acesso
+          <i class="fa-solid fa-plane-departure"></i> Adquirir CoPiloto
         </a>
       </div>
 
@@ -146,9 +146,9 @@
         <div class="hero-overlay"></div>
         <div class="hero-content">
           <div class="hero-text-wrapper">
-            <span class="badge badge-accent"><i class="fa-solid fa-plane-departure"></i> GPT do Viajante</span>
+            <span class="badge badge-accent"><i class="fa-solid fa-compass"></i> CoPiloto de Viagem</span>
             <h1 id="tripTitle">Minha Próxima Viagem</h1>
-            <p id="tripSubtitle">Converse com o consultor abaixo para gerar seu roteiro personalizado!</p>
+            <p id="tripSubtitle">Converse com seu CoPiloto abaixo para gerar seu painel de viagem!</p>
             
             <!-- Countdown Timer -->
             <div class="countdown-container hidden" id="countdown">
@@ -375,8 +375,8 @@
 
         <!-- Footer & Export Panel -->
         <footer style="margin-top: 40px; border-radius: var(--border-radius-md);">
-          <div class="footer-brand">GPT do Viajante</div>
-          <p>Desenvolvido para transformar conversas em roteiros dinâmicos e fáceis de usar.</p>
+          <div class="footer-brand">CoPiloto de Viagem</div>
+          <p>Desenvolvido para transformar conversas em painéis dinâmicos e fáceis de usar.</p>
           <div class="footer-actions">
             <button class="btn btn-accent" id="exportPdfBtn"><i class="fa-solid fa-file-pdf"></i> Baixar Roteiro em PDF</button>
           </div>
@@ -614,9 +614,9 @@
       <!-- Chat Top Bar: brand + tutorial + user -->
       <div class="chat-header">
         <div class="brand">
-          <div class="brand-icon"><i class="fa-solid fa-robot"></i></div>
+          <div class="brand-icon"><i class="fa-solid fa-compass"></i></div>
           <div class="brand-text">
-            <h2>GPT do Viajante</h2>
+            <h2>CoPiloto</h2>
             <span id="chatModeLabel">Planejar Roteiro</span>
           </div>
         </div>
@@ -656,8 +656,8 @@
         <div class="chat-messages" id="chatMessages">
           <div class="message assistant">
             <div class="message-bubble">
-              <p>🌍 <strong>Olá, viajante! Eu sou o GPT do Viajante.</strong></p>
-              <p>Estou pronto para montar a sua viagem perfeita. Me conta: para onde você quer ir, quando e com quem?</p>
+              <p>🌍 <strong>Olá, viajante! Eu sou o seu CoPiloto de Viagem.</strong></p>
+              <p>Estou pronto para ajudar a planejar a sua viagem perfeita. Me conta: para onde você quer ir, quando e com quem?</p>
             </div>
             <span class="message-time">Agora</span>
           </div>
@@ -924,7 +924,7 @@
   <!-- ════════════════════════════════════════════════════════════
        TUTORIAL MODAL
   ═══════════════════════════════════════════════════════════════ -->
-  <div class="tutorial-overlay hidden" id="tutorialModal" role="dialog" aria-modal="true" aria-label="Tutorial do GPT do Viajante">
+  <div class="tutorial-overlay hidden" id="tutorialModal" role="dialog" aria-modal="true" aria-label="Tutorial do CoPiloto de Viagem">
     <div class="tutorial-card">
 
       <!-- Close -->
@@ -937,9 +937,9 @@
 
         <!-- Slide 1: Welcome -->
         <div class="tutorial-slide active" data-slide="0">
-          <div class="slide-icon slide-icon--blue"><i class="fa-solid fa-robot"></i></div>
-          <h2>Bem-vindo ao<br><span class="slide-brand">GPT do Viajante</span></h2>
-          <p>Seu assistente de viagem completo. Do planejamento até a experiência no destino, tudo em um só lugar.</p>
+          <div class="slide-icon slide-icon--blue"><i class="fa-solid fa-compass"></i></div>
+          <h2>Bem-vindo ao<br><span class="slide-brand">CoPiloto de Viagem</span></h2>
+          <p>Seu painel pessoal de viagem. Do planejamento até a experiência no destino, tudo em um só lugar.</p>
           <ul class="slide-list">
             <li><i class="fa-solid fa-check"></i> Roteiro gerado automaticamente, do seu jeito</li>
             <li><i class="fa-solid fa-check"></i> Orçamento e divisão de despesas</li>
@@ -966,7 +966,7 @@
         <div class="tutorial-slide" data-slide="2">
           <div class="slide-icon slide-icon--green"><i class="fa-solid fa-compass"></i></div>
           <h2>Chat <span class="slide-accent-green">Na Viagem</span></h2>
-          <p>Quando estiver no destino, mude para o Chat Na Viagem (aba inferior). O assistente vira seu guia em tempo real.</p>
+          <p>Quando estiver no destino, mude para o Chat Na Viagem (aba inferior). O CoPiloto vira seu guia em tempo real.</p>
           <ul class="slide-list">
             <li><i class="fa-solid fa-utensils"></i> <strong>Restaurantes:</strong> "Onde comer perto do Bairro Alto?"</li>
             <li><i class="fa-solid fa-language"></i> <strong>Traduções:</strong> "Como peço a conta em português?"</li>
@@ -1036,7 +1036,7 @@
         <div class="tutorial-slide" data-slide="7">
           <div class="slide-icon slide-icon--amber"><i class="fa-solid fa-mobile-screen-button"></i></div>
           <h2>Como Instalar no <span class="slide-accent-amber">Celular</span></h2>
-          <p>Adicione o GPT do Viajante à tela inicial do seu celular para usá-lo como um aplicativo nativo.</p>
+          <p>Adicione o CoPiloto de Viagem à tela inicial do seu celular para usá-lo como um aplicativo nativo.</p>
           <ul class="slide-list" style="gap: 8px;">
             <li>
               <i class="fa-brands fa-apple" style="color: #a3a3a3; font-size: 0.95rem; margin-right: 4px;"></i> <strong>iPhone (iOS):</strong>
@@ -1099,7 +1099,7 @@
           <i class="fa-solid fa-users-arrows"></i>
         </div>
         <h1 style="font-size: 1.8rem; font-weight: 800; margin: 0; color: white;">Divisão de Despesas</h1>
-        <p style="font-size: 0.9rem; color: var(--text-light); margin: 6px 0 0;">Visualizando tabela compartilhada no GPT do Viajante</p>
+        <p style="font-size: 0.9rem; color: var(--text-light); margin: 6px 0 0;">Visualizando tabela compartilhada no CoPiloto de Viagem</p>
       </div>
 
       <!-- Glass Panel for shared details -->

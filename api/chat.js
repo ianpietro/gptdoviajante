@@ -87,7 +87,7 @@ module.exports = async function handler(req, res) {
   } catch (err) {
     console.error("Error reading prompt_master.txt:", err);
     // Minimal fallback system instructions
-    systemPrompt = "Você é o GPT do Viajante, um assistente virtual consultor de viagens.";
+    systemPrompt = "Você é o CoPiloto de Viagem, um painel interativo e inteligente de viagens.";
   }
 
   // Inject dynamic JSON structure instructions into system prompt
