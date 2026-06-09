@@ -145,6 +145,26 @@ export async function logout() {
 }
 
 /**
+ * Retorna o usuário atual de forma assíncrona, aguardando o Firebase inicializar.
+ * Resolve com o objeto User se houver sessão ativa, ou null se não houver.
+ * Use antes de decidir mostrar o modo de shared view.
+ */
+export function checkCurrentUser() {
+  return new Promise((resolve) => {
+    if (!isConfigured) {
+      resolve(null);
+      return;
+    }
+    // onAuthStateChanged dispara uma vez com o estado atual e depois de cada mudança.
+    // Usamos unsubscribe() para transformar isso em uma Promise "one-shot".
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      unsubscribe();
+      resolve(user);
+    });
+  });
+}
+
+/**
  * Retorna o ID Token atualizado do usuário ativo
  */
 export async function getFreshToken() {

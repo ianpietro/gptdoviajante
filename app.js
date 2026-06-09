@@ -4,6 +4,7 @@
 
 import { 
   setupAuthStateListener, 
+  checkCurrentUser,
   loginWithGoogle, 
   loginWithEmail, 
   registerWithEmail, 
@@ -194,15 +195,6 @@ function getSharedDataFromUrl() {
 
 // Configure UI adjustments when in shared view mode
 function setupSharedViewUI() {
-  const banner = document.getElementById("sharedViewBanner");
-  if (banner) {
-    banner.classList.remove("hidden");
-    const textSpan = banner.querySelector("span");
-    if (textSpan && tripData.tripTitle) {
-      textSpan.innerHTML = `Você está visualizando a viagem <strong>${tripData.tripTitle}</strong> de forma compartilhada.`;
-    }
-  }
-
   const chatBtn = document.querySelector('.bottom-nav-btn[data-tab="chat"]');
   const naViagemBtn = document.querySelector('.bottom-nav-btn[data-tab="naviagem"]');
   const docsBtn = document.querySelector('.bottom-nav-btn[data-tab="documentos"]');
@@ -251,25 +243,36 @@ async function init() {
 
   const sharedHash = getSharedDataFromUrl();
   if (sharedHash) {
-    isSharedView = true;
-    try {
-      tripData = await decompressFromUrl(sharedHash);
-      tripData.flights = tripData.flights || [];
-      tripData.members = tripData.members || ["Você"];
-      tripData.expenses = tripData.expenses || [];
-      tripData.budgetThresholds = tripData.budgetThresholds || { economico: 150, intermediario: 450 };
-      
-      renderTimeline();
-      renderFlights();
-      renderSplitwise();
-      renderPackingChecklist();
-      checkItineraryStatus();
-      updateBudget();
-      setupSharedViewUI();
-      return;
-    } catch (err) {
-      console.error("Falha ao carregar viagem compartilhada:", err);
-      alert("⚠️ Não foi possível carregar a viagem compartilhada. O link pode estar quebrado ou incompleto.");
+    // Se o usuário já está autenticado, ignoramos o link compartilhado e
+    // carregamos o painel DELE normalmente — sem mostrar o banner "outra pessoa".
+    const activeUser = await checkCurrentUser();
+    if (activeUser) {
+      // Limpa a URL compartilhada do histórico do navegador para evitar
+      // que o app entre em shared view novamente no próximo reload.
+      window.history.replaceState({}, document.title, '/app.html');
+      // Segue para o fluxo normal de autenticação abaixo (não faz return aqui).
+    } else {
+      // Nenhum usuário logado: mostra a viagem compartilhada normalmente.
+      isSharedView = true;
+      try {
+        tripData = await decompressFromUrl(sharedHash);
+        tripData.flights = tripData.flights || [];
+        tripData.members = tripData.members || ["Você"];
+        tripData.expenses = tripData.expenses || [];
+        tripData.budgetThresholds = tripData.budgetThresholds || { economico: 150, intermediario: 450 };
+        
+        renderTimeline();
+        renderFlights();
+        renderSplitwise();
+        renderPackingChecklist();
+        checkItineraryStatus();
+        updateBudget();
+        setupSharedViewUI();
+        return;
+      } catch (err) {
+        console.error("Falha ao carregar viagem compartilhada:", err);
+        alert("⚠️ Não foi possível carregar a viagem compartilhada. O link pode estar quebrado ou incompleto.");
+      }
     }
   }
   
