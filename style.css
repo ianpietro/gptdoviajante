@@ -135,7 +135,8 @@ a:hover {
   height: 100vh;
   flex-shrink: 0;
   overflow: hidden;
-  padding-bottom: calc(62px + env(safe-area-inset-bottom, 0px));
+  /* matches nav height: 68px content + safe-area inset */
+  padding-bottom: calc(68px + env(safe-area-inset-bottom, 0px));
   transition: padding-bottom 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -503,7 +504,6 @@ a:hover {
 
 /* Chat Input Area — centered like messages */
 .chat-input-area {
-  padding: 10px 0 14px;
   border-top: 1px solid var(--border-color);
   background-color: var(--bg-sidebar);
   flex-shrink: 0;
@@ -513,23 +513,23 @@ a:hover {
   max-width: 860px;
   width: 100%;
   margin: 0 auto;
-  padding-left: 32px;
-  padding-right: 32px;
-  padding-top: 10px;
-  padding-bottom: 14px;
+  /* slightly more vertical breathing room */
+  padding: 14px 32px 16px;
 }
 .chat-input-area textarea {
   flex: 1;
   background: var(--bg-input);
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius-md);
-  padding: 11px 16px;
+  padding: 13px 16px;
   color: white;
   font-family: var(--font-body);
-  font-size: 0.9rem;
+  font-size: 0.95rem;
   outline: none;
   resize: none;
-  max-height: 100px;
+  /* taller default — at least 2 visible lines of text */
+  min-height: 50px;
+  max-height: 120px;
   transition: border-color var(--transition-fast);
   line-height: 1.5;
 }
@@ -1414,12 +1414,14 @@ footer p {
   left: 0;
   right: 0;
   z-index: 1000;
-  height: 62px;
+  /* height separates content area (68px) from iPhone home-bar safe zone */
+  height: calc(68px + env(safe-area-inset-bottom, 0px));
   background: rgba(13, 13, 22, 0.97);
   border-top: 1px solid var(--border-color);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
-  padding-bottom: env(safe-area-inset-bottom, 0);
+  /* push buttons up out of the home-bar area */
+  padding-bottom: env(safe-area-inset-bottom, 0px);
   box-shadow: 0 -4px 32px rgba(0, 0, 0, 0.6);
   flex-direction: row;
   align-items: stretch;
@@ -1434,20 +1436,21 @@ footer p {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
+  gap: 5px;
   background: transparent;
   border: none;
   border-top: 3px solid transparent;
   color: var(--text-muted);
   cursor: pointer;
-  padding: 6px 8px;
+  /* more top padding so the active border-line never overlaps the icon */
+  padding: 12px 8px 8px;
   transition: color 0.2s ease, border-color 0.2s ease;
   font-family: var(--font-body);
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
 }
 .bottom-nav-btn i {
-  font-size: 1.2rem;
+  font-size: 1.25rem;
   transition: transform 0.2s ease;
 }
 .bottom-nav-btn span {
@@ -1460,7 +1463,8 @@ footer p {
   color: var(--primary);
   border-top-color: var(--primary);
 }
-.bottom-nav-btn.active i { transform: translateY(-1px); }
+/* Removed translateY(-1px) that was pushing the icon up toward the border line */
+.bottom-nav-btn.active i { transform: none; }
 .bottom-nav-btn[data-tab="naviagem"].active {
   color: #f59e0b;
   border-top-color: #f59e0b;
@@ -1471,7 +1475,7 @@ footer p {
   .bottom-nav-btn {
     flex: 1;
     width: auto;
-    padding: 6px 4px;
+    padding: 12px 4px 8px;
   }
 }
 
@@ -1817,7 +1821,7 @@ footer p {
   .chat-sidebar,
   .dashboard-content {
     height: 95vh;
-    padding-bottom: 62px;
+    padding-bottom: 68px;
   }
 
   .bottom-nav {
@@ -3469,10 +3473,14 @@ footer p {
     padding: 0 16px;
   }
 
-  /* Chat input area: reduce side padding from 32px */
+  /* Chat input area: reduce side padding on mobile, keep vertical roomy */
   .chat-input-area {
-    padding-left: 12px;
-    padding-right: 12px;
+    padding: 12px 12px 14px;
+    gap: 10px;
+  }
+  .chat-input-area textarea {
+    font-size: 1rem;      /* slightly bigger for easier mobile typing */
+    min-height: 52px;
   }
 }
 
@@ -3543,9 +3551,13 @@ footer p {
     padding: 0 10px;
   }
   .chat-input-area {
-    padding-left: 8px;
-    padding-right: 8px;
+    padding: 12px 8px 14px;
+    gap: 8px;
     z-index: 1000;
+  }
+  .chat-input-area textarea {
+    min-height: 52px;
+    font-size: 1rem;
   }
   .input-actions {
     z-index: 1001;
