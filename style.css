@@ -3545,6 +3545,10 @@ footer p {
   .chat-input-area {
     padding-left: 8px;
     padding-right: 8px;
+    z-index: 1000;
+  }
+  .input-actions {
+    z-index: 1001;
   }
 
   /* Chat header: tighten */
