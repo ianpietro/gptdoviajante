@@ -47,13 +47,232 @@ let authVerificationFailed = false;
 let planAttachment = null;
 let travelAttachment = null;
 
-// Initialize
-function init() {
+let isSharedView = false;
+
+const DB_NAME = "CoPilotoDocsDB";
+const STORE_NAME = "documents";
+
+function openDocsDB() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, 1);
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => resolve(request.result);
+    request.onupgradeneeded = (e) => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME, { keyPath: "id" });
+      }
+    };
+  });
+}
+
+async function saveDocumentFile(docId, base64Data) {
+  const db = await openDocsDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(STORE_NAME, "readwrite");
+    const store = transaction.objectStore(STORE_NAME);
+    const request = store.put({ id: docId, data: base64Data });
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function getDocumentFile(docId) {
+  const db = await openDocsDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(STORE_NAME, "readonly");
+    const store = transaction.objectStore(STORE_NAME);
+    const request = store.get(docId);
+    request.onsuccess = () => resolve(request.result ? request.result.data : null);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function deleteDocumentFile(docId) {
+  const db = await openDocsDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(STORE_NAME, "readwrite");
+    const store = transaction.objectStore(STORE_NAME);
+    const request = store.delete(docId);
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+}
+
+// Helper to extract clean destination name
+function getDestinationSuffix() {
+  if (!tripData.tripTitle) return "";
+  let dest = tripData.tripTitle.replace(/viagem\s+para\s+/i, "").trim();
+  dest = dest.replace(/viagem\s+a\s+/i, "").trim();
+  return dest;
+}
+
+// Helper of asynchronous compression with fallback
+async function compressToUrl(jsonData) {
+  const cleanData = {
+    tripTitle: jsonData.tripTitle,
+    tripSubtitle: jsonData.tripSubtitle,
+    infoDates: jsonData.infoDates,
+    infoWeather: jsonData.infoWeather,
+    infoGroup: jsonData.infoGroup,
+    infoHotel: jsonData.infoHotel,
+    hotelLink: jsonData.hotelLink,
+    targetDate: jsonData.targetDate,
+    budget: jsonData.budget,
+    budgetThresholds: jsonData.budgetThresholds,
+    budgetAnalysis: jsonData.budgetAnalysis,
+    packing: jsonData.packing,
+    itinerary: jsonData.itinerary,
+    flights: jsonData.flights || [],
+    members: jsonData.members || ["Você"],
+    expenses: jsonData.expenses || []
+  };
+
+  const string = JSON.stringify(cleanData);
+  
+  try {
+    const stream = new Blob([string]).stream();
+    const compressedStream = stream.pipeThrough(new CompressionStream("deflate"));
+    const response = new Response(compressedStream);
+    const buffer = await response.arrayBuffer();
+    
+    const bytes = new Uint8Array(buffer);
+    let binary = "";
+    for (let i = 0; i < bytes.length; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    const base64 = btoa(binary);
+    return "c1_" + base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  } catch (err) {
+    console.warn("Fallback to base64 encoding (CompressionStream failed):", err);
+    const base64 = btoa(unescape(encodeURIComponent(string)));
+    return "f1_" + base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  }
+}
+
+// Helper of asynchronous decompression with fallback
+async function decompressFromUrl(hash) {
+  const version = hash.substring(0, 3);
+  let base64 = hash.substring(3).replace(/-/g, "+").replace(/_/g, "/");
+  while (base64.length % 4) {
+    base64 += "=";
+  }
+
+  if (version === "c1_") {
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    const stream = new Blob([bytes]).stream();
+    const decompressedStream = stream.pipeThrough(new DecompressionStream("deflate"));
+    const response = new Response(decompressedStream);
+    const text = await response.text();
+    return JSON.parse(text);
+  } else if (version === "f1_") {
+    const decoded = decodeURIComponent(escape(atob(base64)));
+    return JSON.parse(decoded);
+  }
+  
+  const decoded = decodeURIComponent(escape(atob(hash.replace(/-/g, "+").replace(/_/g, "/"))));
+  return JSON.parse(decoded);
+}
+
+// Check if URL has shared data parameters
+function getSharedDataFromUrl() {
   const urlParams = new URLSearchParams(window.location.search);
+  const sharedParam = urlParams.get("shared");
+  if (sharedParam) return sharedParam;
+  
+  const pathParts = window.location.pathname.split("/");
+  const vIndex = pathParts.indexOf("v");
+  if (vIndex !== -1 && pathParts[vIndex + 1]) {
+    return pathParts[vIndex + 1];
+  }
+  return null;
+}
+
+// Configure UI adjustments when in shared view mode
+function setupSharedViewUI() {
+  const banner = document.getElementById("sharedViewBanner");
+  if (banner) {
+    banner.classList.remove("hidden");
+    const textSpan = banner.querySelector("span");
+    if (textSpan && tripData.tripTitle) {
+      textSpan.innerHTML = `Você está visualizando a viagem <strong>${tripData.tripTitle}</strong> de forma compartilhada.`;
+    }
+  }
+
+  const chatBtn = document.querySelector('.bottom-nav-btn[data-tab="chat"]');
+  const naViagemBtn = document.querySelector('.bottom-nav-btn[data-tab="naviagem"]');
+  const docsBtn = document.querySelector('.bottom-nav-btn[data-tab="documentos"]');
+  if (chatBtn) chatBtn.style.display = 'none';
+  if (naViagemBtn) naViagemBtn.style.display = 'none';
+  if (docsBtn) docsBtn.style.display = 'none';
+
+  const shareHeroBtnContainer = document.getElementById("shareTripHeroContainer");
+  if (shareHeroBtnContainer) shareHeroBtnContainer.style.display = "none";
+
+  const shareSplitwiseBtn = document.getElementById("shareSplitwiseBtn");
+  if (shareSplitwiseBtn) shareSplitwiseBtn.style.display = "none";
+
+  const addExpenseBtn = document.getElementById("openAddExpenseModalBtn");
+  if (addExpenseBtn) addExpenseBtn.style.display = "none";
+
+  const addMemberForm = document.getElementById("addMemberForm");
+  if (addMemberForm) addMemberForm.style.display = "none";
+
+  const subTabSearchBtn = document.getElementById("subTabSearchBtn");
+  if (subTabSearchBtn) subTabSearchBtn.style.display = "none";
+
+  const openAddFlightModalBtn = document.getElementById("openAddFlightModalBtn");
+  if (openAddFlightModalBtn) openAddFlightModalBtn.style.display = "none";
+
+  const clearDataBtn = document.getElementById("clearDataBtn");
+  if (clearDataBtn) clearDataBtn.style.display = "none";
+
+  const sliders = ["slideHospedagem", "slideAlimentacao", "slidePasseios", "slideCompras"];
+  sliders.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.disabled = true;
+  });
+
+  switchTab('roteiro');
+}
+
+// Initialize
+async function init() {
+  const urlParams = new URLSearchParams(window.location.search);
+  
   if (urlParams.has("share")) {
     renderSharedSplitwise(urlParams.get("share"));
     return;
   }
+
+  const sharedHash = getSharedDataFromUrl();
+  if (sharedHash) {
+    isSharedView = true;
+    try {
+      tripData = await decompressFromUrl(sharedHash);
+      tripData.flights = tripData.flights || [];
+      tripData.members = tripData.members || ["Você"];
+      tripData.expenses = tripData.expenses || [];
+      tripData.budgetThresholds = tripData.budgetThresholds || { economico: 150, intermediario: 450 };
+      
+      renderTimeline();
+      renderFlights();
+      renderSplitwise();
+      renderPackingChecklist();
+      checkItineraryStatus();
+      updateBudget();
+      setupSharedViewUI();
+      return;
+    } catch (err) {
+      console.error("Falha ao carregar viagem compartilhada:", err);
+      alert("⚠️ Não foi possível carregar a viagem compartilhada. O link pode estar quebrado ou incompleto.");
+    }
+  }
+  
   setupAuthUI();
   setupAuthStateListener(handleUserLoggedIn, handleUserLoggedOut);
 
@@ -61,6 +280,27 @@ function init() {
   enableDragToScroll(document.getElementById("chatMessages"));
   enableDragToScroll(document.getElementById("travelChatMessages"));
   enableDragToScroll(document.getElementById("dashboardContent"));
+  
+  // Set up share button listener
+  const shareHeroBtn = document.getElementById("shareTripHeroBtn");
+  if (shareHeroBtn) {
+    shareHeroBtn.addEventListener("click", async () => {
+      try {
+        const hash = await compressToUrl(tripData);
+        const shareUrl = `${window.location.origin}/v/${hash}`;
+        
+        navigator.clipboard.writeText(shareUrl).then(() => {
+          alert("✓ Link de compartilhamento do seu painel copiado para a área de transferência! Envie para seus parceiros de viagem no WhatsApp.");
+        }).catch(err => {
+          console.error("Failed to copy link:", err);
+          prompt("Copie o link abaixo para compartilhar:", shareUrl);
+        });
+      } catch (err) {
+        console.error("Error generating share link:", err);
+        alert("⚠️ Ocorreu um erro ao gerar o link de compartilhamento.");
+      }
+    });
+  }
 }
 
 if (document.readyState === "loading") {
@@ -132,6 +372,7 @@ function loadState() {
   tripData.flights = tripData.flights || [];
   tripData.members = tripData.members || ["Você"];
   tripData.expenses = tripData.expenses || [];
+  tripData.documents = tripData.documents || [];
   
   renderFlights();
   renderSplitwise();
@@ -242,7 +483,8 @@ function switchTab(tab) {
       voos: 'flightsSection',
       roteiro: 'itinerarySection',
       orcamento: 'budgetSection',
-      mala: 'packingSection'
+      mala: 'packingSection',
+      documentos: 'documentsSection'
     };
     
     // Hide all sections first
@@ -619,6 +861,9 @@ function setupUIEventListeners() {
 
   // Initialize Splitwise Event Listeners
   setupSplitwiseListeners();
+
+  // Initialize Documents Event Listeners
+  setupDocumentListeners();
 }
 
 async function handleFlightSearchSubmit(e) {
@@ -1157,6 +1402,9 @@ function renderDashboard() {
   // 4. Render Packing List
   renderPackingChecklist();
 
+  // 4b. Render Documents List
+  renderDocuments();
+
   // 5. Check itinerary state to show banner/nav glow
   checkItineraryStatus();
 }
@@ -1537,7 +1785,7 @@ function renderPackingChecklist() {
         const isChecked = checkedItems[uniqueId] ? "checked" : "";
         itemsHtml += `
           <label class="packing-item">
-            <input type="checkbox" class="packing-checkbox" id="${uniqueId}" ${isChecked} onchange="saveChecklistState()">
+            <input type="checkbox" class="packing-checkbox" id="${uniqueId}" ${isChecked} ${isSharedView ? 'disabled' : ''} onchange="saveChecklistState()">
             <span class="packing-item-text">${item}</span>
           </label>
         `;
@@ -1581,6 +1829,180 @@ function updateChecklistProgress() {
     <strong>${checked}</strong> de <strong>${total}</strong> itens guardados na mala (${percentage}%)
   `;
 }
+
+function formatBytes(bytes, decimals = 1) {
+  if (!+bytes) return '0 Bytes';
+  const k = 1024;
+  const dm = decimals < 0 ? 0 : decimals;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
+}
+
+function renderDocuments() {
+  const container = document.getElementById("documentsList");
+  const emptyState = document.getElementById("documentsEmpty");
+  if (!container || !emptyState) return;
+
+  const docs = tripData.documents || [];
+  if (docs.length === 0) {
+    emptyState.classList.remove("hidden");
+    container.innerHTML = "";
+    return;
+  }
+
+  emptyState.classList.add("hidden");
+  
+  container.innerHTML = docs.map(doc => {
+    const iconClass = doc.type === 'pdf' ? 'fa-file-pdf' : 'fa-file-image';
+    const typeClass = doc.type === 'pdf' ? 'pdf' : 'image';
+    return `
+      <div class="document-item">
+        <div style="display: flex; align-items: center; gap: 14px; min-width: 0; flex: 1;">
+          <div class="doc-type-icon ${typeClass}">
+            <i class="fa-solid ${iconClass}"></i>
+          </div>
+          <div style="min-width: 0;">
+            <h4 style="font-size: 0.88rem; font-weight: 700; margin: 0; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${doc.name}</h4>
+            <p style="font-size: 0.74rem; color: var(--text-muted); margin: 3px 0 0 0;">
+              <span style="background: rgba(255,255,255,0.06); padding: 2px 6px; border-radius: 4px; font-weight: 600; margin-right: 6px; color: var(--text-light); text-transform: uppercase; font-size: 0.65rem;">${doc.category}</span>
+              ${doc.size} • ${doc.date}
+            </p>
+          </div>
+        </div>
+        <div style="display: flex; gap: 8px; flex-shrink: 0; align-items: center;">
+          <button class="btn btn-secondary btn-sm" style="padding: 6px 12px; font-size: 0.78rem;" onclick="viewDocument('${doc.id}')">
+            <i class="fa-solid fa-eye"></i> Ver
+          </button>
+          ${isSharedView ? '' : `
+          <button class="flight-action-btn delete" style="padding: 8px;" onclick="deleteDocument('${doc.id}')">
+            <i class="fa-solid fa-trash"></i>
+          </button>
+          `}
+        </div>
+      </div>
+    `;
+  }).reverse().join(""); // Show newest first
+}
+
+function setupDocumentListeners() {
+  const fileInput = document.getElementById("documentFileInput");
+  if (!fileInput) return;
+
+  fileInput.addEventListener("change", async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // Limit to 4MB
+    if (file.size > 4 * 1024 * 1024) {
+      alert("⚠️ Arquivo muito grande. O limite máximo de upload é 4MB.");
+      fileInput.value = "";
+      return;
+    }
+
+    const categorySelect = document.getElementById("documentCategorySelect");
+    const category = categorySelect ? categorySelect.value : "Outros";
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const base64Data = event.target.result;
+        const docId = `doc-${Date.now()}`;
+        
+        // Save to IndexedDB
+        await saveDocumentFile(docId, base64Data);
+
+        // Save metadata to tripData
+        const newDoc = {
+          id: docId,
+          name: file.name,
+          type: file.type.includes("pdf") ? "pdf" : "image",
+          category: category,
+          date: new Date().toLocaleDateString("pt-BR"),
+          size: formatBytes(file.size)
+        };
+
+        tripData.documents = tripData.documents || [];
+        tripData.documents.push(newDoc);
+        saveState();
+        renderDocuments();
+        
+        fileInput.value = "";
+        alert("✓ Documento enviado e armazenado localmente com sucesso!");
+      } catch (err) {
+        console.error("Error saving document:", err);
+        alert("⚠️ Ocorreu um erro ao salvar o documento no dispositivo.");
+      }
+    };
+
+    reader.onerror = () => {
+      alert("⚠️ Falha ao ler o arquivo selecionado.");
+    };
+
+    reader.readAsDataURL(file);
+  });
+}
+
+async function viewDocument(docId) {
+  try {
+    const fileData = await getDocumentFile(docId);
+    if (!fileData) {
+      alert("⚠️ Documento não encontrado no armazenamento local deste dispositivo.");
+      return;
+    }
+
+    const doc = tripData.documents.find(d => d.id === docId);
+    if (!doc) return;
+
+    if (doc.type === "pdf") {
+      const win = window.open();
+      if (win) {
+        win.document.write(`<iframe src="${fileData}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
+      } else {
+        // Fallback for popup block
+        const link = document.createElement("a");
+        link.href = fileData;
+        link.target = "_blank";
+        link.download = doc.name;
+        link.click();
+      }
+    } else {
+      // Image preview in existing gallery lightbox
+      if (window.openImageLightbox) {
+        window.openImageLightbox(fileData, doc.name);
+      } else {
+        const win = window.open();
+        win.document.write(`<img src="${fileData}" style="max-width:100%; max-height:100%; display:block; margin:auto;"/>`);
+      }
+    }
+  } catch (err) {
+    console.error("Error retrieving document:", err);
+    alert("⚠️ Não foi possível carregar o documento do armazenamento local.");
+  }
+}
+
+async function deleteDocument(docId) {
+  if (!confirm("Tem certeza que deseja excluir permanentemente este documento?")) return;
+
+  try {
+    // Delete from IndexedDB
+    await deleteDocumentFile(docId);
+
+    // Delete metadata
+    tripData.documents = tripData.documents.filter(d => d.id !== docId);
+    saveState();
+    renderDocuments();
+  } catch (err) {
+    console.error("Error deleting document:", err);
+    alert("⚠️ Ocorreu um erro ao excluir o documento do dispositivo.");
+  }
+}
+
+// Bind to window for HTML click handlers
+window.viewDocument = viewDocument;
+window.deleteDocument = deleteDocument;
+window.renderDocuments = renderDocuments;
+window.setupDocumentListeners = setupDocumentListeners;
 
 // Countdown Tick
 function setupCountdown() {
@@ -1719,7 +2141,7 @@ async function handleUserLoggedIn(user, token) {
     let errMsg = err.message || "Seu e-mail não está cadastrado na lista de compradores autorizados.";
     if (errMsg.includes("compradores autorizados") || errMsg.includes("não está cadastrado") || errMsg.includes("Acesso negado")) {
       const emailStr = user && user.email ? ` (<strong>${user.email}</strong>)` : "";
-      errMsg = `Seu e-mail${emailStr} não está cadastrado na lista de compradores autorizados. <a href="https://gptdoviajante.com/checkout" target="_blank" style="color: #fff; text-decoration: underline; font-weight: bold; display: block; margin-top: 8px;"><i class="fa-solid fa-cart-shopping"></i> Adquirir Acesso Completo aqui</a>`;
+      errMsg = `Seu e-mail${emailStr} não está cadastrado na lista de compradores autorizados. <a href="https://pay.kirvano.com/8c50a730-069a-40e8-bed3-078c03089d1d" target="_blank" style="color: #fff; text-decoration: underline; font-weight: bold; display: block; margin-top: 8px;"><i class="fa-solid fa-cart-shopping"></i> Adquirir Acesso Completo aqui</a>`;
     }
     authVerificationFailed = true;
     showLoginError(errMsg);
@@ -2087,10 +2509,12 @@ function renderFlights() {
 
     return `
       <div class="flight-card glass-panel" data-index="${index}">
+        ${isSharedView ? '' : `
         <div class="flight-card-actions">
           <button class="flight-action-btn edit" onclick="window.editFlight(${index})"><i class="fa-solid fa-pen"></i></button>
           <button class="flight-action-btn delete" onclick="window.deleteFlight(${index})"><i class="fa-solid fa-trash"></i></button>
         </div>
+        `}
         
         <div class="flight-header">
           <div class="flight-airline-info">
@@ -2685,7 +3109,7 @@ function renderSplitwise() {
         <div class="member-chip">
           <i class="fa-solid fa-user-tag" style="font-size: 0.75rem; opacity: 0.8; color: ${isMain ? 'var(--primary)' : 'var(--text-muted)'}"></i>
           <span>${m}</span>
-          ${isMain ? '' : `<i class="fa-solid fa-xmark remove-member" onclick="removeMember(${idx})"></i>`}
+          ${isMain || isSharedView ? '' : `<i class="fa-solid fa-xmark remove-member" onclick="removeMember(${idx})"></i>`}
         </div>
       `;
     }).join("");
@@ -2793,9 +3217,11 @@ function renderSplitwise() {
         return `
           <div class="balance-item">
             <span class="balance-text">${textPrefix}</span>
+            ${isSharedView ? '' : `
             <button class="btn btn-secondary btn-sm" style="padding: 6px 12px; font-size: 0.78rem;" onclick="settleDebt('${t.from}', '${t.to}', ${t.amount})">
               <i class="fa-solid fa-check"></i> Quitar
             </button>
+            `}
           </div>
         `;
       }).join("");
@@ -2863,7 +3289,9 @@ function renderSplitwise() {
                   ${detailsSpan}
                 </div>
               </div>
+              ${isSharedView ? '' : `
               <button class="flight-action-btn delete" onclick="deleteExpense(${idx})" style="padding: 6px;"><i class="fa-solid fa-trash"></i></button>
+              `}
             </div>
           </div>
         `;

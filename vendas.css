@@ -1344,3 +1344,96 @@ h1, h2, h3, h4 {
   }
 }
 
+/* ==========================================================================
+   MOBILE FORMATTING FIXES – 2026-06
+   ========================================================================== */
+
+/* ── ≤768px: improvements to existing breakpoint ─────────────────────────── */
+@media (max-width: 768px) {
+
+  /* Nav: tighten gap between action items */
+  .nav-actions {
+    gap: 8px;
+  }
+
+  /* Simulator budget cards: 3-column → 2-column */
+  .sim-budget-cards {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* ── ≤480px: extra-small screen fixes ───────────────────────────────────── */
+@media (max-width: 480px) {
+
+  /* Container: ensure sensible padding on tiny screens */
+  .container {
+    padding: 0 16px;
+  }
+
+  /* Section spacing */
+  .section-padding {
+    padding: 50px 0;
+  }
+  .section-header {
+    margin-bottom: 40px;
+  }
+
+  /* Hero section */
+  .hero-section {
+    padding: 50px 0 60px;
+  }
+  .hero-title {
+    font-size: 1.9rem;
+  }
+
+  /* Section titles */
+  .section-title {
+    font-size: 1.6rem;
+  }
+
+  /* Nav: hide login link — keeps nav from overflowing */
+  .nav-login {
+    display: none;
+  }
+
+  /* Simulator budget cards: 2-column → 1-column on very small screens */
+  .sim-budget-cards {
+    grid-template-columns: 1fr;
+  }
+
+  /* Pricing box */
+  .pricing-box {
+    padding: 24px 16px;
+  }
+  .price-val {
+    font-size: 3.5rem;
+  }
+
+  /* FAQ */
+  .faq-question {
+    font-size: 0.95rem;
+    padding: 18px 16px;
+    gap: 12px;
+  }
+  .faq-answer-inner {
+    padding: 0 16px 16px;
+  }
+
+  /* Buttons: slightly smaller to fit narrow screens */
+  .btn {
+    padding: 13px 24px;
+    font-size: 0.9rem;
+  }
+
+  /* Footer links: wrap with reduced gap */
+  .footer-links {
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  /* Creator section: reduce gap (already stacked at 1024px) */
+  .creator-grid {
+    gap: 24px;
+  }
+}
+

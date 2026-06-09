@@ -7,7 +7,7 @@
     "node": ">=18"
   },
   "scripts": {
-    "dev": "vercel dev",
+    "dev": "npx -y serve .",
     "deploy": "vercel --prod"
   },
   "devDependencies": {

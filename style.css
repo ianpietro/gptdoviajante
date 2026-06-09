@@ -3350,4 +3350,272 @@ footer p {
   }
 }
 
+/* ==========================================================================
+   SHARED VIEW STICKY BANNER & CTA (Premium Style)
+   ========================================================================== */
+.shared-view-banner {
+  background: linear-gradient(135deg, hsla(216, 85%, 55%, 0.95), hsla(240, 80%, 50%, 0.95)) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  color: #ffffff !important;
+  padding: 14px 24px !important;
+  text-align: center !important;
+  font-size: 0.92rem !important;
+  font-family: var(--font-title) !important;
+  font-weight: 600 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 16px !important;
+  z-index: 999999 !important;
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.15) !important;
+  position: sticky !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  animation: slideDownBanner 0.5s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.shared-view-banner span {
+  letter-spacing: 0.2px !important;
+}
+
+.btn-create-own-banner {
+  background: #ffffff !important;
+  color: var(--primary) !important;
+  padding: 8px 20px !important;
+  border-radius: 50px !important;
+  text-decoration: none !important;
+  font-weight: 700 !important;
+  font-size: 0.82rem !important;
+  font-family: var(--font-title) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2) !important;
+  transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.2s, background 0.2s !important;
+  white-space: nowrap !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  display: inline-block !important;
+}
+
+.btn-create-own-banner:hover {
+  transform: scale(1.05) !important;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3), 0 0 0 4px hsla(var(--primary-hue), 85%, 55%, 0.2) !important;
+  background: #fdfdfd !important;
+}
+
+@keyframes slideDownBanner {
+  from {
+    transform: translateY(-100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+/* ==========================================================================
+   BOARDING DOCUMENTS SECTION & UPLOAD
+   ========================================================================== */
+.document-item {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  gap: 16px !important;
+  padding: 14px 18px !important;
+  border-radius: var(--border-radius-md) !important;
+  background: rgba(255, 255, 255, 0.02) !important;
+  border: 1px solid var(--border-color) !important;
+  transition: transform 0.2s, background 0.2s, border-color 0.2s !important;
+}
+
+.document-item:hover {
+  transform: translateY(-2px) !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2) !important;
+}
+
+.doc-type-icon {
+  width: 44px !important;
+  height: 44px !important;
+  border-radius: var(--border-radius-md) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex-shrink: 0 !important;
+  font-size: 1.35rem !important;
+}
+
+.doc-type-icon.pdf {
+  background: rgba(239, 68, 68, 0.12) !important;
+  color: #ef4444 !important;
+}
+
+.doc-type-icon.image {
+  background: rgba(59, 130, 246, 0.12) !important;
+  color: #3b82f6 !important;
+}
+
+#documentUploadArea {
+  transition: background 0.2s, border-color 0.2s !important;
+}
+
+#documentUploadArea:hover {
+  background: rgba(255, 255, 255, 0.03) !important;
+  border-color: var(--primary) !important;
+}
+
+#documentUploadArea:hover i {
+  transform: translateY(-3px) !important;
+}
+
+/* ==========================================================================
+   MOBILE FORMATTING FIXES – 2026-06
+   ========================================================================== */
+
+/* ── ≤768px: general mobile improvements ─────────────────────────────────── */
+@media (max-width: 768px) {
+
+  /* Container: reduce horizontal padding from 40px to 16px */
+  .container {
+    padding: 0 16px;
+  }
+
+  /* Section spacing: reduce from 80px to 40px */
+  .section-padding {
+    padding-top: 40px;
+    padding-bottom: 40px;
+  }
+
+  /* Dashboard hero: shrink large padding */
+  .hero {
+    padding: 60px 16px 40px;
+    min-height: 200px;
+  }
+
+  /* Hero heading: reduce from 3.2rem */
+  .hero-content h1 {
+    font-size: 2rem;
+  }
+
+  .hero-content p {
+    font-size: 0.95rem;
+  }
+
+  /* Section titles */
+  .section-title {
+    font-size: 1.6rem;
+  }
+
+  /* Info grid: 4-column → 2-column (prevents horizontal overflow) */
+  .info-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+
+  /* Countdown: allow wrapping, reduce minimum card size */
+  .countdown-container {
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .countdown-box {
+    min-width: 60px;
+    padding: 8px 12px;
+  }
+  .countdown-num {
+    font-size: 1.3rem;
+  }
+
+  /* Chat messages inner: reduce side padding from 32px */
+  .chat-messages-inner {
+    padding: 0 16px;
+  }
+
+  /* Chat input area: reduce side padding from 32px */
+  .chat-input-area {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+}
+
+/* ── ≤480px: extra-small screen fixes ───────────────────────────────────── */
+@media (max-width: 480px) {
+
+  /* Container: tightest padding */
+  .container {
+    padding: 0 12px;
+  }
+
+  /* Hero: reduced padding, stack content vertically */
+  .hero {
+    padding: 48px 12px 32px;
+  }
+  .hero-content {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 14px !important;
+    flex-wrap: wrap !important;
+  }
+  .hero-content h1 {
+    font-size: 1.65rem;
+  }
+
+  /* Scale down the no-itinerary square widget on tiny screens */
+  .no-itinerary-square-box {
+    width: 110px !important;
+    height: 110px !important;
+  }
+
+  /* Info cards: keep 2-column but tighten internal spacing */
+  .info-grid {
+    gap: 8px;
+  }
+  .info-card {
+    padding: 14px;
+    gap: 10px;
+  }
+  .info-card-icon {
+    width: 36px;
+    height: 36px;
+    font-size: 1rem;
+  }
+  .info-card-details h3 {
+    font-size: 0.7rem;
+  }
+  .info-card-details p {
+    font-size: 0.85rem;
+  }
+
+  /* Section titles */
+  .section-title {
+    font-size: 1.4rem;
+  }
+
+  /* Countdown: further reduction */
+  .countdown-num {
+    font-size: 1.1rem;
+  }
+  .countdown-box {
+    min-width: 52px;
+    padding: 6px 8px;
+  }
+
+  /* Chat: tightest paddings */
+  .chat-messages-inner {
+    padding: 0 10px;
+  }
+  .chat-input-area {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
+  /* Chat header: tighten */
+  .chat-header {
+    padding: 10px 16px;
+  }
+
+  /* Message bubbles: allow more width on tiny screens */
+  .message {
+    max-width: 88%;
+  }
+}
 

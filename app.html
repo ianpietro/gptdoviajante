@@ -19,6 +19,12 @@
 </head>
 <body>
 
+  <!-- Shared View Sticky Banner -->
+  <div class="shared-view-banner hidden" id="sharedViewBanner">
+    <span>Você está visualizando o CoPiloto de Viagem de outra pessoa. Crie o seu painel de viagem agora!</span>
+    <a href="/" target="_blank" class="btn-create-own-banner">Garantir Meu CoPiloto</a>
+  </div>
+
   <!-- Lightbox for Gallery or PDF views -->
   <div class="lightbox" id="galleryLightbox">
     <div class="lightbox-content">
@@ -79,7 +85,7 @@
       <!-- Oferta de Compra para não cadastrados -->
       <div class="purchase-offer" id="loginPurchaseOffer" style="margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--border-color); text-align: center;">
         <span style="font-size: 0.82rem; color: var(--text-light); display: block; margin-bottom: 10px; font-weight: 500;">Não tem acesso ao CoPiloto de Viagem?</span>
-        <a href="https://gptdoviajante.com/checkout" target="_blank" class="btn btn-accent buy-btn" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px; font-weight: 700; border-radius: var(--border-radius-md); text-decoration: none; box-sizing: border-box;">
+        <a href="https://pay.kirvano.com/8c50a730-069a-40e8-bed3-078c03089d1d" target="_blank" class="btn btn-accent buy-btn" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px; font-weight: 700; border-radius: var(--border-radius-md); text-decoration: none; box-sizing: border-box;">
           <i class="fa-solid fa-plane-departure"></i> Adquirir CoPiloto
         </a>
       </div>
@@ -124,6 +130,10 @@
         <i class="fa-solid fa-plane"></i>
         <span>Voos</span>
       </button>
+      <button class="bottom-nav-btn" data-tab="documentos">
+        <i class="fa-solid fa-passport"></i>
+        <span>Docs</span>
+      </button>
     </nav>
 
     <!-- TOP: INTERACTIVE TRAVEL DASHBOARD -->
@@ -149,6 +159,11 @@
             <span class="badge badge-accent"><i class="fa-solid fa-compass"></i> CoPiloto de Viagem</span>
             <h1 id="tripTitle">Minha Próxima Viagem</h1>
             <p id="tripSubtitle">Converse com seu CoPiloto abaixo para gerar seu painel de viagem!</p>
+            <div id="shareTripHeroContainer" style="display: flex; gap: 10px; margin-top: 14px;">
+              <button class="btn btn-primary btn-sm" id="shareTripHeroBtn" style="border-radius: 50px; font-weight: 700; padding: 8px 18px; display: inline-flex; align-items: center; gap: 8px; background: linear-gradient(135deg, var(--primary) 0%, #1d4ed8 100%); border: none; cursor: pointer; color: white;">
+                <i class="fa-solid fa-share-nodes"></i> Compartilhar Painel
+              </button>
+            </div>
             
             <!-- Countdown Timer -->
             <div class="countdown-container hidden" id="countdown">
@@ -214,6 +229,57 @@
             <div class="info-card-details">
               <h3>Hospedagem</h3>
               <p id="infoHotel">A definir</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+
+      <!-- Documents Section -->
+      <section class="container section-padding hidden" id="documentsSection">
+        <div class="section-title-wrapper">
+          <span class="badge badge-primary"><i class="fa-solid fa-passport"></i> Documentos</span>
+          <h2 class="section-title">Documentos de Bordo</h2>
+          <p class="section-subtitle">Guarde passagens aéreas, reservas de hotel e ingressos importantes para acessar instantaneamente no aeroporto.</p>
+        </div>
+
+        <div class="glass-panel" style="padding: 24px; display: flex; flex-direction: column; gap: 20px;">
+          <!-- Upload Area & Form -->
+          <div id="documentUploadContainer" style="display: flex; flex-direction: column; gap: 16px;">
+            <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+              <div style="flex: 1; min-width: 200px;">
+                <label for="documentCategorySelect" style="display: block; font-size: 0.78rem; color: var(--text-light); margin-bottom: 6px; font-weight: 600;">Categoria do Documento</label>
+                <select id="documentCategorySelect" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 10px 12px; color: white; outline: none; font-size: 0.88rem; font-family: var(--font-body);">
+                  <option value="Passagem Aérea">✈️ Passagem Aérea / Cartão de Embarque</option>
+                  <option value="Hospedagem">🏨 Reserva de Hotel / Airbnb</option>
+                  <option value="Ingresso">🎟️ Ingresso / Voucher</option>
+                  <option value="Seguro Viagem">🛡️ Seguro Viagem</option>
+                  <option value="Identidade">🪪 Documento de Identidade / Passaporte</option>
+                  <option value="Outros">📁 Outros Documentos</option>
+                </select>
+              </div>
+            </div>
+
+            <div id="documentUploadArea" style="display: flex; flex-direction: column; align-items: center; justify-content: center; border: 2px dashed var(--border-color); border-radius: var(--border-radius-md); padding: 32px; text-align: center; cursor: pointer; position: relative; background: rgba(255, 255, 255, 0.01); transition: background 0.2s, border-color 0.2s;">
+              <input type="file" id="documentFileInput" accept="application/pdf,image/*" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer;">
+              <i class="fa-solid fa-cloud-arrow-up" style="font-size: 2.5rem; color: var(--primary); margin-bottom: 12px; transition: transform 0.2s;"></i>
+              <h4 style="font-size: 0.95rem; font-weight: 700; margin-bottom: 6px; color: var(--text-main);">Arraste ou clique para enviar</h4>
+              <p style="font-size: 0.78rem; color: var(--text-muted); max-width: 280px; margin: 0;">Selecione um arquivo PDF ou Imagem (Máx. 4MB)</p>
+            </div>
+          </div>
+
+          <!-- Documents List Title -->
+          <div style="border-top: 1px dashed var(--border-color); padding-top: 16px; margin-top: 8px;">
+            <h3 style="font-size: 1rem; font-weight: 700; margin-bottom: 15px; display: flex; align-items: center; gap: 8px; color: var(--text-main);">
+              <i class="fa-solid fa-folder-open" style="color: var(--secondary);"></i> Arquivos Salvos
+            </h3>
+            
+            <div id="documentsEmpty" style="font-size: 0.82rem; color: var(--text-muted); padding: 30px 0; text-align: center;">
+              Nenhum documento salvo para esta viagem.
+            </div>
+            
+            <div id="documentsList" style="display: flex; flex-direction: column; gap: 12px;">
+              <!-- Documents injected dynamically -->
             </div>
           </div>
         </div>
