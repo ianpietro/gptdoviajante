@@ -170,139 +170,109 @@ Diretrizes de Comportamento:
     fullSystemPrompt = systemPrompt + jsonInstructions;
   }
 
-  try {
-    if (provider === "gemini") {
-      // 1. GEMINI INTEGRATION (Using Google AI Studio key)
-      // Key hierarchy: request body key -> env variable
-      const keyToUse = apiKey || process.env.GEMINI_API_KEY;
-
-      if (!keyToUse) {
-        return res.status(400).json({ error: "Gemini API Key não configurada no servidor Vercel. Por favor, configure a variável de ambiente GEMINI_API_KEY." });
+  // ── Helper: call Gemini ────────────────────────────────────────────────────
+  async function callGemini(geminiKey) {
+    const geminiMessages = messages.map(msg => {
+      let role = msg.role === "assistant" ? "model" : msg.role;
+      const parts = [];
+      if (msg.attachment && msg.attachment.mimeType && msg.attachment.base64) {
+        parts.push({ inlineData: { mimeType: msg.attachment.mimeType, data: msg.attachment.base64 } });
       }
+      parts.push({ text: msg.content });
+      return { role, parts };
+    });
 
-      // Convert ChatGPT messages to Gemini roles and support multimodal inlineData
-      const geminiMessages = messages.map(msg => {
-        let role = msg.role;
-        if (role === "assistant") role = "model";
-        
-        const parts = [];
-        if (msg.attachment && msg.attachment.mimeType && msg.attachment.base64) {
-          parts.push({
-            inlineData: {
-              mimeType: msg.attachment.mimeType,
-              data: msg.attachment.base64
-            }
-          });
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`;
+    const response = await fetch(geminiUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: fullSystemPrompt }] },
+        contents: geminiMessages,
+        generationConfig: {
+          temperature: 0.7,
+          topK: 40,
+          topP: 0.95,
+          // Disable thinking — prevents thought-blocks from being returned as
+          // the first part of the response, which would break text extraction.
+          thinkingConfig: { thinkingBudget: 0 }
         }
-        parts.push({ text: msg.content });
+      })
+    });
 
-        return {
-          role: role,
-          parts: parts
-        };
-      });
-
-      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${keyToUse}`;
-      
-      const response = await fetch(geminiUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          systemInstruction: {
-            parts: [{ text: fullSystemPrompt }]
-          },
-          contents: geminiMessages,
-          generationConfig: {
-            temperature: 0.7,
-            topK: 40,
-            topP: 0.95,
-            // Disable thinking budget — prevents the model from returning
-            // thought-blocks before the actual response, which would break
-            // the parts[0].text extraction below.
-            thinkingConfig: { thinkingBudget: 0 }
-          }
-        })
-      });
-
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.error?.message || `Gemini API returned status ${response.status}`);
-      }
-
-      const resData = await response.json();
-
-      // Gemini 2.5 Flash with thinking may return thought parts (thought: true)
-      // before the real answer — skip those and grab the first non-thought text part.
-      const parts = resData.candidates?.[0]?.content?.parts || [];
-      const aiReply = parts.find(p => !p.thought)?.text;
-
-      if (!aiReply) {
-        throw new Error("Resposta vazia da API do Gemini.");
-      }
-
-      return res.status(200).json({ content: aiReply });
-
-    } else {
-      // 2. OPENAI INTEGRATION
-      const keyToUse = apiKey || process.env.OPENAI_API_KEY;
-
-      if (!keyToUse) {
-        return res.status(400).json({ error: "OpenAI API Key não configurada no servidor Vercel. Por favor, configure a variável de ambiente OPENAI_API_KEY." });
-      }
-
-      const openAiMessages = [
-        { role: "system", content: fullSystemPrompt },
-        ...messages.map(msg => {
-          let content = msg.content;
-          if (msg.attachment && msg.attachment.mimeType && msg.attachment.mimeType.startsWith("image/") && msg.attachment.base64) {
-            content = [
-              { type: "text", text: msg.content },
-              {
-                type: "image_url",
-                image_url: {
-                  url: `data:${msg.attachment.mimeType};base64,${msg.attachment.base64}`
-                }
-              }
-            ];
-          }
-          return {
-            role: msg.role,
-            content: content
-          };
-        })
-      ];
-
-      const openaiUrl = "https://api.openai.com/v1/chat/completions";
-
-      const response = await fetch(openaiUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${keyToUse}`
-        },
-        body: JSON.stringify({
-          model: "gpt-4o-mini",
-          messages: openAiMessages,
-          temperature: 0.7
-        })
-      });
-
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.error?.message || `OpenAI API returned status ${response.status}`);
-      }
-
-      const resData = await response.json();
-      const aiReply = resData.choices?.[0]?.message?.content;
-
-      if (!aiReply) {
-        throw new Error("Resposta vazia da API da OpenAI.");
-      }
-
-      return res.status(200).json({ content: aiReply });
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.error?.message || `Gemini API returned status ${response.status}`);
     }
+
+    const resData = await response.json();
+    // Skip thought parts (thought: true) — grab first real text part
+    const parts = resData.candidates?.[0]?.content?.parts || [];
+    const aiReply = parts.find(p => !p.thought)?.text;
+    if (!aiReply) throw new Error("Resposta vazia da API do Gemini.");
+    return aiReply;
+  }
+
+  // ── Helper: call OpenAI ────────────────────────────────────────────────────
+  async function callOpenAI(openaiKey) {
+    const openAiMessages = [
+      { role: "system", content: fullSystemPrompt },
+      ...messages.map(msg => {
+        let content = msg.content;
+        if (msg.attachment && msg.attachment.mimeType && msg.attachment.mimeType.startsWith("image/") && msg.attachment.base64) {
+          content = [
+            { type: "text", text: msg.content },
+            { type: "image_url", image_url: { url: `data:${msg.attachment.mimeType};base64,${msg.attachment.base64}` } }
+          ];
+        }
+        return { role: msg.role, content };
+      })
+    ];
+
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${openaiKey}` },
+      body: JSON.stringify({ model: "gpt-4o-mini", messages: openAiMessages, temperature: 0.7 })
+    });
+
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.error?.message || `OpenAI API returned status ${response.status}`);
+    }
+
+    const resData = await response.json();
+    const aiReply = resData.choices?.[0]?.message?.content;
+    if (!aiReply) throw new Error("Resposta vazia da API da OpenAI.");
+    return aiReply;
+  }
+
+  // ── Main call: Gemini first, automatic OpenAI fallback ────────────────────
+  try {
+    const geminiKey = apiKey || process.env.GEMINI_API_KEY;
+    const openaiKey = process.env.OPENAI_API_KEY;
+
+    let aiReply = null;
+
+    if (geminiKey) {
+      try {
+        aiReply = await callGemini(geminiKey);
+      } catch (geminiErr) {
+        console.warn(`Gemini failed (${geminiErr.message}). Trying OpenAI fallback…`);
+        if (!openaiKey) {
+          // No fallback available — surface the Gemini error directly
+          throw geminiErr;
+        }
+        aiReply = await callOpenAI(openaiKey);
+      }
+    } else if (openaiKey) {
+      // Gemini key not configured — go straight to OpenAI
+      aiReply = await callOpenAI(openaiKey);
+    } else {
+      return res.status(500).json({ error: "Nenhuma chave de API configurada no servidor (GEMINI_API_KEY ou OPENAI_API_KEY)." });
+    }
+
+    return res.status(200).json({ content: aiReply });
+
   } catch (error) {
     console.error("Handler error:", error);
     return res.status(500).json({ error: error.message || "Erro interno do servidor." });
