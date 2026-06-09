@@ -217,7 +217,11 @@ Diretrizes de Comportamento:
           generationConfig: {
             temperature: 0.7,
             topK: 40,
-            topP: 0.95
+            topP: 0.95,
+            // Disable thinking budget — prevents the model from returning
+            // thought-blocks before the actual response, which would break
+            // the parts[0].text extraction below.
+            thinkingConfig: { thinkingBudget: 0 }
           }
         })
       });
@@ -228,7 +232,11 @@ Diretrizes de Comportamento:
       }
 
       const resData = await response.json();
-      const aiReply = resData.candidates?.[0]?.content?.parts?.[0]?.text;
+
+      // Gemini 2.5 Flash with thinking may return thought parts (thought: true)
+      // before the real answer — skip those and grab the first non-thought text part.
+      const parts = resData.candidates?.[0]?.content?.parts || [];
+      const aiReply = parts.find(p => !p.thought)?.text;
 
       if (!aiReply) {
         throw new Error("Resposta vazia da API do Gemini.");

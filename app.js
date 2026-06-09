@@ -1238,7 +1238,11 @@ async function handleUserSendMessage() {
       appendMessageBubble("assistant", `⚠️ **Acesso Não Autorizado:** ${errData.error || "Seu e-mail não está cadastrado."}`, null, 'plan');
       return;
     }
-    if (!response.ok) throw new Error("Erro na comunicação com o servidor de viagem.");
+    if (!response.ok) {
+      // Read the server's JSON error body before throwing so we can surface it
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.error || `Erro ${response.status} na comunicação com o servidor.`);
+    }
 
     const data = await response.json();
     removeTypingIndicator('plan');
@@ -1262,7 +1266,7 @@ async function handleUserSendMessage() {
 
   } catch (error) {
     removeTypingIndicator('plan');
-    appendMessageBubble("assistant", `❌ Erro de conexão: Não foi possível se conectar ao servidor do assistente.`, null, 'plan');
+    appendMessageBubble("assistant", `❌ ${error.message}`, null, 'plan');
     console.error("Chat error:", error);
   }
 }
@@ -1314,7 +1318,11 @@ async function handleTravelSendMessage() {
       appendMessageBubble("assistant", `⚠️ **Acesso Não Autorizado:** ${errData.error || "Seu e-mail não está cadastrado."}`, null, 'travel');
       return;
     }
-    if (!response.ok) throw new Error("Erro na comunicação com o servidor de viagem.");
+    if (!response.ok) {
+      // Read the server's JSON error body before throwing so we can surface it
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.error || `Erro ${response.status} na comunicação com o servidor.`);
+    }
 
     const data = await response.json();
     removeTypingIndicator('travel');
@@ -1333,7 +1341,7 @@ async function handleTravelSendMessage() {
 
   } catch (error) {
     removeTypingIndicator('travel');
-    appendMessageBubble("assistant", `❌ Erro de conexão: Não foi possível se conectar ao servidor do assistente.`, null, 'travel');
+    appendMessageBubble("assistant", `❌ ${error.message}`, null, 'travel');
     console.error("Travel chat error:", error);
   }
 }
