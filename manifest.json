@@ -1,0 +1,22 @@
+{
+  "short_name": "CoPiloto",
+  "name": "CoPiloto de Viagem",
+  "description": "Seu painel pessoal de viagem. Do planejamento até a experiência no destino, tudo em um só lugar.",
+  "start_url": "/app.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#0f172a",
+  "background_color": "#0f172a",
+  "icons": [
+    {
+      "src": "/assets/logo-robozim.jpeg",
+      "type": "image/jpeg",
+      "sizes": "192x192"
+    },
+    {
+      "src": "/assets/logo-robozim.jpeg",
+      "type": "image/jpeg",
+      "sizes": "512x512"
+    }
+  ]
+}

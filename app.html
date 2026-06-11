@@ -16,6 +16,9 @@
   
   <!-- Stylesheet -->
   <link rel="stylesheet" href="style.css?v=1.1.1">
+  
+  <!-- Web App Manifest for PWA -->
+  <link rel="manifest" href="manifest.json">
 </head>
 <body>
 
@@ -257,6 +260,11 @@
                   <i class="fa-solid fa-wand-magic-sparkles" style="color: var(--primary);"></i> Importar PDF
                 </button>
                 <input type="file" id="magicImportPdfFileInput" accept="application/pdf" style="display: none;">
+                
+                <button class="btn btn-secondary btn-sm" id="openTextImportModalBtn" style="padding: 6px 12px; font-size: 0.76rem; background: rgba(16, 185, 129, 0.1); border: 1px dashed #10b981; display: flex; align-items: center; gap: 6px; cursor: pointer; color: white;">
+                  <i class="fa-solid fa-paste" style="color: #10b981;"></i> Colar Texto 📝
+                </button>
+
                 <button class="btn btn-primary btn-sm" id="openAddFlightModalBtn" style="padding: 6px 12px; font-size: 0.76rem; background: linear-gradient(135deg, var(--primary) 0%, #1d4ed8 100%); border: none;">
                   <i class="fa-solid fa-plus"></i> Adicionar Voo
                 </button>
@@ -366,6 +374,17 @@
             <button class="chat-cta-btn" onclick="switchTab('chat')">
               <i class="fa-solid fa-comments"></i> Começar no Chat
               <i class="fa-solid fa-arrow-right chat-cta-arrow"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="view-toggle-bar-container hidden" id="itineraryViewToggleContainer" style="margin-bottom: 20px; display: flex; justify-content: flex-start;">
+          <div class="view-toggle-bar">
+            <button class="view-toggle-btn active" id="viewToggleList">
+              <i class="fa-solid fa-list"></i> Lista
+            </button>
+            <button class="view-toggle-btn" id="viewToggleCalendar">
+              <i class="fa-solid fa-calendar-day"></i> Agenda
             </button>
           </div>
         </div>
@@ -857,6 +876,34 @@
       </form>
     </div>
   </div>
+
+  <!-- Text Import Modal (Native Dialog with Light-Dismiss) -->
+  <dialog id="textImportModal" closedby="any" class="modal-dialog-native" style="border: none; background: transparent; padding: 0; outline: none; z-index: 100000; max-width: 520px; width: calc(100% - 40px); border-radius: var(--border-radius-lg); box-shadow: var(--shadow-lg); margin: auto;">
+    <div class="modal-card glass-panel" style="padding: 30px; display: flex; flex-direction: column; gap: 20px; width: 100%; box-sizing: border-box; background: rgba(15, 23, 42, 0.95); border: 1.5px solid rgba(255, 255, 255, 0.1); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);">
+      <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 12px; margin-bottom: 4px;">
+        <h3 style="margin: 0; font-size: 1.25rem; font-weight: 800; color: white; display: flex; align-items: center; gap: 10px;">
+          <i class="fa-solid fa-paste" style="color: #10b981;"></i> Importar por Texto
+        </h3>
+        <button class="modal-close" id="closeTextImportModal" style="background: transparent; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.2rem; transition: color 0.2s, transform 0.2s;"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      
+      <p style="font-size: 0.82rem; color: var(--text-light); line-height: 1.5; margin: 0;">
+        Cole o texto do e-mail de confirmação da sua reserva de voo ou hotel. O assistente de IA irá extrair e cadastrar tudo automaticamente no painel.
+      </p>
+      
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        <label for="textImportArea" style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: var(--text-light); letter-spacing: 0.05em;">Texto da Reserva</label>
+        <textarea id="textImportArea" placeholder="Cole aqui o e-mail ou comprovante..." style="width: 100%; height: 180px; background: rgba(0, 0, 0, 0.25); border: 1.5px solid var(--border-color); border-radius: var(--border-radius-md); padding: 12px; color: white; outline: none; font-size: 0.88rem; font-family: var(--font-body); resize: vertical; box-sizing: border-box; line-height: 1.5; transition: border-color 0.2s;"></textarea>
+      </div>
+      
+      <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 10px;">
+        <button class="btn btn-secondary" id="cancelTextImportBtn" style="padding: 10px 20px; font-size: 0.85rem;">Cancelar</button>
+        <button class="btn btn-primary" id="submitTextImportBtn" style="padding: 10px 24px; font-size: 0.85rem; background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: none; font-weight: 700; color: white; cursor: pointer;">
+          <i class="fa-solid fa-wand-magic-sparkles"></i> Processar Texto
+        </button>
+      </div>
+    </div>
+  </dialog>
   
   <!-- Expense Modal Overlay (Splitwise) -->
   <div class="modal-overlay hidden" id="expenseModal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 100000; padding: 20px; box-sizing: border-box;">
@@ -1176,5 +1223,16 @@
 
   <!-- Javascript Logic -->
   <script type="module" src="app.js"></script>
+  
+  <!-- Register PWA Service Worker -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js')
+          .then(reg => console.log('Service Worker registered successfully in app:', reg.scope))
+          .catch(err => console.error('Service Worker registration failed in app:', err));
+      });
+    }
+  </script>
 </body>
 </html>

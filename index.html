@@ -19,6 +19,10 @@
   <!-- FontAwesome Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   
+  <!-- Web App Manifest for PWA -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0f172a">
+  
   <!-- Main Stylesheet (LP Isolated) -->
   <link rel="stylesheet" href="vendas.css">
 </head>
@@ -620,5 +624,16 @@
 
   <!-- Main JavaScript File (LP Isolated) -->
   <script src="vendas.js"></script>
+  
+  <!-- Register PWA Service Worker -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js')
+          .then(reg => console.log('Service Worker registered successfully:', reg.scope))
+          .catch(err => console.error('Service Worker registration failed:', err));
+      });
+    }
+  </script>
 </body>
 </html>

@@ -50,6 +50,8 @@ let planAttachment = null;
 let travelAttachment = null;
 
 let isSharedView = false;
+let itineraryViewMode = 'list';
+let realtimeChannel = null;
 
 const DB_NAME = "CoPilotoDocsDB";
 const STORE_NAME = "documents";
@@ -319,59 +321,107 @@ async function init() {
 
   const sharedHash = getSharedDataFromUrl();
   if (sharedHash) {
-    const activeUser = await checkCurrentUser();
-    if (activeUser) {
-      window.history.replaceState({}, document.title, '/app.html');
-    } else {
-      isSharedView = true;
+    if (sharedHash.length === 36 || /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(sharedHash)) {
       try {
-        if (sharedHash.length === 36 || /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(sharedHash)) {
-          const { data, error } = await supabase
-            .from('trips')
-            .select('*')
-            .eq('id', sharedHash)
-            .single();
-          if (error || !data) throw new Error(error?.message || "Viagem não encontrada.");
-          
-          tripData = {
-            id: data.id,
-            tripTitle: data.title,
-            tripSubtitle: data.subtitle,
-            infoDates: data.dates,
-            infoWeather: data.weather,
-            infoGroup: data.group_type,
-            infoHotel: data.hotel,
-            hotelLink: data.hotel_link,
-            targetDate: data.target_date,
-            budget: data.budget,
-            budgetThresholds: data.budget_thresholds,
-            budgetAnalysis: data.budget_analysis,
-            packing: data.packing,
-            itinerary: data.itinerary,
-            flights: data.flights,
-            members: data.members,
-            expenses: data.expenses,
-            documents: []
-          };
+        const { data, error } = await supabase
+          .from('trips')
+          .select('*')
+          .eq('id', sharedHash)
+          .single();
+        if (error || !data) throw new Error(error?.message || "Viagem não encontrada.");
+        
+        tripData = {
+          id: data.id,
+          tripTitle: data.title,
+          tripSubtitle: data.subtitle,
+          infoDates: data.dates,
+          infoWeather: data.weather,
+          infoGroup: data.group_type,
+          infoHotel: data.hotel,
+          hotelLink: data.hotel_link,
+          targetDate: data.target_date,
+          budget: data.budget,
+          budgetThresholds: data.budget_thresholds,
+          budgetAnalysis: data.budget_analysis,
+          packing: data.packing,
+          itinerary: data.itinerary,
+          flights: data.flights,
+          members: data.members,
+          expenses: data.expenses,
+          user_id: data.user_id,
+          documents: []
+        };
 
-          const { data: docs } = await supabase
-            .from('documents')
-            .select('*')
-            .eq('trip_id', sharedHash);
-          if (docs) {
-            tripData.documents = docs.map(d => ({
-              id: d.id,
-              name: d.name,
-              category: d.category,
-              url: d.file_url,
-              type: d.name.toLowerCase().endsWith(".pdf") ? "pdf" : "image",
-              date: new Date(d.created_at).toLocaleDateString("pt-BR"),
-              size: "Ver anexo"
-            }));
-          }
-        } else {
-          tripData = await decompressFromUrl(sharedHash);
+        const { data: docs } = await supabase
+          .from('documents')
+          .select('*')
+          .eq('trip_id', sharedHash);
+        if (docs) {
+          tripData.documents = docs.map(d => ({
+            id: d.id,
+            name: d.name,
+            category: d.category,
+            url: d.file_url,
+            type: d.name.toLowerCase().endsWith(".pdf") ? "pdf" : "image",
+            date: new Date(d.created_at).toLocaleDateString("pt-BR"),
+            size: "Ver anexo"
+          }));
         }
+
+        const activeUser = await checkCurrentUser();
+        let canEdit = false;
+        if (activeUser) {
+          currentUser = activeUser;
+          const cleanEmail = activeUser.email ? activeUser.email.toLowerCase().trim() : '';
+          const isOwner = data.user_id === activeUser.id;
+          const isMember = Array.isArray(data.members) && data.members.some(m => {
+            if (typeof m === 'string') {
+              return m.toLowerCase().trim() === cleanEmail;
+            }
+            return false;
+          });
+          
+          if (isOwner || isMember) {
+            canEdit = true;
+          }
+        }
+
+        if (canEdit) {
+          isSharedView = false;
+          console.log("Logged-in owner/collaborator detected. Editing trip collaboratively.");
+          localStorage.setItem(getUserStorageKey("gptViajante_tripData"), JSON.stringify(tripData));
+          subscribeToTripChanges(tripData.id);
+        } else {
+          isSharedView = true;
+          setupSharedViewUI();
+        }
+
+        tripData.flights = tripData.flights || [];
+        tripData.members = tripData.members || ["Você"];
+        tripData.expenses = tripData.expenses || [];
+        tripData.budgetThresholds = tripData.budgetThresholds || { economico: 150, intermediario: 450 };
+        
+        renderTimeline();
+        renderFlights();
+        renderSplitwise();
+        renderPackingChecklist();
+        checkItineraryStatus();
+        updateBudget();
+
+        if (canEdit) {
+          setupAuthUI();
+          setupAuthStateListener(handleUserLoggedIn, handleUserLoggedOut);
+        }
+        return;
+      } catch (err) {
+        console.error("Falha ao carregar viagem compartilhada:", err);
+        alert("⚠️ Não foi possível carregar a viagem compartilhada. O link pode estar quebrado ou expirado.");
+      }
+    } else {
+      try {
+        tripData = await decompressFromUrl(sharedHash);
+        isSharedView = true;
+        setupSharedViewUI();
         
         tripData.flights = tripData.flights || [];
         tripData.members = tripData.members || ["Você"];
@@ -384,11 +434,9 @@ async function init() {
         renderPackingChecklist();
         checkItineraryStatus();
         updateBudget();
-        setupSharedViewUI();
         return;
       } catch (err) {
-        console.error("Falha ao carregar viagem compartilhada:", err);
-        alert("⚠️ Não foi possível carregar a viagem compartilhada. O link pode estar quebrado ou expirado.");
+        console.error("Falha ao carregar viagem compartilhada compactada:", err);
       }
     }
   }
@@ -537,10 +585,11 @@ async function loadState() {
       }
     }
 
-    // Now query Supabase in the background asynchronously
-    setTimeout(async () => {
-      try {
-        console.log("Syncing state with Supabase in background...");
+    // Now query Supabase in the background asynchronously if online
+    if (navigator.onLine) {
+      setTimeout(async () => {
+        try {
+          console.log("Syncing state with Supabase in background...");
         
         // 1. Fetch latest trip
         const { data: trips, error: tripErr } = await supabase
@@ -675,8 +724,10 @@ async function loadState() {
         console.error("Failed to sync state from Supabase in background:", err);
       }
     }, 0);
+  } else {
+    console.log("Device offline. Skipping background Supabase load sync.");
   }
-
+  
   tripData.flights = tripData.flights || [];
   tripData.members = tripData.members || ["Você"];
   tripData.expenses = tripData.expenses || [];
@@ -693,6 +744,11 @@ async function saveState() {
   localStorage.setItem(getUserStorageKey("gptViajante_tripData"), JSON.stringify(tripData));
 
   if (!currentUser || !currentUser.id) return;
+  
+  if (!navigator.onLine) {
+    console.log("Device offline. State saved locally, skipping Supabase remote sync.");
+    return;
+  }
 
   if (syncTimeout) clearTimeout(syncTimeout);
   
@@ -1258,6 +1314,43 @@ function setupUIEventListeners() {
     magicImportPdfFileInput.addEventListener("change", handleMagicImportPdf);
   }
 
+  // List vs Calendar View Toggle Event Listeners
+  const viewToggleList = document.getElementById("viewToggleList");
+  const viewToggleCalendar = document.getElementById("viewToggleCalendar");
+  if (viewToggleList && viewToggleCalendar) {
+    viewToggleList.addEventListener("click", () => {
+      itineraryViewMode = 'list';
+      viewToggleList.classList.add("active");
+      viewToggleCalendar.classList.remove("active");
+      renderTimeline();
+    });
+    viewToggleCalendar.addEventListener("click", () => {
+      itineraryViewMode = 'calendar';
+      viewToggleCalendar.classList.add("active");
+      viewToggleList.classList.remove("active");
+      renderTimeline();
+    });
+  }
+
+  // Text Paste Import Modal Event Listeners
+  const openTextImportModalBtn = document.getElementById("openTextImportModalBtn");
+  const closeTextImportModalBtn = document.getElementById("closeTextImportModal");
+  const cancelTextImportBtn = document.getElementById("cancelTextImportBtn");
+  const submitTextImportBtn = document.getElementById("submitTextImportBtn");
+
+  if (openTextImportModalBtn) {
+    openTextImportModalBtn.addEventListener("click", openTextImportModal);
+  }
+  if (closeTextImportModalBtn) {
+    closeTextImportModalBtn.addEventListener("click", closeTextImportModal);
+  }
+  if (cancelTextImportBtn) {
+    cancelTextImportBtn.addEventListener("click", closeTextImportModal);
+  }
+  if (submitTextImportBtn) {
+    submitTextImportBtn.addEventListener("click", handleTextPasteImport);
+  }
+
   // Alternador de Tema (Claro/Escuro)
   const toggleThemeBtn = document.getElementById("toggleThemeBtn");
   if (toggleThemeBtn) {
@@ -1633,6 +1726,20 @@ async function handleUserSendMessage() {
   }
   chatHistory.push(userMsgObject);
   saveState();
+
+  if (!navigator.onLine) {
+    const replyTime = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    const offlineReply = `📴 **Modo Offline Ativado:** Identifiquei que você está sem conexão com a internet no momento. O assistente de Inteligência Artificial precisa de conexão para processar mensagens e atualizar o roteiro. \n\nNo entanto, **todo o restante do aplicativo está disponível offline!** Você pode visualizar e editar seu cronograma, mala de viagem, logística de voos e controle de gastos. Suas alterações serão guardadas localmente e sincronizadas assim que a internet retornar.`;
+    const assistantMsgEl = appendMessageBubble("assistant", offlineReply, replyTime, 'plan');
+    if (assistantMsgEl) {
+      const container = document.getElementById("chatMessages");
+      container.scrollTo({ top: assistantMsgEl.offsetTop - 10, behavior: "smooth" });
+    }
+    chatHistory.push({ role: "assistant", content: offlineReply, time: replyTime });
+    saveState();
+    return;
+  }
+
   showTypingIndicator('plan');
 
   try {
@@ -1724,6 +1831,20 @@ async function handleTravelSendMessage() {
   }
   travelChatHistory.push(userMsgObject);
   saveState();
+
+  if (!navigator.onLine) {
+    const replyTime = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    const offlineReply = `📴 **Modo Offline Ativado:** Identifiquei que você está sem conexão com a internet no momento. O assistente de Inteligência Artificial precisa de conexão para responder e atualizar as informações de viagem. \n\nNo entanto, **todo o restante do aplicativo está disponível offline!** Você pode visualizar e editar seu cronograma, mala de viagem, logística de voos e controle de gastos. Suas alterações serão guardadas localmente e sincronizadas assim que a internet retornar.`;
+    const assistantMsgEl = appendMessageBubble("assistant", offlineReply, replyTime, 'travel');
+    if (assistantMsgEl) {
+      const container = document.getElementById("travelChatMessages");
+      container.scrollTo({ top: assistantMsgEl.offsetTop - 10, behavior: "smooth" });
+    }
+    travelChatHistory.push({ role: "assistant", content: offlineReply, time: replyTime });
+    saveState();
+    return;
+  }
+
   showTypingIndicator('travel');
 
   try {
@@ -1880,6 +2001,11 @@ function renderTimeline() {
   emptyState.classList.add("hidden");
   nav.classList.remove("hidden");
   container.classList.remove("hidden");
+
+  // Default to first day on mobile devices to prevent DOM load lags
+  if (activeFilter === 'all' && window.innerWidth <= 768 && tripData.itinerary && tripData.itinerary.length > 0) {
+    activeFilter = tripData.itinerary[0].dayNum || 1;
+  }
   
   const optBanner = document.getElementById("itineraryOptimizationBanner");
   if (optBanner) optBanner.classList.remove("hidden");
@@ -1987,98 +2113,173 @@ function renderTimeline() {
 
     if (activeFilter !== 'all' && activeFilter != day.dayNum) return;
 
-    // Group activities by turn
+    // Group activities by turn or render chronologically in calendar view
     let activitiesHtml = "";
     if (day.activities && day.activities.length > 0) {
-      const turns = {
-        manha: [],
-        tarde: [],
-        noite: []
-      };
+      if (itineraryViewMode === 'calendar') {
+        const parseTime = (timeStr) => {
+          if (!timeStr || timeStr === '--:--') return 9999;
+          const parts = timeStr.split(':');
+          const h = parseInt(parts[0]);
+          const m = parseInt(parts[1]);
+          if (isNaN(h) || isNaN(m)) return 9999;
+          return h * 60 + m;
+        };
 
-      day.activities.forEach((act, idx) => {
-        const turn = getTurnForActivity(act, idx, day.activities.length);
-        turns[turn].push(act);
-      });
-
-      // Render each turn group
-      const turnConfigs = [
-        { key: 'manha', label: 'Manhã', icon: 'fa-cloud-sun' },
-        { key: 'tarde', label: 'Tarde', icon: 'fa-sun' },
-        { key: 'noite', label: 'Noite', icon: 'fa-moon' }
-      ];
-
-      turnConfigs.forEach(cfg => {
-        const turnActs = turns[cfg.key];
-        if (turnActs && turnActs.length > 0) {
-          const routeLink = getGoogleMapsRouteLink(turnActs);
-          let turnActsHtml = "";
-          
-          turnActs.forEach(act => {
-            let bookingHtml = "";
-            if (act.booking) {
-              const platform = act.booking.platform || 'civitatis';
-              const text = act.booking.suggestedText || 'Reservar ingresso online';
-              let link = '#';
-              const query = encodeURIComponent(act.booking.searchQuery || act.title);
-              if (platform.toLowerCase() === 'civitatis') {
-                link = `https://www.civitatis.com/br/busca/?q=${query}&aid=10433`;
-              } else if (platform.toLowerCase() === 'getyourguide') {
-                link = `https://www.getyourguide.com/s?q=${query}&partner_id=L9P64H5`;
-              } else if (platform.toLowerCase() === 'booking') {
-                link = `https://www.booking.com/searchresults.html?ss=${query}&aid=2311224`;
-              }
-              
-              const platformLabel = platform.charAt(0).toUpperCase() + platform.slice(1);
-              
-              bookingHtml = `
-                <div class="affiliate-widget" onclick="event.stopPropagation()">
-                  <div class="affiliate-header">
-                    <h5 class="affiliate-title">
-                      <i class="fa-solid fa-ticket" style="color: var(--secondary);"></i>
-                      Recomendado para Conforto
-                    </h5>
-                    <div class="affiliate-badges">
-                      <span class="affiliate-badge ${platform.toLowerCase()}">${platformLabel}</span>
-                      <span class="affiliate-badge trust"><i class="fa-solid fa-shield-check"></i> Seguro</span>
-                    </div>
-                  </div>
-                  <p class="affiliate-desc">Evite filas e garanta seu lugar com antecedência através de parceiros oficiais.</p>
-                  <a href="${link}" target="_blank" class="affiliate-btn ${platform.toLowerCase()}-btn">
-                    <i class="fa-solid fa-arrow-up-right-from-square"></i> ${text}
-                  </a>
-                  <div class="affiliate-footer">
-                    <i class="fa-solid fa-circle-check"></i> Cancelamento grátis disponível • Garantia do menor preço
+        const sortedActivities = [...day.activities].sort((a, b) => parseTime(a.time) - parseTime(b.time));
+        let calendarActsHtml = "";
+        
+        sortedActivities.forEach(act => {
+          let bookingHtml = "";
+          if (act.booking) {
+            const platform = act.booking.platform || 'civitatis';
+            const text = act.booking.suggestedText || 'Reservar ingresso online';
+            let link = '#';
+            const query = encodeURIComponent(act.booking.searchQuery || act.title);
+            if (platform.toLowerCase() === 'civitatis') {
+              link = `https://www.civitatis.com/br/busca/?q=${query}&aid=10433`;
+            } else if (platform.toLowerCase() === 'getyourguide') {
+              link = `https://www.getyourguide.com/s?q=${query}&partner_id=L9P64H5`;
+            } else if (platform.toLowerCase() === 'booking') {
+              link = `https://www.booking.com/searchresults.html?ss=${query}&aid=2311224`;
+            }
+            
+            const platformLabel = platform.charAt(0).toUpperCase() + platform.slice(1);
+            
+            bookingHtml = `
+              <div class="affiliate-widget" onclick="event.stopPropagation()">
+                <div class="affiliate-header">
+                  <h5 class="affiliate-title">
+                    <i class="fa-solid fa-ticket" style="color: var(--secondary);"></i>
+                    Recomendado para Conforto
+                  </h5>
+                  <div class="affiliate-badges">
+                    <span class="affiliate-badge ${platform.toLowerCase()}">${platformLabel}</span>
+                    <span class="affiliate-badge trust"><i class="fa-solid fa-shield-check"></i> Seguro</span>
                   </div>
                 </div>
-              `;
-            }
-
-            turnActsHtml += `
-              <div class="activity-block">
-                <div class="activity-time">${act.time || '--:--'}</div>
-                <div class="activity-details">
-                  <h4>${act.title}</h4>
-                  <p>${act.desc}</p>
-                  ${bookingHtml}
+                <p class="affiliate-desc">Evite filas e garanta seu lugar com antecedência através de parceiros oficiais.</p>
+                <a href="${link}" target="_blank" class="affiliate-btn ${platform.toLowerCase()}-btn">
+                  <i class="fa-solid fa-arrow-up-right-from-square"></i> ${text}
+                </a>
+                <div class="affiliate-footer">
+                  <i class="fa-solid fa-circle-check"></i> Cancelamento grátis disponível • Garantia do menor preço
                 </div>
               </div>
             `;
-          });
+          }
 
-          activitiesHtml += `
-            <div class="timeline-turn-group" onclick="event.stopPropagation()">
-              <div class="turn-header-row">
-                <h4 class="turn-title"><i class="fa-solid ${cfg.icon}"></i> ${cfg.label}</h4>
-                <a href="${routeLink}" target="_blank" class="btn-turn-route" onclick="event.stopPropagation()"><i class="fa-solid fa-map-location-dot"></i> Veja no mapa</a>
-              </div>
-              <div class="turn-activities">
-                ${turnActsHtml}
+          calendarActsHtml += `
+            <div class="calendar-activity-item" onclick="event.stopPropagation()">
+              <div class="calendar-time-bullet"></div>
+              <div class="calendar-activity-card">
+                <div class="calendar-activity-time-label">
+                  <i class="fa-regular fa-clock"></i> ${act.time || '--:--'}
+                </div>
+                <h4>${act.title}</h4>
+                <p>${act.desc}</p>
+                ${bookingHtml}
               </div>
             </div>
           `;
-        }
-      });
+        });
+
+        activitiesHtml = `
+          <div class="calendar-timeline">
+            ${calendarActsHtml}
+          </div>
+        `;
+      } else {
+        const turns = {
+          manha: [],
+          tarde: [],
+          noite: []
+        };
+
+        day.activities.forEach((act, idx) => {
+          const turn = getTurnForActivity(act, idx, day.activities.length);
+          turns[turn].push(act);
+        });
+
+        // Render each turn group
+        const turnConfigs = [
+          { key: 'manha', label: 'Manhã', icon: 'fa-cloud-sun' },
+          { key: 'tarde', label: 'Tarde', icon: 'fa-sun' },
+          { key: 'noite', label: 'Noite', icon: 'fa-moon' }
+        ];
+
+        turnConfigs.forEach(cfg => {
+          const turnActs = turns[cfg.key];
+          if (turnActs && turnActs.length > 0) {
+            const routeLink = getGoogleMapsRouteLink(turnActs);
+            let turnActsHtml = "";
+            
+            turnActs.forEach(act => {
+              let bookingHtml = "";
+              if (act.booking) {
+                const platform = act.booking.platform || 'civitatis';
+                const text = act.booking.suggestedText || 'Reservar ingresso online';
+                let link = '#';
+                const query = encodeURIComponent(act.booking.searchQuery || act.title);
+                if (platform.toLowerCase() === 'civitatis') {
+                  link = `https://www.civitatis.com/br/busca/?q=${query}&aid=10433`;
+                } else if (platform.toLowerCase() === 'getyourguide') {
+                  link = `https://www.getyourguide.com/s?q=${query}&partner_id=L9P64H5`;
+                } else if (platform.toLowerCase() === 'booking') {
+                  link = `https://www.booking.com/searchresults.html?ss=${query}&aid=2311224`;
+                }
+                
+                const platformLabel = platform.charAt(0).toUpperCase() + platform.slice(1);
+                
+                bookingHtml = `
+                  <div class="affiliate-widget" onclick="event.stopPropagation()">
+                    <div class="affiliate-header">
+                      <h5 class="affiliate-title">
+                        <i class="fa-solid fa-ticket" style="color: var(--secondary);"></i>
+                        Recomendado para Conforto
+                      </h5>
+                      <div class="affiliate-badges">
+                        <span class="affiliate-badge ${platform.toLowerCase()}">${platformLabel}</span>
+                        <span class="affiliate-badge trust"><i class="fa-solid fa-shield-check"></i> Seguro</span>
+                      </div>
+                    </div>
+                    <p class="affiliate-desc">Evite filas e garanta seu lugar com antecedência através de parceiros oficiais.</p>
+                    <a href="${link}" target="_blank" class="affiliate-btn ${platform.toLowerCase()}-btn">
+                      <i class="fa-solid fa-arrow-up-right-from-square"></i> ${text}
+                    </a>
+                    <div class="affiliate-footer">
+                      <i class="fa-solid fa-circle-check"></i> Cancelamento grátis disponível • Garantia do menor preço
+                    </div>
+                  </div>
+                `;
+              }
+
+              turnActsHtml += `
+                <div class="activity-block">
+                  <div class="activity-time">${act.time || '--:--'}</div>
+                  <div class="activity-details">
+                    <h4>${act.title}</h4>
+                    <p>${act.desc}</p>
+                    ${bookingHtml}
+                  </div>
+                </div>
+              `;
+            });
+
+            activitiesHtml += `
+              <div class="timeline-turn-group" onclick="event.stopPropagation()">
+                <div class="turn-header-row">
+                  <h4 class="turn-title"><i class="fa-solid ${cfg.icon}"></i> ${cfg.label}</h4>
+                  <a href="${routeLink}" target="_blank" class="btn-turn-route" onclick="event.stopPropagation()"><i class="fa-solid fa-map-location-dot"></i> Veja no mapa</a>
+                </div>
+                <div class="turn-activities">
+                  ${turnActsHtml}
+                </div>
+              </div>
+            `;
+          }
+        });
+      }
     }
     const dayRouteLink = getGoogleMapsRouteLink(day.activities);
     const card = document.createElement("div");
@@ -2686,6 +2887,9 @@ async function handleUserLoggedIn(user, token) {
     
     // Load state from local storage first (instant), then sync from DB in background
     await loadState();
+    if (tripData.id) {
+      subscribeToTripChanges(tripData.id);
+    }
     if (!isUiInitialized) {
       setupUIEventListeners();
       setupTutorialListeners();
@@ -2744,6 +2948,9 @@ async function handleUserLoggedIn(user, token) {
 
       transitionToApp();
       await loadState();
+      if (tripData.id) {
+        subscribeToTripChanges(tripData.id);
+      }
       if (!isUiInitialized) {
         setupUIEventListeners();
         setupTutorialListeners();
@@ -4579,5 +4786,184 @@ async function extractTextFromPdf(file) {
   }
   return text;
 }
+
+// ==========================================================================
+/* Realtime sync changes listener using Supabase postgres changes channel */
+// ==========================================================================
+function subscribeToTripChanges(tripId) {
+  if (!tripId || !supabase || !isFirebaseConfigured()) return;
+  
+  if (realtimeChannel) {
+    supabase.removeChannel(realtimeChannel);
+  }
+  
+  console.log(`Subscribing to realtime updates for trip ID: ${tripId}`);
+  
+  realtimeChannel = supabase
+    .channel(`trip-changes-${tripId}`)
+    .on(
+      'postgres_changes',
+      {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'trips',
+        filter: `id=eq.${tripId}`
+      },
+      (payload) => {
+        console.log('Realtime trip update received:', payload);
+        const updatedTrip = payload.new;
+        if (updatedTrip) {
+          const remoteUpdatedAt = new Date(updatedTrip.updated_at).getTime();
+          const localUpdatedAt = tripData.updatedAt ? new Date(tripData.updatedAt).getTime() : 0;
+          
+          if (remoteUpdatedAt > localUpdatedAt) {
+            console.log("Remote changes are newer. Syncing and re-rendering...");
+            
+            tripData.tripTitle = updatedTrip.title;
+            tripData.tripSubtitle = updatedTrip.subtitle;
+            tripData.infoDates = updatedTrip.dates;
+            tripData.infoWeather = updatedTrip.weather;
+            tripData.infoGroup = updatedTrip.group_type;
+            tripData.infoHotel = updatedTrip.hotel;
+            tripData.hotelLink = updatedTrip.hotel_link;
+            tripData.targetDate = updatedTrip.target_date;
+            tripData.budget = updatedTrip.budget || {};
+            tripData.budgetThresholds = updatedTrip.budget_thresholds || { economico: 150, intermediario: 450 };
+            tripData.budgetAnalysis = updatedTrip.budget_analysis || '';
+            tripData.packing = updatedTrip.packing || [];
+            tripData.itinerary = updatedTrip.itinerary || [];
+            tripData.flights = updatedTrip.flights || [];
+            tripData.members = updatedTrip.members || ['Você'];
+            tripData.expenses = updatedTrip.expenses || [];
+            tripData.updatedAt = updatedTrip.updated_at;
+            
+            // Re-render
+            renderTimeline();
+            renderFlights();
+            renderSplitwise();
+            renderPackingChecklist();
+            checkItineraryStatus();
+            updateBudget();
+            renderDashboard();
+            
+            // Save locally
+            localStorage.setItem(getUserStorageKey("gptViajante_tripData"), JSON.stringify(tripData));
+          }
+        }
+      }
+    )
+    .subscribe();
+}
+
+// Open/Close Text Import Modal
+function openTextImportModal() {
+  const modal = document.getElementById("textImportModal");
+  if (modal) {
+    const textarea = document.getElementById("textImportArea");
+    if (textarea) textarea.value = "";
+    modal.showModal();
+    
+    // Fallback for browsers without closedby support
+    if (!('closedBy' in HTMLDialogElement.prototype)) {
+      const clickHandler = (event) => {
+        if (event.target !== modal) return;
+        const rect = modal.getBoundingClientRect();
+        const isDialogContent = (
+          rect.top <= event.clientY &&
+          event.clientY <= rect.top + rect.height &&
+          rect.left <= event.clientX &&
+          event.clientX <= rect.left + rect.width
+        );
+        if (isDialogContent) return;
+        modal.close();
+        modal.removeEventListener('click', clickHandler);
+      };
+      modal.addEventListener('click', clickHandler);
+    }
+  }
+}
+
+function closeTextImportModal() {
+  const modal = document.getElementById("textImportModal");
+  if (modal) modal.close();
+}
+
+// Handle Paste Text Import
+async function handleTextPasteImport() {
+  const textarea = document.getElementById("textImportArea");
+  if (!textarea) return;
+  const text = textarea.value.trim();
+  
+  if (!text) {
+    alert("⚠️ Por favor, cole o texto do e-mail ou comprovante antes de processar.");
+    return;
+  }
+  
+  const btn = document.getElementById("submitTextImportBtn");
+  const originalHtml = btn.innerHTML;
+  btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Processando...`;
+  btn.disabled = true;
+  
+  try {
+    const token = await getFreshToken();
+    const response = await fetch("/api/parse-document", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
+      },
+      body: JSON.stringify({ text: text })
+    });
+    
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.error || `Erro do servidor (${response.status}) ao analisar o texto.`);
+    }
+    
+    const result = await response.json();
+    if (!result || !result.type) {
+      throw new Error("Estrutura de resposta inválida da inteligência artificial.");
+    }
+    
+    if (result.type === "flight") {
+      const flightData = result.data;
+      if (!tripData.flights) tripData.flights = [];
+      tripData.flights.push(flightData);
+      saveState();
+      renderFlights();
+      alert("✓ Passagem aérea importada e cadastrada com sucesso! Veja as informações no painel 'Seus Voos'.");
+      closeTextImportModal();
+    } else if (result.type === "hotel") {
+      const hotelData = result.data;
+      tripData.infoHotel = hotelData.hotel;
+      if (hotelData.hotelLink) tripData.hotelLink = hotelData.hotelLink;
+      if (hotelData.dates) tripData.infoDates = hotelData.dates;
+      
+      if (hotelData.checkInDate) {
+        tripData.targetDate = `${hotelData.checkInDate}T12:00:00`;
+      }
+      
+      saveState();
+      renderDashboard();
+      alert("✓ Hospedagem e hotel atualizados com sucesso!");
+      closeTextImportModal();
+    } else {
+      throw new Error("Não foi possível identificar o tipo de comprovante (voo ou hotel) neste texto.");
+    }
+  } catch (err) {
+    console.error("Erro no processamento de texto:", err);
+    alert(`⚠️ Falha no processamento: ${err.message}`);
+  } finally {
+    btn.innerHTML = originalHtml;
+    btn.disabled = false;
+  }
+}
+
+// Expose functions globally
+window.openTextImportModal = openTextImportModal;
+window.closeTextImportModal = closeTextImportModal;
+window.handleTextPasteImport = handleTextPasteImport;
+window.subscribeToTripChanges = subscribeToTripChanges;
+
 
 
