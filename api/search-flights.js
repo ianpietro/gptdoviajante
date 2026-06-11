@@ -24,48 +24,47 @@ module.exports = async function handler(req, res) {
   let userEmail = null;
 
   if (idToken === "dummy-token-unconfigured") {
-    console.info("Bypassing Firebase Auth verification (local unconfigured mode)");
+    console.info("Bypassing Supabase Auth verification (local unconfigured mode)");
     userEmail = "teste@viajante.com";
   } else {
-    // Verify token with Firebase Auth REST API
-    const firebaseApiKey = process.env.FIREBASE_API_KEY;
-    if (!firebaseApiKey) {
-      console.error("FIREBASE_API_KEY environment variable is not defined on the server.");
+    // Verify token with Supabase Auth API
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+    if (!supabaseUrl || !supabaseAnonKey) {
+      console.error("SUPABASE_URL or SUPABASE_ANON_KEY is not defined on the server.");
       return res.status(500).json({ error: "Erro interno do servidor: Autenticação não configurada." });
     }
 
     try {
-      const verifyUrl = `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${firebaseApiKey}`;
-      const verifyRes = await fetch(verifyUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idToken: idToken })
+      const verifyRes = await fetch(`${supabaseUrl}/auth/v1/user`, {
+        method: "GET",
+        headers: {
+          "apikey": supabaseAnonKey,
+          "Authorization": `Bearer ${idToken}`
+        }
       });
 
       if (!verifyRes.ok) {
         return res.status(401).json({ error: "Token inválido ou expirado. Faça login novamente." });
       }
 
-      const verifyData = await verifyRes.json();
-      const user = verifyData.users?.[0];
-      if (!user) {
-        return res.status(401).json({ error: "Usuário não encontrado no Firebase." });
+      const user = await verifyRes.json();
+      if (!user || !user.email) {
+        return res.status(401).json({ error: "Usuário não encontrado no Supabase." });
       }
       userEmail = user.email;
     } catch (err) {
-      console.error("Error during Firebase token verification:", err);
+      console.error("Error during Supabase token verification:", err);
       return res.status(500).json({ error: "Erro na verificação de identidade." });
     }
   }
 
-  // Verify whitelist
-  const allowedEmailsEnv = process.env.ALLOWED_EMAILS;
-  if (allowedEmailsEnv) {
-    const allowedEmails = allowedEmailsEnv.split(",").map(email => email.trim().toLowerCase());
-    if (!allowedEmails.includes(userEmail.toLowerCase())) {
-      console.warn(`Access blocked for email: ${userEmail} (not in whitelist)`);
-      return res.status(403).json({ error: "Seu e-mail não está cadastrado na lista de compradores autorizados. Entre em contato com o suporte." });
-    }
+  // Verify whitelist and authorized_emails in database
+  const { checkUserAccess } = require('./_utils');
+  const isAuthorized = await checkUserAccess(userEmail);
+  if (!isAuthorized) {
+    console.warn(`Access blocked for email: ${userEmail} (not authorized)`);
+    return res.status(403).json({ error: "Seu e-mail não está cadastrado na lista de compradores autorizados. Entre em contato com o suporte." });
   }
 
   const { origin, destination, date } = req.body;

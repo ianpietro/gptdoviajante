@@ -120,18 +120,25 @@
         <i class="fa-solid fa-compass"></i>
         <span>Na Viagem</span>
       </button>
-      <button class="bottom-nav-btn" data-tab="voos">
-        <i class="fa-solid fa-plane"></i>
-        <span>Voos</span>
-      </button>
-      <button class="bottom-nav-btn" data-tab="documentos">
-        <i class="fa-solid fa-passport"></i>
-        <span>Docs</span>
+      <button class="bottom-nav-btn" data-tab="logistica">
+        <i class="fa-solid fa-plane-departure"></i>
+        <span>Logística</span>
       </button>
     </nav>
 
     <!-- TOP: INTERACTIVE TRAVEL DASHBOARD -->
     <main class="dashboard-content" id="dashboardContent">
+
+      <!-- Banner global para visualização de viagem compartilhada (gatilho de venda) -->
+      <div id="sharedViewSalesBanner" class="hidden shared-view-sales-banner">
+        <div class="shared-view-banner-content">
+          <i class="fa-solid fa-plane-departure banner-icon"></i>
+          <span class="banner-text">Você está vendo o roteiro de outro viajante. Crie o seu roteiro inteligente agora!</span>
+        </div>
+        <a href="https://pay.kirvano.com/8c50a730-069a-40e8-bed3-078c03089d1d" target="_blank" class="banner-btn">
+          <i class="fa-solid fa-wand-magic-sparkles"></i> Criar Meu Roteiro
+        </a>
+      </div>
 
       <!-- Banner compacto global para induzir ao chat em todas as abas -->
       <div id="noItineraryBannerGlobal" class="hidden no-itinerary-banner-compact">
@@ -229,171 +236,88 @@
       </section>
 
 
-      <!-- Documents Section -->
-      <section class="container section-padding hidden" id="documentsSection">
+      <!-- Logistics / Voos e Docs Section -->
+      <section class="container section-padding hidden" id="logisticaSection">
         <div class="section-title-wrapper">
-          <span class="badge badge-primary"><i class="fa-solid fa-passport"></i> Documentos</span>
-          <h2 class="section-title">Documentos de Bordo</h2>
-          <p class="section-subtitle">Guarde passagens aéreas, reservas de hotel e ingressos importantes para acessar instantaneamente no aeroporto.</p>
+          <span class="badge badge-primary"><i class="fa-solid fa-plane-departure"></i> Logística</span>
+          <h2 class="section-title">Voos e Documentos de Viagem</h2>
+          <p class="section-subtitle">Gerencie suas passagens aéreas e guarde passaportes, comprovantes e ingressos importantes em um só lugar.</p>
         </div>
 
-        <div class="glass-panel" style="padding: 24px; display: flex; flex-direction: column; gap: 20px;">
-          <!-- Upload Area & Form -->
-          <div id="documentUploadContainer" style="display: flex; flex-direction: column; gap: 16px;">
-            <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
-              <div style="flex: 1; min-width: 200px;">
-                <label for="documentCategorySelect" style="display: block; font-size: 0.78rem; color: var(--text-light); margin-bottom: 6px; font-weight: 600;">Categoria do Documento</label>
-                <select id="documentCategorySelect" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 10px 12px; color: white; outline: none; font-size: 0.88rem; font-family: var(--font-body);">
-                  <option value="Passagem Aérea">✈️ Passagem Aérea / Cartão de Embarque</option>
-                  <option value="Hospedagem">🏨 Reserva de Hotel / Airbnb</option>
-                  <option value="Ingresso">🎟️ Ingresso / Voucher</option>
-                  <option value="Seguro Viagem">🛡️ Seguro Viagem</option>
-                  <option value="Identidade">🪪 Documento de Identidade / Passaporte</option>
-                  <option value="Outros">📁 Outros Documentos</option>
-                </select>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; align-items: start;">
+          
+          <!-- Card 1: Voos -->
+          <div class="glass-panel" style="padding: 24px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 12px; gap: 8px; flex-wrap: wrap;">
+              <h3 style="font-size: 1rem; font-weight: 700; margin: 0; display: flex; align-items: center; gap: 8px; color: var(--text-main);">
+                <i class="fa-solid fa-plane" style="color: var(--primary);"></i> Seus Voos
+              </h3>
+              <div style="display: flex; gap: 8px;">
+                <button class="btn btn-secondary btn-sm" id="magicImportPdfBtn" style="padding: 6px 12px; font-size: 0.76rem; background: rgba(59, 130, 246, 0.1); border: 1px dashed var(--primary); display: flex; align-items: center; gap: 6px; cursor: pointer; color: white;">
+                  <i class="fa-solid fa-wand-magic-sparkles" style="color: var(--primary);"></i> Importar PDF
+                </button>
+                <input type="file" id="magicImportPdfFileInput" accept="application/pdf" style="display: none;">
+                <button class="btn btn-primary btn-sm" id="openAddFlightModalBtn" style="padding: 6px 12px; font-size: 0.76rem; background: linear-gradient(135deg, var(--primary) 0%, #1d4ed8 100%); border: none;">
+                  <i class="fa-solid fa-plus"></i> Adicionar Voo
+                </button>
               </div>
             </div>
 
-            <div id="documentUploadArea" style="display: flex; flex-direction: column; align-items: center; justify-content: center; border: 2px dashed var(--border-color); border-radius: var(--border-radius-md); padding: 32px; text-align: center; cursor: pointer; position: relative; background: rgba(255, 255, 255, 0.01); transition: background 0.2s, border-color 0.2s;">
-              <input type="file" id="documentFileInput" accept="application/pdf,image/*" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer;">
-              <i class="fa-solid fa-cloud-arrow-up" style="font-size: 2.5rem; color: var(--primary); margin-bottom: 12px; transition: transform 0.2s;"></i>
-              <h4 style="font-size: 0.95rem; font-weight: 700; margin-bottom: 6px; color: var(--text-main);">Arraste ou clique para enviar</h4>
-              <p style="font-size: 0.78rem; color: var(--text-muted); max-width: 280px; margin: 0;">Selecione um arquivo PDF ou Imagem (Máx. 4MB)</p>
+            <div class="timeline-empty" id="flightsEmpty" style="padding: 30px 0;">
+              <div class="empty-icon" style="font-size: 2rem; margin-bottom: 8px;"><i class="fa-solid fa-plane-slash"></i></div>
+              <h4 style="margin: 0 0 4px; font-size: 0.9rem;">Nenhum voo informado</h4>
+              <p style="margin: 0; font-size: 0.78rem; color: var(--text-muted);">Clique em Adicionar Voo para cadastrar suas passagens.</p>
+            </div>
+
+            <div class="flights-container" id="flightsContainer" style="display: flex; flex-direction: column; gap: 16px;">
+              <!-- Flight cards dynamically injected by JS -->
             </div>
           </div>
 
-          <!-- Documents List Title -->
-          <div style="border-top: 1px dashed var(--border-color); padding-top: 16px; margin-top: 8px;">
-            <h3 style="font-size: 1rem; font-weight: 700; margin-bottom: 15px; display: flex; align-items: center; gap: 8px; color: var(--text-main);">
-              <i class="fa-solid fa-folder-open" style="color: var(--secondary);"></i> Arquivos Salvos
-            </h3>
-            
-            <div id="documentsEmpty" style="font-size: 0.82rem; color: var(--text-muted); padding: 30px 0; text-align: center;">
-              Nenhum documento salvo para esta viagem.
+          <!-- Card 2: Documentos -->
+          <div class="glass-panel" id="documentsCard" style="padding: 24px;">
+            <div style="display: flex; flex-direction: column; gap: 16px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 12px; margin-bottom: 20px;">
+              <h3 style="font-size: 1rem; font-weight: 700; margin: 0; display: flex; align-items: center; gap: 8px; color: var(--text-main);">
+                <i class="fa-solid fa-passport" style="color: var(--secondary);"></i> Documentos de Bordo
+              </h3>
+              
+              <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+                <div style="flex: 1; min-width: 140px;">
+                  <label for="documentCategorySelect" style="display: block; font-size: 0.7rem; color: var(--text-muted); margin-bottom: 4px; font-weight: 600; text-transform: uppercase;">Categoria</label>
+                  <select id="documentCategorySelect" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 8px 10px; color: white; outline: none; font-size: 0.8rem; font-family: var(--font-body);">
+                    <option value="Passagem Aérea">✈️ Cartão de Embarque</option>
+                    <option value="Hospedagem">🏨 Reserva de Hotel / Airbnb</option>
+                    <option value="Ingresso">🎟️ Ingresso / Voucher</option>
+                    <option value="Seguro Viagem">🛡️ Seguro Viagem</option>
+                    <option value="Identidade">🪪 Passaporte / RG</option>
+                    <option value="Outros">📁 Outros</option>
+                  </select>
+                </div>
+              </div>
+
+              <div id="documentUploadArea" style="display: flex; flex-direction: column; align-items: center; justify-content: center; border: 2px dashed var(--border-color); border-radius: var(--border-radius-md); padding: 20px; text-align: center; cursor: pointer; position: relative; background: rgba(255, 255, 255, 0.01); transition: background 0.2s, border-color 0.2s;">
+                <input type="file" id="documentFileInput" accept="application/pdf,image/*" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer;">
+                <i class="fa-solid fa-cloud-arrow-up" style="font-size: 1.8rem; color: var(--primary); margin-bottom: 8px;"></i>
+                <h4 style="font-size: 0.85rem; font-weight: 700; margin-bottom: 4px; color: var(--text-main);">Arraste ou clique para enviar</h4>
+                <p style="font-size: 0.72rem; color: var(--text-muted); margin: 0;">PDF ou Imagem (Máx. 4MB)</p>
+              </div>
             </div>
-            
-            <div id="documentsList" style="display: flex; flex-direction: column; gap: 12px;">
-              <!-- Documents injected dynamically -->
-            </div>
-          </div>
-        </div>
-      </section>
 
-
-      <!-- Flights Section -->
-      <section class="container section-padding" id="flightsSection">
-        <div class="section-title-wrapper">
-          <span class="badge badge-primary"><i class="fa-solid fa-plane"></i> Voos</span>
-          <h2 class="section-title">Busca e Rastreamento de Voos</h2>
-          <p class="section-subtitle">Pesquise os voos mais baratos e acompanhe o status de embarque e bagagens em tempo real.</p>
-        </div>
-
-        <!-- Sub-tabs within Flights Section -->
-        <div class="flights-sub-nav" style="display: flex; gap: 12px; margin-bottom: 24px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 12px;">
-          <button class="btn btn-secondary btn-sm sub-tab-btn active" id="subTabSearchBtn" data-sub-tab="search" style="border-radius: 20px; padding: 6px 16px;">
-            <i class="fa-solid fa-magnifying-glass"></i> Buscar Passagens
-          </button>
-          <button class="btn btn-secondary btn-sm sub-tab-btn" id="subTabTrackBtn" data-sub-tab="track" style="border-radius: 20px; padding: 6px 16px;">
-            <i class="fa-solid fa-clock"></i> Rastrear Voos
-          </button>
-        </div>
-
-        <!-- 1. Flight Search Section -->
-        <div class="flights-sub-section" id="flightSearchSubSection">
-          <div class="glass-panel" style="padding: 24px; margin-bottom: 24px;">
-            <h3 style="font-size: 1rem; font-weight: 700; color: white; margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
-              <i class="fa-solid fa-search" style="color: var(--primary);"></i> Buscar Preços de Passagens
-            </h3>
-            
-            <form id="flightSearchForm" style="display: flex; flex-direction: column; gap: 16px;">
-              <div style="display: flex; gap: 12px; flex-wrap: wrap;">
-                <div class="input-group" style="flex: 1; min-width: 140px; display: flex; flex-direction: column; gap: 6px;">
-                  <label for="flightSearchOrigin" style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: var(--text-light); letter-spacing: 0.05em;">Origem (IATA) *</label>
-                  <input type="text" id="flightSearchOrigin" placeholder="Ex: GRU" required style="background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 10px 12px; color: white; outline: none; font-size: 0.9rem; text-transform: uppercase;">
-                </div>
-                
-                <div class="input-group" style="flex: 1; min-width: 140px; display: flex; flex-direction: column; gap: 6px;">
-                  <label for="flightSearchDest" style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: var(--text-light); letter-spacing: 0.05em;">Destino (IATA) *</label>
-                  <input type="text" id="flightSearchDest" placeholder="Ex: CDG" required style="background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 10px 12px; color: white; outline: none; font-size: 0.9rem; text-transform: uppercase;">
-                </div>
-                
-                <div class="input-group" style="flex: 1; min-width: 160px; display: flex; flex-direction: column; gap: 6px;">
-                  <label for="flightSearchDate" style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: var(--text-light); letter-spacing: 0.05em;">Data de Partida *</label>
-                  <input type="date" id="flightSearchDate" required style="background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 10px 12px; color: white; outline: none; font-size: 0.9rem;">
-                </div>
+            <div>
+              <h3 style="font-size: 0.9rem; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; color: var(--text-main);">
+                <i class="fa-solid fa-folder-open" style="color: var(--secondary);"></i> Arquivos Salvos
+              </h3>
+              
+              <div id="documentsEmpty" style="font-size: 0.78rem; color: var(--text-muted); padding: 20px 0; text-align: center;">
+                Nenhum documento salvo para esta viagem.
               </div>
               
-              <button type="submit" class="btn btn-primary" id="btnRunFlightSearch" style="padding: 12px; font-weight: 700; font-size: 0.9rem; display: flex; align-items: center; justify-content: center; gap: 8px; background: linear-gradient(135deg, var(--primary) 0%, #1d4ed8 100%); border: none; cursor: pointer; border-radius: var(--border-radius-md); transition: all 0.2s;">
-                <i class="fa-solid fa-magnifying-glass"></i> Buscar Melhores Preços
-              </button>
-            </form>
-          </div>
-          
-          <!-- Loading State -->
-          <div id="flightSearchGlobalLoading" class="hidden" style="text-align: center; padding: 40px 20px;">
-            <i class="fa-solid fa-circle-notch fa-spin" style="font-size: 2.5rem; color: var(--primary); margin-bottom: 16px;"></i>
-            <p style="font-size: 0.9rem; color: var(--text-light); margin-bottom: 4px;">Pesquisando voos e comparando preços de datas adjacentes...</p>
-            <span style="font-size: 0.78rem; color: var(--text-muted);">Isso pode levar alguns segundos...</span>
-          </div>
-
-          <!-- Error State -->
-          <div id="flightSearchGlobalError" class="hidden" style="padding: 16px; background: rgba(234, 67, 53, 0.1); border: 1px solid rgba(234, 67, 53, 0.2); border-radius: var(--border-radius-md); text-align: center; color: #f87171; font-size: 0.88rem; margin-bottom: 24px;">
-            <i class="fa-solid fa-triangle-exclamation" style="margin-right: 6px;"></i> <span id="flightSearchGlobalErrorText">Ocorreu um erro ao pesquisar voos.</span>
-          </div>
-
-          <!-- Results Container -->
-          <div id="flightSearchResultsContainer" class="hidden" style="display: flex; flex-direction: column; gap: 20px;">
-            <!-- Natural Recommendation Alert -->
-            <div class="natural-recommendation-alert" style="background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(99, 102, 241, 0.1) 100%); border: 1px solid rgba(59, 130, 246, 0.25); border-radius: var(--border-radius-md); padding: 18px; display: flex; gap: 14px; align-items: flex-start; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
-              <div style="font-size: 1.5rem; color: #60a5fa; padding-top: 2px;"><i class="fa-solid fa-lightbulb"></i></div>
-              <div style="display: flex; flex-direction: column; gap: 4px; text-align: left;">
-                <h4 style="font-size: 0.92rem; font-weight: 700; color: white; margin: 0;">Análise do Especialista</h4>
-                <p id="flightSearchExplanationText" style="font-size: 0.85rem; color: var(--text-light); line-height: 1.5; margin: 0;"></p>
-              </div>
-            </div>
-            
-            <!-- Main requested flight details -->
-            <div class="glass-panel" style="padding: 20px;">
-              <h4 style="font-size: 0.85rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.05em; margin-bottom: 12px; text-align: left;">Voo na data solicitada</h4>
-              <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
-                <div style="text-align: left;">
-                  <h3 id="flightSearchReqDate" style="font-size: 1.15rem; font-weight: 800; color: white; margin: 0;">05/06/2026</h3>
-                  <p id="flightSearchReqAirline" style="font-size: 0.82rem; color: var(--text-light); margin: 4px 0 0;"></p>
-                </div>
-                <div style="text-align: right;">
-                  <span id="flightSearchReqPrice" style="font-size: 1.5rem; font-weight: 800; color: #10b981;">R$ 1.500</span>
-                  <p id="flightSearchReqStops" style="font-size: 0.78rem; color: var(--text-muted); margin: 4px 0 0;"></p>
-                </div>
-              </div>
-            </div>
-
-            <!-- Price Comparison Grid (Table-like or cards) -->
-            <div class="glass-panel" style="padding: 20px;">
-              <h4 style="font-size: 0.85rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.05em; margin-bottom: 16px; text-align: left;">Comparação de datas próximas</h4>
-              <div id="flightSearchGrid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px;">
-                <!-- Dynamically populated comparison cards -->
+              <div id="documentsList" style="display: flex; flex-direction: column; gap: 10px;">
+                <!-- Documents injected dynamically -->
               </div>
             </div>
           </div>
-        </div>
 
-        <!-- 2. Flight Tracking Section -->
-        <div class="flights-sub-section hidden" id="flightTrackSubSection">
-          <div style="display: flex; justify-content: flex-end; margin-bottom: 20px;">
-            <button class="btn btn-primary btn-sm" id="openAddFlightModalBtn">
-              <i class="fa-solid fa-plus"></i> Adicionar Voo
-            </button>
-          </div>
-
-          <div class="timeline-empty" id="flightsEmpty">
-            <div class="empty-icon"><i class="fa-solid fa-plane-slash"></i></div>
-            <h3>Nenhum voo cadastrado</h3>
-            <p>Clique no botão acima para cadastrar seu primeiro voo e acompanhar os dados reais!</p>
-          </div>
-
-          <div class="flights-container" id="flightsContainer" style="display: flex; flex-direction: column; gap: 16px;">
-            <!-- Flight cards dynamically injected by JS -->
-          </div>
         </div>
       </section>
 
@@ -403,6 +327,27 @@
           <span class="badge badge-primary"><i class="fa-solid fa-route"></i> O Cronograma</span>
           <h2 class="section-title">Programação Dia a Dia</h2>
           <p class="section-subtitle">O roteiro gerado aparecerá organizado aqui. Clique nos dias para ver detalhes.</p>
+        </div>
+
+        <!-- Banner incentivando o preenchimento de voos e hospedagem -->
+        <div id="itineraryOptimizationBanner" class="hidden itinerary-opt-banner" style="margin-bottom: 24px; padding: 16px; background: rgba(59, 130, 246, 0.06); border: 1px solid rgba(59, 130, 246, 0.15); border-radius: var(--border-radius-md, 12px); display: flex; align-items: center; justify-content: space-between; gap: 16px; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);">
+          <div style="display: flex; align-items: center; gap: 14px; text-align: left;">
+            <div style="font-size: 1.5rem; color: var(--primary);"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
+            <div>
+              <h4 style="margin: 0; font-size: 0.88rem; font-weight: 700; color: white;">Deixe suas rotas 100% certeiras!</h4>
+              <p style="margin: 4px 0 0 0; font-size: 0.76rem; color: var(--text-light); line-height: 1.4;">
+                Cadastre seus voos na aba <strong>Logística</strong> e informe sua hospedagem no <strong>Chat</strong> para que a inteligência artificial ajuste os horários de partida e trajetos do mapa com precisão milimétrica.
+              </p>
+            </div>
+          </div>
+          <div style="display: flex; gap: 8px; flex-shrink: 0;">
+            <button class="btn btn-secondary btn-sm" onclick="switchTab('logistica')" style="padding: 6px 12px; font-size: 0.74rem;">
+              <i class="fa-solid fa-plane-departure"></i> Aba Logística
+            </button>
+            <button class="btn btn-primary btn-sm" onclick="switchTab('chat')" style="padding: 6px 12px; font-size: 0.74rem; background: linear-gradient(135deg, var(--primary) 0%, #1d4ed8 100%); border: none;">
+              <i class="fa-solid fa-comments"></i> Informar no Chat
+            </button>
+          </div>
         </div>
 
         <div class="timeline-empty" id="timelineEmpty">
@@ -697,7 +642,10 @@
       <div class="settings-panel hidden" id="settingsPanel">
         <h3><i class="fa-solid fa-sliders"></i> Configurações do App</h3>
         <p>Gerencie seus dados locais salvos no navegador.</p>
-        <div class="settings-buttons">
+        <div class="settings-buttons" style="display: flex; flex-direction: column; gap: 10px;">
+          <button class="btn btn-secondary btn-sm" id="toggleThemeBtn" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;">
+            <i class="fa-solid fa-sun"></i> Tema Claro
+          </button>
           <button class="btn btn-secondary btn-sm" id="clearDataBtn" style="width: 100%;">Resetar Todos os Dados</button>
         </div>
       </div>
@@ -1013,6 +961,7 @@
           <div class="slide-icon slide-icon--blue"><i class="fa-solid fa-map-location-dot"></i></div>
           <h2>Chat de <span class="slide-accent-blue">Planejamento</span></h2>
           <p>Use o Chat principal para planejar toda a sua viagem conversando naturalmente.</p>
+          <img src="assets/tutorial_chat_plan.png" alt="Chat de Planejamento" class="slide-screenshot">
           <ul class="slide-list">
             <li><i class="fa-solid fa-comments"></i> <strong>Destino e datas:</strong> "Quero ir a Lisboa em julho"</li>
             <li><i class="fa-solid fa-comments"></i> <strong>Roteiro:</strong> "Monte um roteiro de 7 dias"</li>
@@ -1027,6 +976,7 @@
           <div class="slide-icon slide-icon--green"><i class="fa-solid fa-compass"></i></div>
           <h2>Chat <span class="slide-accent-green">Na Viagem</span></h2>
           <p>Quando estiver no destino, mude para o Chat Na Viagem (aba inferior). O CoPiloto vira seu guia em tempo real.</p>
+          <img src="assets/tutorial_chat_travel.png" alt="Chat Na Viagem" class="slide-screenshot">
           <ul class="slide-list">
             <li><i class="fa-solid fa-utensils"></i> <strong>Restaurantes:</strong> "Onde comer perto do Bairro Alto?"</li>
             <li><i class="fa-solid fa-language"></i> <strong>Traduções:</strong> "Como peço a conta em português?"</li>
@@ -1041,6 +991,7 @@
           <div class="slide-icon slide-icon--purple"><i class="fa-solid fa-route"></i></div>
           <h2>Aba <span class="slide-accent-purple">Roteiro</span></h2>
           <p>Visualize o itinerário completo gerado, organizado por dia com horários e atividades.</p>
+          <img src="assets/tutorial_itinerary.png" alt="Aba Roteiro" class="slide-screenshot">
           <ul class="slide-list">
             <li><i class="fa-solid fa-calendar-days"></i> Dias e atividades em ordem cronológica</li>
             <li><i class="fa-solid fa-clock"></i> Horários sugeridos para cada atividade</li>
@@ -1055,6 +1006,7 @@
           <div class="slide-icon slide-icon--amber"><i class="fa-solid fa-wallet"></i></div>
           <h2>Aba <span class="slide-accent-amber">Orçamento</span></h2>
           <p>Acompanhe os gastos estimados da viagem e divida as despesas entre os participantes do grupo.</p>
+          <img src="assets/tutorial_budget.png" alt="Aba Orçamento" class="slide-screenshot">
           <ul class="slide-list">
             <li><i class="fa-solid fa-chart-pie"></i> Gráfico de orçamento por categoria</li>
             <li><i class="fa-solid fa-users"></i> Adicionar membros do grupo</li>
@@ -1069,6 +1021,7 @@
           <div class="slide-icon slide-icon--teal"><i class="fa-solid fa-suitcase"></i></div>
           <h2>Aba <span class="slide-accent-teal">Mala</span></h2>
           <p>Lista de mala inteligente gerada automaticamente com base no seu destino e perfil de viagem.</p>
+          <img src="assets/tutorial_packing.png" alt="Aba Mala" class="slide-screenshot">
           <ul class="slide-list">
             <li><i class="fa-solid fa-wand-magic-sparkles"></i> Gerada automaticamente com base no destino</li>
             <li><i class="fa-solid fa-check-square"></i> Marque os itens conforme faz as malas</li>
@@ -1083,6 +1036,7 @@
           <div class="slide-icon slide-icon--indigo"><i class="fa-solid fa-plane"></i></div>
           <h2>Aba <span class="slide-accent-indigo">Voos</span></h2>
           <p>Registre seus voos e acompanhe todos os detalhes da sua viagem aérea em um só lugar.</p>
+          <img src="assets/tutorial_logistics.png" alt="Aba Voos" class="slide-screenshot">
           <ul class="slide-list">
             <li><i class="fa-solid fa-plus"></i> Adicionar voos de ida e volta</li>
             <li><i class="fa-solid fa-magnifying-glass"></i> Buscar status do voo online</li>
@@ -1216,6 +1170,9 @@
 
     </div>
   </div>
+
+  <!-- PDF.js para extração de texto no client-side -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
 
   <!-- Javascript Logic -->
   <script type="module" src="app.js"></script>

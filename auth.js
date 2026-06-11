@@ -1,153 +1,124 @@
-// Firebase SDK imports from CDN
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { 
-  getAuth, 
-  signInWithPopup, 
-  GoogleAuthProvider, 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword, 
-  signOut, 
-  onAuthStateChanged 
-} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
-// ==========================================================================
-// CONFIGURAÇÃO DO FIREBASE
-// ==========================================================================
-// TODO: Substitua pelos dados do seu console do Firebase (Configurações do Projeto)
-const firebaseConfig = {
-  apiKey: "AIzaSyAGxNoGPslqs1XvRumJMz0k6IX6c5grLR4",
-  authDomain: "gpt-viajante.firebaseapp.com",
-  projectId: "gpt-viajante",
-  storageBucket: "gpt-viajante.firebasestorage.app",
-  messagingSenderId: "567296948923",
-  appId: "1:567296948923:web:0b07a8119fd48202cc479e"
-};
+// Initialize Supabase client
+export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// Verificar se as credenciais ainda são placeholders
-const isConfigured = firebaseConfig.apiKey && firebaseConfig.apiKey !== "SUA_API_KEY_AQUI";
-
-let app;
-let auth;
-let googleProvider;
-
-if (isConfigured) {
-  app = initializeApp(firebaseConfig);
-  auth = getAuth(app);
-  googleProvider = new GoogleAuthProvider();
-  googleProvider.setCustomParameters({
-    prompt: 'select_account'
-  });
-} else {
-  console.warn("⚠️ Firebase Auth não está configurado. Insira suas credenciais em auth.js para ativar o login.");
-}
+const isConfigured = !!(SUPABASE_URL && SUPABASE_ANON_KEY);
 
 /**
- * Retorna se o Firebase está configurado no cliente
+ * Returns if Supabase is configured
  */
 export function isFirebaseConfigured() {
   return isConfigured;
 }
 
 /**
- * Monitora o estado de autenticação do usuário
- * @param {Function} onUserActive Callback chamado quando o usuário está logado
- * @param {Function} onUserInactive Callback chamado quando o usuário não está logado
+ * Monitor auth state changes
+ * @param {Function} onUserActive Callback called when user is logged in
+ * @param {Function} onUserInactive Callback called when user is logged out
  */
 export function setupAuthStateListener(onUserActive, onUserInactive) {
   if (!isConfigured) {
-    // Se não estiver configurado, desativa login obrigatório temporariamente para testes locais
-    console.info("Firebase não configurado. Ignorando tela de login.");
+    console.info("Supabase not configured. Bypassing login.");
     onUserActive({
-      displayName: "Viajante Teste",
+      id: "dummy-user-id",
       email: "teste@viajante.com",
-      photoURL: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=150"
+      user_metadata: {
+        full_name: "Viajante Teste",
+        avatar_url: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=150"
+      }
     }, "dummy-token-unconfigured");
     return;
   }
 
-  onAuthStateChanged(auth, async (user) => {
-    if (user) {
-      try {
-        const token = await user.getIdToken();
-        onUserActive(user, token);
-      } catch (error) {
-        console.error("Erro ao obter ID Token do Firebase:", error);
-        onUserInactive();
-      }
+  // Check current session immediately
+  supabase.auth.getSession().then(({ data: { session } }) => {
+    if (session) {
+      onUserActive(session.user, session.access_token);
     } else {
       onUserInactive();
     }
   });
+
+  // Listen for changes
+  const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    if (session) {
+      onUserActive(session.user, session.access_token);
+    } else {
+      onUserInactive();
+    }
+  });
+
+  return () => {
+    subscription.unsubscribe();
+  };
 }
 
 /**
- * Efetua login com o Google (Popup)
+ * Login with Google OAuth (Redirect method is most reliable for mobile/in-app browsers)
  */
 export async function loginWithGoogle() {
-  if (!isConfigured) {
-    alert("⚠️ Firebase não configurado em auth.js. Por favor, adicione as credenciais.");
-    return;
-  }
-  try {
-    const result = await signInWithPopup(auth, googleProvider);
-    return result.user;
-  } catch (error) {
-    console.error("Erro no login com Google:", error);
+  if (!isConfigured) return;
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo: window.location.origin + '/app.html'
+    }
+  });
+  if (error) {
+    console.error("Google sign in error:", error);
     throw error;
   }
+  return data;
 }
 
 /**
- * Efetua login com e-mail e senha
+ * Login with email and password
  */
 export async function loginWithEmail(email, password) {
-  if (!isConfigured) {
-    alert("⚠️ Firebase não configurado em auth.js. Por favor, adicione as credenciais.");
-    return;
-  }
-  try {
-    const result = await signInWithEmailAndPassword(auth, email, password);
-    return result.user;
-  } catch (error) {
-    console.error("Erro no login com Email/Senha:", error);
+  if (!isConfigured) return;
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email,
+    password
+  });
+  if (error) {
+    console.error("Email login error:", error);
     throw error;
   }
+  return data.user;
 }
 
 /**
- * Cria uma nova conta com e-mail e senha
+ * Register with email and password
  */
 export async function registerWithEmail(email, password) {
-  if (!isConfigured) {
-    alert("⚠️ Firebase não configurado em auth.js. Por favor, adicione as credenciais.");
-    return;
-  }
-  try {
-    const result = await createUserWithEmailAndPassword(auth, email, password);
-    return result.user;
-  } catch (error) {
-    console.error("Erro no cadastro com Email/Senha:", error);
+  if (!isConfigured) return;
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password
+  });
+  if (error) {
+    console.error("Registration error:", error);
     throw error;
   }
+  return data.user;
 }
 
 /**
- * Realiza o Logout do usuário
+ * Logout
  */
 export async function logout() {
   if (!isConfigured) return;
-  try {
-    await signOut(auth);
-  } catch (error) {
-    console.error("Erro ao deslogar:", error);
+  const { error } = await supabase.auth.signOut();
+  if (error) {
+    console.error("Signout error:", error);
     throw error;
   }
 }
 
 /**
- * Retorna o usuário atual de forma assíncrona, aguardando o Firebase inicializar.
- * Resolve com o objeto User se houver sessão ativa, ou null se não houver.
- * Use antes de decidir mostrar o modo de shared view.
+ * Check if there is an active session
  */
 export function checkCurrentUser() {
   return new Promise((resolve) => {
@@ -155,21 +126,20 @@ export function checkCurrentUser() {
       resolve(null);
       return;
     }
-    // onAuthStateChanged dispara uma vez com o estado atual e depois de cada mudança.
-    // Usamos unsubscribe() para transformar isso em uma Promise "one-shot".
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      unsubscribe();
+    supabase.auth.getUser().then(({ data: { user } }) => {
       resolve(user);
+    }).catch(() => {
+      resolve(null);
     });
   });
 }
 
 /**
- * Retorna o ID Token atualizado do usuário ativo
+ * Get fresh JWT token
  */
 export async function getFreshToken() {
   if (!isConfigured) return "dummy-token-unconfigured";
-  const currentUser = auth.currentUser;
-  if (!currentUser) return null;
-  return await currentUser.getIdToken(true); // força a renovação
+  const { data: { session }, error } = await supabase.auth.getSession();
+  if (error || !session) return null;
+  return session.access_token;
 }

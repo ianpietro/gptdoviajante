@@ -1,5 +1,8 @@
 // config.js — Constants and configuration for GPT do Viajante
 
+export const SUPABASE_URL = "https://mfcajxrvylkwijdpknbx.supabase.co";
+export const SUPABASE_ANON_KEY = "sb_publishable_Mm7c0n4BbiFgmzgq2j-W3A_zf8jQc8v";
+
 export const DB_NAME = "CoPilotoDocsDB";
 export const STORE_NAME = "documents";
 

@@ -25,59 +25,76 @@ module.exports = async function handler(req, res) {
   let userEmail = null;
 
   if (idToken === "dummy-token-unconfigured") {
-    console.info("Bypassing Firebase Auth verification (local unconfigured mode)");
+    console.info("Bypassing Supabase Auth verification (local unconfigured mode)");
     userEmail = "teste@viajante.com";
   } else {
-    // Verify token with Firebase Auth REST API
-    const firebaseApiKey = process.env.FIREBASE_API_KEY;
-    if (!firebaseApiKey) {
-      console.error("FIREBASE_API_KEY environment variable is not defined on the server.");
+    // Verify token with Supabase Auth API
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+    if (!supabaseUrl || !supabaseAnonKey) {
+      console.error("SUPABASE_URL or SUPABASE_ANON_KEY is not defined on the server.");
       return res.status(500).json({ error: "Erro interno do servidor: Autenticação não configurada." });
     }
 
     try {
-      const verifyUrl = `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${firebaseApiKey}`;
-      const verifyRes = await fetch(verifyUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idToken: idToken })
+      const verifyRes = await fetch(`${supabaseUrl}/auth/v1/user`, {
+        method: "GET",
+        headers: {
+          "apikey": supabaseAnonKey,
+          "Authorization": `Bearer ${idToken}`
+        }
       });
 
       if (!verifyRes.ok) {
         const errData = await verifyRes.json().catch(() => ({}));
-        console.error("Firebase token verification failed:", errData);
+        console.error("Supabase token verification failed:", errData);
         return res.status(401).json({ error: "Token inválido ou expirado. Faça login novamente." });
       }
 
-      const verifyData = await verifyRes.json();
-      const user = verifyData.users?.[0];
-      if (!user) {
-        return res.status(401).json({ error: "Usuário não encontrado no Firebase." });
+      const user = await verifyRes.json();
+      if (!user || !user.email) {
+        return res.status(401).json({ error: "Usuário não encontrado no Supabase." });
       }
       userEmail = user.email;
     } catch (err) {
-      console.error("Error during Firebase token verification:", err);
+      console.error("Error during Supabase token verification:", err);
       return res.status(500).json({ error: "Erro na verificação de identidade." });
     }
   }
 
-  // Verify whitelist
-  const allowedEmailsEnv = process.env.ALLOWED_EMAILS;
-  if (allowedEmailsEnv) {
-    const allowedEmails = allowedEmailsEnv.split(",").map(email => email.trim().toLowerCase());
-    if (!allowedEmails.includes(userEmail.toLowerCase())) {
-      console.warn(`Access blocked for email: ${userEmail} (not in whitelist)`);
-      return res.status(403).json({ error: "Seu e-mail não está cadastrado na lista de compradores autorizados. Entre em contato com o suporte." });
-    }
-  } else {
-    console.warn("WARNING: ALLOWED_EMAILS environment variable is not defined. Access granted to all authenticated users.");
+  // Verify whitelist and authorized_emails in database
+  const { checkUserAccess } = require('./_utils');
+  const isAuthorized = await checkUserAccess(userEmail);
+  if (!isAuthorized) {
+    console.warn(`Access blocked for email: ${userEmail} (not authorized)`);
+    return res.status(403).json({ error: "Seu e-mail não está cadastrado na lista de compradores autorizados. Entre em contato com o suporte." });
   }
 
-  const { messages, provider = "gemini", apiKey, travelMode } = req.body;
+  let messages = req.body.messages;
 
   if (!messages || !Array.isArray(messages)) {
     return res.status(400).json({ error: "Messages array is required" });
   }
+
+  const { provider = "gemini", apiKey, travelMode, tripContext } = req.body;
+
+  // Optimize chat history by stripping older assistant JSON blocks to save tokens and prevent rate limits (TPM)
+  let foundLatestJson = false;
+  const optimizedMessages = [];
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i];
+    let content = msg.content;
+    if (msg.role === "assistant" && typeof content === "string" && content.includes("```json")) {
+      if (!foundLatestJson) {
+        foundLatestJson = true; // Keep the latest state JSON block
+      } else {
+        // Remove older JSON blocks to save thousands of tokens per turn
+        content = content.replace(/```json[\s\S]*?```/g, "").trim();
+      }
+    }
+    optimizedMessages.unshift({ ...msg, content });
+  }
+  messages = optimizedMessages;
 
   // Load System Prompt from prompt_master.txt
   let systemPrompt = "";
@@ -95,11 +112,11 @@ module.exports = async function handler(req, res) {
 \n\n
 ======================================================================
 INSTRUÇÃO TÉCNICA OBRIGATÓRIA (INVISÍVEL AO USUÁRIO):
-Sempre que você criar ou atualizar o roteiro, o orçamento ou a checklist de malas, você DEVE gerar no final da sua resposta um único bloco de código JSON demarcado exatamente com \`\`\`json e contendo a estrutura de dados correspondente para atualizar a interface do usuário. Não invente chaves adicionais e preencha tudo em português.
+Sempre que você criar ou atualizar o roteiro, o orçamento, a checklist de malas ou voos, você DEVE gerar no final da sua resposta um único bloco de código JSON demarcado exatamente com \`\`\`json e contendo a estrutura de dados correspondente para atualizar a interface do usuário. Não invente chaves adicionais e preencha tudo em português.
 
 Estrutura do JSON:
 {
-  "tripTitle": "Título da Viagem (Ex: Viagem para Salvador)",
+  "tripTitle": "Título da Viagem — deve ser estritamente curto no formato 'Cidade, País' ou 'Cidade' (Ex: Salvador, Brasil ou Lisboa, Portugal)",
   "tripSubtitle": "Subtítulo da Viagem",
   "infoDates": "Período (Ex: 12 a 15 de Outubro)",
   "infoWeather": "Clima Médio (Ex: 24°C a 30°C)",
@@ -136,13 +153,39 @@ Estrutura do JSON:
         {
           "time": "Horário (Ex: 10:00)",
           "title": "Título da atividade",
-          "desc": "Descrição detalhada"
+          "desc": "Descrição detalhada",
+          "booking": {
+            "platform": "Plataforma sugerida (ex: Civitatis ou GetYourGuide ou Booking)",
+            "suggestedText": "Texto de ação para o botão de reserva (ex: Ingressos Coliseu ou Reservar Show de Tango)",
+            "searchQuery": "Termo de busca ideal para encontrar essa atração específica no parceiro (ex: Coliseu Tour Guiado Roma)"
+          }
         }
       ]
     }
+  ],
+  "flights": [
+    {
+      "flightNumber": "Número do Voo (Ex: LA8112)",
+      "date": "Data do Voo no formato YYYY-MM-DD (Ex: 2026-10-12)",
+      "airline": "Companhia Aérea (Ex: LATAM)",
+      "status": "Status do Voo (Ex: Confirmado)",
+      "departureAirport": "Aeroporto de Origem (Ex: GRU)",
+      "departureCity": "Cidade de Origem (Ex: São Paulo)",
+      "arrivalAirport": "Aeroporto de Destino (Ex: LIS)",
+      "arrivalCity": "Cidade de Destino (Ex: Lisboa)",
+      "scheduledDeparture": "Horário de Decolagem no formato HH:MM (Ex: 18:00)",
+      "scheduledArrival": "Horário de Pouso no formato HH:MM (Ex: 06:00)",
+      "terminal": "Terminal se houver (Ex: 3)",
+      "gate": "Portão se houver (Ex: 302)",
+      "carousel": "Esteira se houver (Ex: 4)",
+      "duration": "Duração do voo no formato XXh XXm (Ex: 09h 00m)"
+    }
   ]
 }
-Seja cirúrgico e preencha os dados de forma consistente com o texto da sua conversa.
+Adicione o objeto 'booking' apenas quando a atividade envolver passeios pagos, atrações icônicas, tours, shows ou transportes/reservas que façam sentido comprar com antecedência.
+Seja cirúrgico e preencha os dados de forma consistente com o texto da sua conversa. Se o usuário fornecer ou alterar informações de voos no chat, lembre-se de refletir no campo 'flights' no JSON.
+
+⚠️ REGRA CRÍTICA DE SEGURANÇA DE ENDEREÇOS: Ao gerar títulos ou descrições no itinerário ('itinerary'), todas as atrações, restaurantes, hotéis e locais sugeridos devem estar localizados ESTRITAMENTE na cidade de destino da viagem. Nunca coloque no título ou endereço de uma atividade o nome de outra cidade ou estado (por exemplo, jamais recomende uma padaria em Americana-SP ou Niterói-RJ se a viagem é para Juiz de Fora-MG). Se você não souber o endereço local exato de um lugar na cidade destino, coloque APENAS o nome do local sem endereço (ex: "Rei da Picanha" ou "Pão de Queijo & Cia"), e NUNCA invente ou use endereços de filiais em outras cidades.
 ======================================================================
 `;
 
@@ -163,15 +206,33 @@ Diretrizes de Comportamento:
 7. **NÃO GERE JSON**: Em nenhuma hipótese gere blocos de código JSON ou tente atualizar a interface do usuário (não envie roteiros dia-a-dia estruturados, checklists de mala ou orçamentos). Foque 100% na conversa fluida, natural e narrativa.
 `;
 
+  let contextInstructions = "";
+  if (tripContext) {
+    contextInstructions = `
+\n\n
+======================================================================
+DADOS ATUAIS DA VIAGEM CADASTRADOS NA INTERFACE (DADOS DE CONTEXTO REAL):
+Sempre use e considere estes dados como verdade absoluta. Se houver voos ou hotéis reais preenchidos aqui, use-os na logística de partida/roteiro.
+- Hotel Principal: ${tripContext.hotel || 'Não informado'}
+- Link do Hotel: ${tripContext.hotelLink || 'Não informado'}
+- Voos Cadastrados pelo Usuário: ${tripContext.flights && tripContext.flights.length > 0 ? JSON.stringify(tripContext.flights) : 'Nenhum voo cadastrado'}
+- Orçamento Sincronizado: ${JSON.stringify(tripContext.budget || {})}
+- Período/Datas: ${tripContext.dates || 'Não definido'}
+- Destino Atual: ${tripContext.destination || 'Não definido'}
+======================================================================
+`;
+  }
+
   let fullSystemPrompt = "";
   if (travelMode) {
-    fullSystemPrompt = travelModeSystemPrompt;
+    fullSystemPrompt = travelModeSystemPrompt + contextInstructions;
   } else {
-    fullSystemPrompt = systemPrompt + jsonInstructions;
+    fullSystemPrompt = systemPrompt + jsonInstructions + contextInstructions;
   }
 
   // ── Helper: call Gemini ────────────────────────────────────────────────────
-  async function callGemini(geminiKey) {
+  // ── Helper: call Gemini ────────────────────────────────────────────────────
+  async function callGemini(geminiKey, modelName = "gemini-2.5-flash") {
     const geminiMessages = messages.map(msg => {
       let role = msg.role === "assistant" ? "model" : msg.role;
       const parts = [];
@@ -182,22 +243,26 @@ Diretrizes de Comportamento:
       return { role, parts };
     });
 
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`;
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${geminiKey}`;
+    const requestBody = {
+      systemInstruction: { parts: [{ text: fullSystemPrompt }] },
+      contents: geminiMessages,
+      generationConfig: {
+        temperature: 0.7,
+        topK: 40,
+        topP: 0.95
+      }
+    };
+
+    // Add thinkingConfig only for models supporting thinking (like gemini-2.5-flash)
+    if (modelName.includes("2.5") || modelName.includes("2.0-flash-thinking")) {
+      requestBody.generationConfig.thinkingConfig = { thinkingBudget: 0 };
+    }
+
     const response = await fetch(geminiUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: fullSystemPrompt }] },
-        contents: geminiMessages,
-        generationConfig: {
-          temperature: 0.7,
-          topK: 40,
-          topP: 0.95,
-          // Disable thinking — prevents thought-blocks from being returned as
-          // the first part of the response, which would break text extraction.
-          thinkingConfig: { thinkingBudget: 0 }
-        }
-      })
+      body: JSON.stringify(requestBody)
     });
 
     if (!response.ok) {
@@ -254,13 +319,24 @@ Diretrizes de Comportamento:
     let aiReply = null;
 
     if (geminiKey) {
-      try {
-        aiReply = await callGemini(geminiKey);
-      } catch (geminiErr) {
-        console.warn(`Gemini failed (${geminiErr.message}). Trying OpenAI fallback…`);
+      const geminiModels = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-pro-latest", "gemini-flash-latest"];
+      let lastGeminiErr = null;
+
+      for (const model of geminiModels) {
+        try {
+          aiReply = await callGemini(geminiKey, model);
+          break; // Success!
+        } catch (geminiErr) {
+          lastGeminiErr = geminiErr;
+          console.warn(`Gemini model ${model} failed (${geminiErr.message}). Trying next model…`);
+        }
+      }
+
+      if (!aiReply) {
+        console.warn(`All Gemini models failed. Trying OpenAI fallback…`);
         if (!openaiKey) {
-          // No fallback available — surface the Gemini error directly
-          throw geminiErr;
+          // No fallback available — surface the last Gemini error directly
+          throw lastGeminiErr;
         }
         aiReply = await callOpenAI(openaiKey);
       }

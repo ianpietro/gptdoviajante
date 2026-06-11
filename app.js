@@ -10,7 +10,8 @@ import {
   registerWithEmail, 
   logout, 
   getFreshToken,
-  isFirebaseConfigured
+  isFirebaseConfigured,
+  supabase
 } from './auth.js';
 
 // App State
@@ -67,45 +68,106 @@ function openDocsDB() {
   });
 }
 
-async function saveDocumentFile(docId, base64Data) {
-  const db = await openDocsDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(STORE_NAME, "readwrite");
-    const store = transaction.objectStore(STORE_NAME);
-    const request = store.put({ id: docId, data: base64Data });
-    request.onsuccess = () => resolve();
-    request.onerror = () => reject(request.error);
-  });
-}
+// Deprecated IndexedDB helpers in favor of Supabase Storage and PostgreSQL syncing
+async function saveDocumentFile(docId, base64Data) { return; }
+async function getDocumentFile(docId) { return null; }
+async function deleteDocumentFile(docId) { return; }
 
-async function getDocumentFile(docId) {
-  const db = await openDocsDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(STORE_NAME, "readonly");
-    const store = transaction.objectStore(STORE_NAME);
-    const request = store.get(docId);
-    request.onsuccess = () => resolve(request.result ? request.result.data : null);
-    request.onerror = () => reject(request.error);
-  });
-}
-
-async function deleteDocumentFile(docId) {
-  const db = await openDocsDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(STORE_NAME, "readwrite");
-    const store = transaction.objectStore(STORE_NAME);
-    const request = store.delete(docId);
-    request.onsuccess = () => resolve();
-    request.onerror = () => reject(request.error);
-  });
-}
-
-// Helper to extract clean destination name
 function getDestinationSuffix() {
   if (!tripData.tripTitle) return "";
-  let dest = tripData.tripTitle.replace(/viagem\s+para\s+/i, "").trim();
-  dest = dest.replace(/viagem\s+a\s+/i, "").trim();
+  let title = tripData.tripTitle;
+  
+  // Cut at colon or hyphens
+  const separators = [":", " - ", " – "];
+  for (const sep of separators) {
+    const idx = title.indexOf(sep);
+    if (idx !== -1) {
+      title = title.substring(0, idx).trim();
+    }
+  }
+
+  // Remove common prefixes
+  let dest = title.replace(/viagem\s+para\s+/i, "").replace(/viagem\s+a\s+/i, "").trim();
+  
+  // If the destination title is too long or contains a comma (e.g. "Something, City, Country")
+  if (dest.includes(",")) {
+    const parts = dest.split(",").map(p => p.trim());
+    const country = parts[parts.length - 1];
+    let city = parts[parts.length - 2] || parts[0];
+    
+    // If the city part has a slash like "Chiado/Bairro Alto", grab the last part
+    if (city.includes("/")) {
+      city = city.split("/").pop().trim();
+    }
+    
+    // If city is still long, keep last 2 words
+    const cityWords = city.split(/\s+/);
+    if (cityWords.length > 2) {
+      city = cityWords.slice(-2).join(" ");
+    }
+    
+    return `${city}, ${country}`;
+  }
+  
   return dest;
+}
+
+function sanitizeActivityLocation(title, destination) {
+  if (!title || !destination) return title;
+  if (!title.includes(",")) return title;
+
+  // Normalize destination (lowercase, remove accents)
+  const normDest = destination.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  
+  // Extract words of the destination (longer than 2 chars)
+  const destWords = normDest.split(/[^a-z0-9]/).filter(w => w.length > 2);
+
+  // Split the title by comma
+  const parts = title.split(",");
+  const baseName = parts[0].trim();
+  
+  let hasMismatch = false;
+
+  for (let i = 1; i < parts.length; i++) {
+    const part = parts[i].trim();
+    // Match pattern for "City - State acronym" (e.g. "Americana - SP")
+    const match = part.match(/(.*)-\s*(SP|RJ|MG|RS|SC|PR|DF|BA|PE|CE|GO|MT|MS|AM|PA|AL|AP|ES|MA|PB|PI|RN|RO|RR|SE|TO)\b/i);
+    
+    if (match) {
+      const city = match[1].trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      
+      // If we extracted a city name, check if it mismatches the destination
+      if (city.length > 2) {
+        const cityWords = city.split(/[^a-z0-9]/).filter(w => w.length > 2);
+        const matchesDest = cityWords.some(cw => destWords.some(dw => dw.includes(cw) || cw.includes(dw))) 
+                         || destWords.some(dw => city.includes(dw));
+        
+        if (!matchesDest) {
+          hasMismatch = true;
+          break;
+        }
+      }
+    }
+  }
+
+  // Backup check: if there is no explicit "City - State" pattern, check if mismatch cities are in the title/address
+  if (!hasMismatch) {
+    const addressPart = parts.slice(1).join(",").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const commonMismatchCities = ["americana", "niteroi", "campinas"];
+    for (const city of commonMismatchCities) {
+      if (addressPart.includes(city) && !normDest.includes(city)) {
+        hasMismatch = true;
+        break;
+      }
+    }
+  }
+
+  if (hasMismatch) {
+    console.warn(`[Location Sanitizer] Mismatch detected: "${title}" for destination "${destination}". Sanitized to "${baseName}"`);
+    return baseName;
+  }
+
+  return title;
 }
 
 // Helper of asynchronous compression with fallback
@@ -195,12 +257,16 @@ function getSharedDataFromUrl() {
 
 // Configure UI adjustments when in shared view mode
 function setupSharedViewUI() {
+  const salesBanner = document.getElementById("sharedViewSalesBanner");
+  if (salesBanner) salesBanner.classList.remove("hidden");
+
   const chatBtn = document.querySelector('.bottom-nav-btn[data-tab="chat"]');
   const naViagemBtn = document.querySelector('.bottom-nav-btn[data-tab="naviagem"]');
-  const docsBtn = document.querySelector('.bottom-nav-btn[data-tab="documentos"]');
   if (chatBtn) chatBtn.style.display = 'none';
   if (naViagemBtn) naViagemBtn.style.display = 'none';
-  if (docsBtn) docsBtn.style.display = 'none';
+
+  const documentsCard = document.getElementById("documentsCard");
+  if (documentsCard) documentsCard.style.display = 'none';
 
   const shareHeroBtnContainer = document.getElementById("shareTripHeroContainer");
   if (shareHeroBtnContainer) shareHeroBtnContainer.style.display = "none";
@@ -234,6 +300,16 @@ function setupSharedViewUI() {
 
 // Initialize
 async function init() {
+  // Inicialização do tema (Claro/Escuro)
+  const savedTheme = localStorage.getItem("gptViajante_theme");
+  if (savedTheme === "light") {
+    document.body.classList.add("light-theme");
+    const toggleThemeBtn = document.getElementById("toggleThemeBtn");
+    if (toggleThemeBtn) {
+      toggleThemeBtn.innerHTML = `<i class="fa-solid fa-moon"></i> Tema Escuro`;
+    }
+  }
+
   const urlParams = new URLSearchParams(window.location.search);
   
   if (urlParams.has("share")) {
@@ -243,19 +319,60 @@ async function init() {
 
   const sharedHash = getSharedDataFromUrl();
   if (sharedHash) {
-    // Se o usuário já está autenticado, ignoramos o link compartilhado e
-    // carregamos o painel DELE normalmente — sem mostrar o banner "outra pessoa".
     const activeUser = await checkCurrentUser();
     if (activeUser) {
-      // Limpa a URL compartilhada do histórico do navegador para evitar
-      // que o app entre em shared view novamente no próximo reload.
       window.history.replaceState({}, document.title, '/app.html');
-      // Segue para o fluxo normal de autenticação abaixo (não faz return aqui).
     } else {
-      // Nenhum usuário logado: mostra a viagem compartilhada normalmente.
       isSharedView = true;
       try {
-        tripData = await decompressFromUrl(sharedHash);
+        if (sharedHash.length === 36 || /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(sharedHash)) {
+          const { data, error } = await supabase
+            .from('trips')
+            .select('*')
+            .eq('id', sharedHash)
+            .single();
+          if (error || !data) throw new Error(error?.message || "Viagem não encontrada.");
+          
+          tripData = {
+            id: data.id,
+            tripTitle: data.title,
+            tripSubtitle: data.subtitle,
+            infoDates: data.dates,
+            infoWeather: data.weather,
+            infoGroup: data.group_type,
+            infoHotel: data.hotel,
+            hotelLink: data.hotel_link,
+            targetDate: data.target_date,
+            budget: data.budget,
+            budgetThresholds: data.budget_thresholds,
+            budgetAnalysis: data.budget_analysis,
+            packing: data.packing,
+            itinerary: data.itinerary,
+            flights: data.flights,
+            members: data.members,
+            expenses: data.expenses,
+            documents: []
+          };
+
+          const { data: docs } = await supabase
+            .from('documents')
+            .select('*')
+            .eq('trip_id', sharedHash);
+          if (docs) {
+            tripData.documents = docs.map(d => ({
+              id: d.id,
+              name: d.name,
+              category: d.category,
+              url: d.file_url,
+              type: d.name.toLowerCase().endsWith(".pdf") ? "pdf" : "image",
+              date: new Date(d.created_at).toLocaleDateString("pt-BR"),
+              size: "Ver anexo"
+            }));
+          }
+        } else {
+          tripData = await decompressFromUrl(sharedHash);
+        }
+        
         tripData.flights = tripData.flights || [];
         tripData.members = tripData.members || ["Você"];
         tripData.expenses = tripData.expenses || [];
@@ -271,7 +388,7 @@ async function init() {
         return;
       } catch (err) {
         console.error("Falha ao carregar viagem compartilhada:", err);
-        alert("⚠️ Não foi possível carregar a viagem compartilhada. O link pode estar quebrado ou incompleto.");
+        alert("⚠️ Não foi possível carregar a viagem compartilhada. O link pode estar quebrado ou expirado.");
       }
     }
   }
@@ -279,18 +396,21 @@ async function init() {
   setupAuthUI();
   setupAuthStateListener(handleUserLoggedIn, handleUserLoggedOut);
 
-  // Enable drag-to-scroll on scrollable panels
   enableDragToScroll(document.getElementById("chatMessages"));
   enableDragToScroll(document.getElementById("travelChatMessages"));
   enableDragToScroll(document.getElementById("dashboardContent"));
   
-  // Set up share button listener
   const shareHeroBtn = document.getElementById("shareTripHeroBtn");
   if (shareHeroBtn) {
     shareHeroBtn.addEventListener("click", async () => {
       try {
-        const hash = await compressToUrl(tripData);
-        const shareUrl = `${window.location.origin}/v/${hash}`;
+        let shareUrl;
+        if (tripData.id) {
+          shareUrl = `${window.location.origin}/v/${tripData.id}`;
+        } else {
+          const hash = await compressToUrl(tripData);
+          shareUrl = `${window.location.origin}/v/${hash}`;
+        }
         
         navigator.clipboard.writeText(shareUrl).then(() => {
           alert("✓ Link de compartilhamento do seu painel copiado para a área de transferência! Envie para seus parceiros de viagem no WhatsApp.");
@@ -323,55 +443,240 @@ function getUserStorageKey(baseKey) {
   return baseKey;
 }
 
-function loadState() {
-  const savedHistory = localStorage.getItem(getUserStorageKey("gptViajante_chatHistory"));
-  const savedTravelHistory = localStorage.getItem(getUserStorageKey("gptViajante_travelChatHistory"));
-  const savedTrip = localStorage.getItem(getUserStorageKey("gptViajante_tripData"));
+let syncTimeout = null;
 
-  if (savedHistory) {
-    chatHistory = JSON.parse(savedHistory);
-    renderChatHistory('plan');
+async function loadState() {
+  // Fallback to local storage if user is not logged in or Supabase client isn't fully configured
+  if (!currentUser || !currentUser.id) {
+    const savedHistory = localStorage.getItem(getUserStorageKey("gptViajante_chatHistory"));
+    const savedTravelHistory = localStorage.getItem(getUserStorageKey("gptViajante_travelChatHistory"));
+    const savedTrip = localStorage.getItem(getUserStorageKey("gptViajante_tripData"));
+
+    if (savedHistory) {
+      chatHistory = JSON.parse(savedHistory);
+      renderChatHistory('plan');
+    } else {
+      chatHistory = [];
+    }
+
+    if (savedTravelHistory) {
+      travelChatHistory = JSON.parse(savedTravelHistory);
+      renderChatHistory('travel');
+    } else {
+      travelChatHistory = [];
+    }
+
+    if (savedTrip) {
+      tripData = JSON.parse(savedTrip);
+      tripData.budgetAnalysis = tripData.budgetAnalysis || "";
+      tripData.budgetThresholds = tripData.budgetThresholds || { economico: 150, intermediario: 450 };
+    } else {
+      tripData = {
+        tripTitle: "Minha Próxima Viagem",
+        tripSubtitle: "Planeje sua viagem conversando pelo chat!",
+        infoDates: "A definir",
+        infoWeather: "A definir",
+        infoGroup: "A definir",
+        infoHotel: "A definir",
+        hotelLink: "",
+        targetDate: null,
+        budget: {
+          hospedagem: 0,
+          alimentacao: 0,
+          passeios: 0,
+          compras: 0
+        },
+        budgetAnalysis: "",
+        budgetThresholds: { economico: 150, intermediario: 450 },
+        packing: [],
+        itinerary: [],
+        flights: [],
+        members: ["Você"],
+        expenses: []
+      };
+    }
   } else {
-    chatHistory = [];
+    // Authenticated user: Load from LocalStorage immediately for instant UX first
+    const savedHistory = localStorage.getItem(getUserStorageKey("gptViajante_chatHistory"));
+    const savedTravelHistory = localStorage.getItem(getUserStorageKey("gptViajante_travelChatHistory"));
+    const savedTrip = localStorage.getItem(getUserStorageKey("gptViajante_tripData"));
+
+    if (savedTrip) {
+      try {
+        tripData = JSON.parse(savedTrip);
+        tripData.budgetAnalysis = tripData.budgetAnalysis || "";
+        tripData.budgetThresholds = tripData.budgetThresholds || { economico: 150, intermediario: 450 };
+        
+        // Initial fast render using cache
+        renderTimeline();
+        renderFlights();
+        renderSplitwise();
+        renderPackingChecklist();
+        checkItineraryStatus();
+        updateBudget();
+      } catch (e) {
+        console.warn("Failed to parse cached tripData:", e);
+      }
+    }
+
+    if (savedHistory) {
+      try {
+        chatHistory = JSON.parse(savedHistory);
+        renderChatHistory('plan');
+      } catch (e) {
+        console.warn("Failed to parse cached chatHistory:", e);
+      }
+    }
+
+    if (savedTravelHistory) {
+      try {
+        travelChatHistory = JSON.parse(savedTravelHistory);
+        renderChatHistory('travel');
+      } catch (e) {
+        console.warn("Failed to parse cached travelChatHistory:", e);
+      }
+    }
+
+    // Now query Supabase in the background asynchronously
+    setTimeout(async () => {
+      try {
+        console.log("Syncing state with Supabase in background...");
+        
+        // 1. Fetch latest trip
+        const { data: trips, error: tripErr } = await supabase
+          .from('trips')
+          .select('*')
+          .eq('user_id', currentUser.id)
+          .order('updated_at', { ascending: false })
+          .limit(1);
+
+        if (tripErr) throw tripErr;
+
+        let activeTrip = null;
+        if (trips && trips.length > 0) {
+          activeTrip = trips[0];
+        } else {
+          // Create initial trip for user
+          const initialTrip = {
+            user_id: currentUser.id,
+            title: "Minha Próxima Viagem",
+            subtitle: "Planeje sua viagem conversando pelo chat!",
+            dates: "A definir",
+            weather: "A definir",
+            group_type: "A definir",
+            hotel: "A definir",
+            hotel_link: "",
+            target_date: null,
+            budget: { hospedagem: 0, alimentacao: 0, passeios: 0, compras: 0 },
+            budget_thresholds: { economico: 150, intermediario: 450 },
+            budget_analysis: "",
+            packing: [],
+            itinerary: [],
+            flights: [],
+            members: ["Você"],
+            expenses: []
+          };
+          const { data: newTrip, error: insertErr } = await supabase
+            .from('trips')
+            .insert(initialTrip)
+            .select()
+            .single();
+
+          if (insertErr) throw insertErr;
+          activeTrip = newTrip;
+        }
+
+        // Map DB schema to front-end tripData structure
+        const remoteTripData = {
+          id: activeTrip.id,
+          tripTitle: activeTrip.title,
+          tripSubtitle: activeTrip.subtitle,
+          infoDates: activeTrip.dates,
+          infoWeather: activeTrip.weather,
+          infoGroup: activeTrip.group_type,
+          infoHotel: activeTrip.hotel,
+          hotelLink: activeTrip.hotel_link,
+          targetDate: activeTrip.target_date,
+          budget: activeTrip.budget,
+          budgetThresholds: activeTrip.budget_thresholds,
+          budgetAnalysis: activeTrip.budget_analysis,
+          packing: activeTrip.packing,
+          itinerary: activeTrip.itinerary,
+          flights: activeTrip.flights,
+          members: activeTrip.members,
+          expenses: activeTrip.expenses,
+          documents: []
+        };
+
+        // 2. Fetch Chat Histories and Documents in parallel to save HTTP round-trips
+        const [chatRes, docsRes] = await Promise.all([
+          supabase.from('chat_histories').select('*').eq('trip_id', remoteTripData.id),
+          supabase.from('documents').select('*').eq('trip_id', remoteTripData.id)
+        ]);
+
+        if (chatRes.error) console.error("Error fetching chats in background:", chatRes.error);
+        if (docsRes.error) console.error("Error fetching documents metadata in background:", docsRes.error);
+
+        let remoteChatHistory = [];
+        let remoteTravelChatHistory = [];
+        
+        if (chatRes.data) {
+          const planChat = chatRes.data.find(c => c.chat_type === 'plan');
+          if (planChat) {
+            remoteChatHistory = planChat.messages;
+          }
+          const travelChat = chatRes.data.find(c => c.chat_type === 'travel');
+          if (travelChat) {
+            remoteTravelChatHistory = travelChat.messages;
+          }
+        }
+
+        if (docsRes.data) {
+          remoteTripData.documents = docsRes.data.map(d => ({
+            id: d.id,
+            name: d.name,
+            category: d.category,
+            url: d.file_url,
+            type: d.name.toLowerCase().endsWith(".pdf") ? "pdf" : "image",
+            date: new Date(d.created_at).toLocaleDateString("pt-BR"),
+            size: "Ver anexo"
+          }));
+        }
+
+        // Compare and update if data has changed
+        const hasTripChanged = JSON.stringify(tripData) !== JSON.stringify(remoteTripData);
+        const hasChatChanged = JSON.stringify(chatHistory) !== JSON.stringify(remoteChatHistory);
+        const hasTravelChatChanged = JSON.stringify(travelChatHistory) !== JSON.stringify(remoteTravelChatHistory);
+
+        if (hasTripChanged || hasChatChanged || hasTravelChatChanged) {
+          console.log("State updated from Supabase, re-rendering UI.");
+          tripData = remoteTripData;
+          chatHistory = remoteChatHistory;
+          travelChatHistory = remoteTravelChatHistory;
+
+          renderTimeline();
+          renderFlights();
+          renderSplitwise();
+          renderPackingChecklist();
+          checkItineraryStatus();
+          updateBudget();
+          
+          renderChatHistory('plan');
+          renderChatHistory('travel');
+
+          // Save fresh state to LocalStorage
+          localStorage.setItem(getUserStorageKey("gptViajante_chatHistory"), JSON.stringify(chatHistory));
+          localStorage.setItem(getUserStorageKey("gptViajante_travelChatHistory"), JSON.stringify(travelChatHistory));
+          localStorage.setItem(getUserStorageKey("gptViajante_tripData"), JSON.stringify(tripData));
+        } else {
+          console.log("State is already in sync with Supabase.");
+        }
+      } catch (err) {
+        console.error("Failed to sync state from Supabase in background:", err);
+      }
+    }, 0);
   }
 
-  if (savedTravelHistory) {
-    travelChatHistory = JSON.parse(savedTravelHistory);
-    renderChatHistory('travel');
-  } else {
-    travelChatHistory = [];
-  }
-
-  if (savedTrip) {
-    tripData = JSON.parse(savedTrip);
-    tripData.budgetAnalysis = tripData.budgetAnalysis || "";
-    tripData.budgetThresholds = tripData.budgetThresholds || { economico: 150, intermediario: 450 };
-  } else {
-    tripData = {
-      tripTitle: "Minha Próxima Viagem",
-      tripSubtitle: "Planeje sua viagem conversando pelo chat!",
-      infoDates: "A definir",
-      infoWeather: "A definir",
-      infoGroup: "A definir",
-      infoHotel: "A definir",
-      hotelLink: "",
-      targetDate: null,
-      budget: {
-        hospedagem: 0,
-        alimentacao: 0,
-        passeios: 0,
-        compras: 0
-      },
-      budgetAnalysis: "",
-      budgetThresholds: { economico: 150, intermediario: 450 },
-      packing: [],
-      itinerary: [],
-      flights: [],
-      members: ["Você"],
-      expenses: []
-    };
-  }
-  
   tripData.flights = tripData.flights || [];
   tripData.members = tripData.members || ["Você"];
   tripData.expenses = tripData.expenses || [];
@@ -382,10 +687,85 @@ function loadState() {
   checkItineraryStatus();
 }
 
-function saveState() {
+async function saveState() {
   localStorage.setItem(getUserStorageKey("gptViajante_chatHistory"), JSON.stringify(chatHistory));
   localStorage.setItem(getUserStorageKey("gptViajante_travelChatHistory"), JSON.stringify(travelChatHistory));
   localStorage.setItem(getUserStorageKey("gptViajante_tripData"), JSON.stringify(tripData));
+
+  if (!currentUser || !currentUser.id) return;
+
+  if (syncTimeout) clearTimeout(syncTimeout);
+  
+  syncTimeout = setTimeout(async () => {
+    try {
+      const tripToSave = {
+        title: tripData.tripTitle || 'Minha Próxima Viagem',
+        subtitle: tripData.tripSubtitle || 'Planeje sua viagem conversando pelo chat!',
+        dates: tripData.infoDates || 'A definir',
+        weather: tripData.infoWeather || 'A definir',
+        group_type: tripData.infoGroup || 'A definir',
+        hotel: tripData.infoHotel || 'A definir',
+        hotel_link: tripData.hotelLink || '',
+        target_date: tripData.targetDate || null,
+        budget: tripData.budget || {},
+        budget_thresholds: tripData.budgetThresholds || { economico: 150, intermediario: 450 },
+        budget_analysis: tripData.budgetAnalysis || '',
+        packing: tripData.packing || [],
+        itinerary: tripData.itinerary || [],
+        flights: tripData.flights || [],
+        members: tripData.members || ['Você'],
+        expenses: tripData.expenses || [],
+        updated_at: new Date().toISOString()
+      };
+
+      if (tripData.id) {
+        const { error } = await supabase
+          .from('trips')
+          .update(tripToSave)
+          .eq('id', tripData.id);
+        if (error) throw error;
+      } else {
+        const { data, error } = await supabase
+          .from('trips')
+          .insert({ ...tripToSave, user_id: currentUser.id })
+          .select()
+          .single();
+        if (error) throw error;
+        tripData.id = data.id;
+        localStorage.setItem(getUserStorageKey("gptViajante_tripData"), JSON.stringify(tripData));
+      }
+
+      if (tripData.id) {
+        const { error: chatErr1 } = await supabase
+          .from('chat_histories')
+          .upsert({
+            trip_id: tripData.id,
+            user_id: currentUser.id,
+            messages: chatHistory || [],
+            chat_type: 'plan',
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'trip_id,chat_type' });
+        
+        if (chatErr1) console.error("Error syncing plan chat:", chatErr1);
+
+        const { error: chatErr2 } = await supabase
+          .from('chat_histories')
+          .upsert({
+            trip_id: tripData.id,
+            user_id: currentUser.id,
+            messages: travelChatHistory || [],
+            chat_type: 'travel',
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'trip_id,chat_type' });
+
+        if (chatErr2) console.error("Error syncing travel chat:", chatErr2);
+      }
+      
+      console.log("Supabase sync completed successfully.");
+    } catch (err) {
+      console.error("Error syncing state to Supabase:", err);
+    }
+  }, 1000);
 }
 
 // ==========================================================================
@@ -483,11 +863,10 @@ function switchTab(tab) {
     setTravelMode(false);
     
     const sectionMap = {
-      voos: 'flightsSection',
+      logistica: 'logisticaSection',
       roteiro: 'itinerarySection',
       orcamento: 'budgetSection',
-      mala: 'packingSection',
-      documentos: 'documentsSection'
+      mala: 'packingSection'
     };
     
     // Hide all sections first
@@ -867,6 +1246,38 @@ function setupUIEventListeners() {
 
   // Initialize Documents Event Listeners
   setupDocumentListeners();
+
+  // Webhook/PDF importadores mágicos
+  const magicImportPdfBtn = document.getElementById("magicImportPdfBtn");
+  const magicImportPdfFileInput = document.getElementById("magicImportPdfFileInput");
+
+  if (magicImportPdfBtn && magicImportPdfFileInput) {
+    magicImportPdfBtn.addEventListener("click", () => {
+      magicImportPdfFileInput.click();
+    });
+    magicImportPdfFileInput.addEventListener("change", handleMagicImportPdf);
+  }
+
+  // Alternador de Tema (Claro/Escuro)
+  const toggleThemeBtn = document.getElementById("toggleThemeBtn");
+  if (toggleThemeBtn) {
+    if (document.body.classList.contains("light-theme")) {
+      toggleThemeBtn.innerHTML = `<i class="fa-solid fa-moon"></i> Tema Escuro`;
+    } else {
+      toggleThemeBtn.innerHTML = `<i class="fa-solid fa-sun"></i> Tema Claro`;
+    }
+
+    toggleThemeBtn.addEventListener("click", () => {
+      const isLight = document.body.classList.toggle("light-theme");
+      if (isLight) {
+        localStorage.setItem("gptViajante_theme", "light");
+        toggleThemeBtn.innerHTML = `<i class="fa-solid fa-moon"></i> Tema Escuro`;
+      } else {
+        localStorage.setItem("gptViajante_theme", "dark");
+        toggleThemeBtn.innerHTML = `<i class="fa-solid fa-sun"></i> Tema Claro`;
+      }
+    });
+  }
 }
 
 async function handleFlightSearchSubmit(e) {
@@ -1229,7 +1640,18 @@ async function handleUserSendMessage() {
     const response = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-      body: JSON.stringify({ messages: chatHistory, travelMode: false })
+      body: JSON.stringify({ 
+        messages: chatHistory, 
+        travelMode: false,
+        tripContext: {
+          hotel: tripData.infoHotel,
+          hotelLink: tripData.hotelLink,
+          flights: tripData.flights,
+          budget: tripData.budget,
+          dates: tripData.infoDates,
+          destination: tripData.tripTitle
+        }
+      })
     });
 
     if (response.status === 401 || response.status === 403) {
@@ -1309,7 +1731,18 @@ async function handleTravelSendMessage() {
     const response = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-      body: JSON.stringify({ messages: travelChatHistory, travelMode: true })
+      body: JSON.stringify({ 
+        messages: travelChatHistory, 
+        travelMode: true,
+        tripContext: {
+          hotel: tripData.infoHotel,
+          hotelLink: tripData.hotelLink,
+          flights: tripData.flights,
+          budget: tripData.budget,
+          dates: tripData.infoDates,
+          destination: tripData.tripTitle
+        }
+      })
     });
 
     if (response.status === 401 || response.status === 403) {
@@ -1329,6 +1762,11 @@ async function handleTravelSendMessage() {
     if (data.error) { appendMessageBubble("assistant", `⚠️ Erro: ${data.error}`, null, 'travel'); return; }
 
     const replyContent = data.content;
+    const jsonMatch = replyContent.match(/```json([\s\S]*?)```/);
+    if (jsonMatch) {
+      try { updateDashboardData(JSON.parse(jsonMatch[1].trim())); } catch (err) { console.warn(err); }
+    }
+
     const cleanReply = stripJsonCodeBlock(replyContent);
     const replyTime = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     const assistantMsgEl = appendMessageBubble("assistant", cleanReply, replyTime, 'travel');
@@ -1375,6 +1813,7 @@ function updateDashboardData(newJson) {
 
   if (newJson.packing) tripData.packing = newJson.packing;
   if (newJson.itinerary) tripData.itinerary = newJson.itinerary;
+  if (newJson.flights) tripData.flights = newJson.flights;
 
   // Persist State
   saveState();
@@ -1416,6 +1855,9 @@ function renderDashboard() {
   // 4b. Render Documents List
   renderDocuments();
 
+  // 4c. Render Flights List
+  renderFlights();
+
   // 5. Check itinerary state to show banner/nav glow
   checkItineraryStatus();
 }
@@ -1430,23 +1872,70 @@ function renderTimeline() {
     emptyState.classList.remove("hidden");
     nav.classList.add("hidden");
     container.classList.add("hidden");
+    const optBanner = document.getElementById("itineraryOptimizationBanner");
+    if (optBanner) optBanner.classList.add("hidden");
     return;
   }
 
   emptyState.classList.add("hidden");
   nav.classList.remove("hidden");
   container.classList.remove("hidden");
+  
+  const optBanner = document.getElementById("itineraryOptimizationBanner");
+  if (optBanner) optBanner.classList.remove("hidden");
+
+  // Sanitize activities for location/address mismatches dynamically before rendering
+  const destCity = getDestinationSuffix();
+  if (destCity && tripData.itinerary && tripData.itinerary.length > 0) {
+    tripData.itinerary.forEach(day => {
+      if (day.activities && day.activities.length > 0) {
+        day.activities.forEach(act => {
+          if (act.title) {
+            act.title = sanitizeActivityLocation(act.title, destCity);
+          }
+        });
+      }
+    });
+  }
 
   // Re-render Nav Tabs
   nav.innerHTML = `<button class="timeline-btn ${activeFilter === 'all' ? 'active' : ''}" onclick="filterTimeline('all')">Todos os Dias</button>`;
   
   container.innerHTML = "";
 
-  // Helper to extract clean destination name
   const getDestinationSuffix = () => {
     if (!tripData.tripTitle) return "";
-    let dest = tripData.tripTitle.replace(/viagem\s+para\s+/i, "").trim();
-    dest = dest.replace(/viagem\s+a\s+/i, "").trim();
+    let title = tripData.tripTitle;
+    
+    // Cut at colon or hyphens
+    const separators = [":", " - ", " – "];
+    for (const sep of separators) {
+      const idx = title.indexOf(sep);
+      if (idx !== -1) {
+        title = title.substring(0, idx).trim();
+      }
+    }
+
+    // Remove common prefixes
+    let dest = title.replace(/viagem\s+para\s+/i, "").replace(/viagem\s+a\s+/i, "").trim();
+    
+    if (dest.includes(",")) {
+      const parts = dest.split(",").map(p => p.trim());
+      const country = parts[parts.length - 1];
+      let city = parts[parts.length - 2] || parts[0];
+      
+      if (city.includes("/")) {
+        city = city.split("/").pop().trim();
+      }
+      
+      const cityWords = city.split(/\s+/);
+      if (cityWords.length > 2) {
+        city = cityWords.slice(-2).join(" ");
+      }
+      
+      return `${city}, ${country}`;
+    }
+    
     return dest;
   };
 
@@ -1526,12 +2015,52 @@ function renderTimeline() {
           let turnActsHtml = "";
           
           turnActs.forEach(act => {
+            let bookingHtml = "";
+            if (act.booking) {
+              const platform = act.booking.platform || 'civitatis';
+              const text = act.booking.suggestedText || 'Reservar ingresso online';
+              let link = '#';
+              const query = encodeURIComponent(act.booking.searchQuery || act.title);
+              if (platform.toLowerCase() === 'civitatis') {
+                link = `https://www.civitatis.com/br/busca/?q=${query}&aid=10433`;
+              } else if (platform.toLowerCase() === 'getyourguide') {
+                link = `https://www.getyourguide.com/s?q=${query}&partner_id=L9P64H5`;
+              } else if (platform.toLowerCase() === 'booking') {
+                link = `https://www.booking.com/searchresults.html?ss=${query}&aid=2311224`;
+              }
+              
+              const platformLabel = platform.charAt(0).toUpperCase() + platform.slice(1);
+              
+              bookingHtml = `
+                <div class="affiliate-widget" onclick="event.stopPropagation()">
+                  <div class="affiliate-header">
+                    <h5 class="affiliate-title">
+                      <i class="fa-solid fa-ticket" style="color: var(--secondary);"></i>
+                      Recomendado para Conforto
+                    </h5>
+                    <div class="affiliate-badges">
+                      <span class="affiliate-badge ${platform.toLowerCase()}">${platformLabel}</span>
+                      <span class="affiliate-badge trust"><i class="fa-solid fa-shield-check"></i> Seguro</span>
+                    </div>
+                  </div>
+                  <p class="affiliate-desc">Evite filas e garanta seu lugar com antecedência através de parceiros oficiais.</p>
+                  <a href="${link}" target="_blank" class="affiliate-btn ${platform.toLowerCase()}-btn">
+                    <i class="fa-solid fa-arrow-up-right-from-square"></i> ${text}
+                  </a>
+                  <div class="affiliate-footer">
+                    <i class="fa-solid fa-circle-check"></i> Cancelamento grátis disponível • Garantia do menor preço
+                  </div>
+                </div>
+              `;
+            }
+
             turnActsHtml += `
               <div class="activity-block">
                 <div class="activity-time">${act.time || '--:--'}</div>
                 <div class="activity-details">
                   <h4>${act.title}</h4>
                   <p>${act.desc}</p>
+                  ${bookingHtml}
                 </div>
               </div>
             `;
@@ -1541,7 +2070,7 @@ function renderTimeline() {
             <div class="timeline-turn-group" onclick="event.stopPropagation()">
               <div class="turn-header-row">
                 <h4 class="turn-title"><i class="fa-solid ${cfg.icon}"></i> ${cfg.label}</h4>
-                <a href="${routeLink}" target="_blank" class="btn-turn-route" onclick="event.stopPropagation()"><i class="fa-solid fa-map-location-dot"></i> Ver Rota</a>
+                <a href="${routeLink}" target="_blank" class="btn-turn-route" onclick="event.stopPropagation()"><i class="fa-solid fa-map-location-dot"></i> Veja no mapa</a>
               </div>
               <div class="turn-activities">
                 ${turnActsHtml}
@@ -1551,7 +2080,7 @@ function renderTimeline() {
         }
       });
     }
-
+    const dayRouteLink = getGoogleMapsRouteLink(day.activities);
     const card = document.createElement("div");
     card.className = "timeline-item";
     card.innerHTML = `
@@ -1564,6 +2093,13 @@ function renderTimeline() {
         <h3><i class="fa-solid fa-compass" style="color: var(--secondary); margin-right: 8px;"></i> Programação Recomendada</h3>
         
         <div class="timeline-expandable">
+          ${day.activities && day.activities.length > 0 ? `
+          <div style="margin-bottom: 20px; display: flex; justify-content: flex-end;">
+            <a href="${dayRouteLink}" target="_blank" class="btn btn-secondary btn-sm" style="display: inline-flex; align-items: center; gap: 8px; font-size: 0.76rem; background: rgba(59, 130, 246, 0.1); border: 1.5px solid var(--primary); padding: 8px 16px; border-radius: var(--border-radius-md); color: white;" onclick="event.stopPropagation()">
+              <i class="fa-solid fa-map-location-dot" style="color: var(--primary);"></i> Ver Rota do Dia Completa no GPS 🗺️
+            </a>
+          </div>
+          ` : ''}
           ${activitiesHtml}
           
           <div class="timeline-footer-details">
@@ -1904,91 +2440,101 @@ function setupDocumentListeners() {
     const file = e.target.files[0];
     if (!file) return;
 
-    // Limit to 4MB
     if (file.size > 4 * 1024 * 1024) {
       alert("⚠️ Arquivo muito grande. O limite máximo de upload é 4MB.");
       fileInput.value = "";
       return;
     }
 
+    if (!currentUser || !currentUser.id) {
+      alert("⚠️ Você precisa estar logado para enviar documentos.");
+      return;
+    }
+
+    if (!tripData.id) {
+      alert("⚠️ Você precisa de uma viagem ativa para enviar documentos.");
+      return;
+    }
+
     const categorySelect = document.getElementById("documentCategorySelect");
     const category = categorySelect ? categorySelect.value : "Outros";
 
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      try {
-        const base64Data = event.target.result;
-        const docId = `doc-${Date.now()}`;
-        
-        // Save to IndexedDB
-        await saveDocumentFile(docId, base64Data);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 9)}.${fileExt}`;
+      const filePath = `${currentUser.id}/${tripData.id}/${fileName}`;
 
-        // Save metadata to tripData
-        const newDoc = {
-          id: docId,
+      const { data: uploadData, error: uploadErr } = await supabase.storage
+        .from('boarding-documents')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
+
+      if (uploadErr) throw uploadErr;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('boarding-documents')
+        .getPublicUrl(filePath);
+
+      const { data: docData, error: dbErr } = await supabase
+        .from('documents')
+        .insert({
+          trip_id: tripData.id,
           name: file.name,
-          type: file.type.includes("pdf") ? "pdf" : "image",
           category: category,
-          date: new Date().toLocaleDateString("pt-BR"),
-          size: formatBytes(file.size)
-        };
+          file_url: publicUrl
+        })
+        .select()
+        .single();
 
-        tripData.documents = tripData.documents || [];
-        tripData.documents.push(newDoc);
-        saveState();
-        renderDocuments();
-        
-        fileInput.value = "";
-        alert("✓ Documento enviado e armazenado localmente com sucesso!");
-      } catch (err) {
-        console.error("Error saving document:", err);
-        alert("⚠️ Ocorreu um erro ao salvar o documento no dispositivo.");
-      }
-    };
+      if (dbErr) throw dbErr;
 
-    reader.onerror = () => {
-      alert("⚠️ Falha ao ler o arquivo selecionado.");
-    };
+      const newDoc = {
+        id: docData.id,
+        name: docData.name,
+        type: file.type.includes("pdf") ? "pdf" : "image",
+        category: docData.category,
+        url: docData.file_url,
+        date: new Date(docData.created_at).toLocaleDateString("pt-BR"),
+        size: formatBytes(file.size)
+      };
 
-    reader.readAsDataURL(file);
+      tripData.documents = tripData.documents || [];
+      tripData.documents.push(newDoc);
+      renderDocuments();
+      
+      fileInput.value = "";
+      alert("✓ Documento enviado e guardado na nuvem com sucesso!");
+    } catch (err) {
+      console.error("Error saving document to Supabase:", err);
+      alert("⚠️ Ocorreu um erro ao salvar o documento.");
+    }
   });
 }
 
 async function viewDocument(docId) {
-  try {
-    const fileData = await getDocumentFile(docId);
-    if (!fileData) {
-      alert("⚠️ Documento não encontrado no armazenamento local deste dispositivo.");
-      return;
-    }
+  const doc = tripData.documents.find(d => d.id === docId);
+  if (!doc) return;
 
-    const doc = tripData.documents.find(d => d.id === docId);
-    if (!doc) return;
-
-    if (doc.type === "pdf") {
-      const win = window.open();
-      if (win) {
-        win.document.write(`<iframe src="${fileData}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
-      } else {
-        // Fallback for popup block
-        const link = document.createElement("a");
-        link.href = fileData;
-        link.target = "_blank";
-        link.download = doc.name;
-        link.click();
-      }
+  if (doc.type === "pdf") {
+    const win = window.open();
+    if (win) {
+      win.document.write(`<iframe src="${doc.url}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
     } else {
-      // Image preview in existing gallery lightbox
-      if (window.openImageLightbox) {
-        window.openImageLightbox(fileData, doc.name);
-      } else {
-        const win = window.open();
-        win.document.write(`<img src="${fileData}" style="max-width:100%; max-height:100%; display:block; margin:auto;"/>`);
-      }
+      const link = document.createElement("a");
+      link.href = doc.url;
+      link.target = "_blank";
+      link.download = doc.name;
+      link.click();
     }
-  } catch (err) {
-    console.error("Error retrieving document:", err);
-    alert("⚠️ Não foi possível carregar o documento do armazenamento local.");
+  } else {
+    if (window.openImageLightbox) {
+      window.openImageLightbox(doc.url, doc.name);
+    } else {
+      const win = window.open();
+      win.document.write(`<img src="${doc.url}" style="max-width:100%; max-height:100%; display:block; margin:auto;"/>`);
+    }
   }
 }
 
@@ -1996,16 +2542,31 @@ async function deleteDocument(docId) {
   if (!confirm("Tem certeza que deseja excluir permanentemente este documento?")) return;
 
   try {
-    // Delete from IndexedDB
-    await deleteDocumentFile(docId);
+    const doc = tripData.documents.find(d => d.id === docId);
+    if (!doc) return;
 
-    // Delete metadata
+    const { error: dbErr } = await supabase
+      .from('documents')
+      .delete()
+      .eq('id', docId);
+
+    if (dbErr) throw dbErr;
+
+    const urlParts = doc.url.split('/boarding-documents/');
+    if (urlParts.length > 1) {
+      const filePath = urlParts[1];
+      const { error: storageErr } = await supabase.storage
+        .from('boarding-documents')
+        .remove([filePath]);
+      if (storageErr) console.error("Error removing from storage:", storageErr);
+    }
+
     tripData.documents = tripData.documents.filter(d => d.id !== docId);
-    saveState();
     renderDocuments();
+    localStorage.setItem(getUserStorageKey("gptViajante_tripData"), JSON.stringify(tripData));
   } catch (err) {
     console.error("Error deleting document:", err);
-    alert("⚠️ Ocorreu um erro ao excluir o documento do dispositivo.");
+    alert("⚠️ Ocorreu um erro ao excluir o documento.");
   }
 }
 
@@ -2095,37 +2656,18 @@ async function handleUserLoggedIn(user, token) {
   const loginSubmitBtn = document.getElementById("loginSubmitBtn");
   const googleLoginBtn = document.getElementById("googleLoginBtn");
 
-  // Disable buttons and show loading state
-  if (loginSubmitBtn) {
-    loginSubmitBtn.disabled = true;
-    loginSubmitBtn.textContent = "Verificando acesso...";
-  }
-  if (googleLoginBtn) {
-    googleLoginBtn.disabled = true;
-  }
+  const cacheKey = `gptViajante_verified_${user.email}`;
+  const isCachedVerified = localStorage.getItem(cacheKey) === "true";
 
-  try {
-    const response = await fetch("/api/verify", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`
-      }
-    });
-
-    if (!response.ok) {
-      const errData = await response.json().catch(() => ({}));
-      throw new Error(errData.error || "Acesso negado.");
-    }
-
-    // Authorized! Load normal app flow
+  // Transition UI to authenticated dashboard view
+  const transitionToApp = () => {
     const userAvatarEl = document.getElementById("userAvatar");
     const userProfileEl = document.getElementById("userProfile");
     const loginScreenEl = document.getElementById("loginScreen");
     const appContainerEl = document.querySelector(".app-container");
 
     if (userAvatarEl) {
-      userAvatarEl.src = user.photoURL || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=150";
+      userAvatarEl.src = user.photoURL || user.user_metadata?.avatar_url || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=150";
     }
     if (userProfileEl) {
       userProfileEl.classList.remove("hidden");
@@ -2136,8 +2678,14 @@ async function handleUserLoggedIn(user, token) {
     if (appContainerEl) {
       appContainerEl.classList.remove("hidden");
     }
+  };
 
-    loadState();
+  if (isCachedVerified) {
+    // 1. Instant loading path: transition UI immediately using local cache status
+    transitionToApp();
+    
+    // Load state from local storage first (instant), then sync from DB in background
+    await loadState();
     if (!isUiInitialized) {
       setupUIEventListeners();
       setupTutorialListeners();
@@ -2147,29 +2695,88 @@ async function handleUserLoggedIn(user, token) {
     setupCountdown();
     renderDashboard();
 
-  } catch (err) {
-    console.error("Authorization check failed:", err);
-    let errMsg = err.message || "Seu e-mail não está cadastrado na lista de compradores autorizados.";
-    if (errMsg.includes("compradores autorizados") || errMsg.includes("não está cadastrado") || errMsg.includes("Acesso negado")) {
-      const emailStr = user && user.email ? ` (<strong>${user.email}</strong>)` : "";
-      errMsg = `Seu e-mail${emailStr} não está cadastrado na lista de compradores autorizados. <a href="https://pay.kirvano.com/8c50a730-069a-40e8-bed3-078c03089d1d" target="_blank" style="color: #fff; text-decoration: underline; font-weight: bold; display: block; margin-top: 8px;"><i class="fa-solid fa-cart-shopping"></i> Adquirir Acesso Completo aqui</a>`;
-    }
-    authVerificationFailed = true;
-    showLoginError(errMsg);
-    
-    // Log out of Firebase to clear the un-authorized session
-    try {
-      await logout();
-    } catch (logoutErr) {
-      console.error("Firebase logout error after authorization fail:", logoutErr);
-    }
-  } finally {
+    // 2. Perform background access token verification
+    fetch("/api/verify", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
+      }
+    }).then(async (res) => {
+      if (!res.ok) {
+        // Access revoked! Clear local cache and force logout
+        localStorage.removeItem(cacheKey);
+        await logout();
+        alert("⚠️ Seu acesso não está cadastrado ou foi revogado.");
+      } else {
+        localStorage.setItem(cacheKey, "true");
+      }
+    }).catch(err => {
+      console.warn("Background verification failed, keeping cached status:", err);
+    });
+
+  } else {
+    // 3. First-time login path: synchronous loading state with verifications
     if (loginSubmitBtn) {
-      loginSubmitBtn.disabled = false;
-      loginSubmitBtn.textContent = isRegisterMode ? "Cadastrar" : "Entrar";
+      loginSubmitBtn.disabled = true;
+      loginSubmitBtn.textContent = "Verificando acesso...";
     }
     if (googleLoginBtn) {
-      googleLoginBtn.disabled = false;
+      googleLoginBtn.disabled = true;
+    }
+
+    try {
+      const response = await fetch("/api/verify", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || "Acesso negado.");
+      }
+
+      // Cache verified status
+      localStorage.setItem(cacheKey, "true");
+
+      transitionToApp();
+      await loadState();
+      if (!isUiInitialized) {
+        setupUIEventListeners();
+        setupTutorialListeners();
+        setupBottomNav();
+        isUiInitialized = true;
+      }
+      setupCountdown();
+      renderDashboard();
+
+    } catch (err) {
+      console.error("Authorization check failed:", err);
+      let errMsg = err.message || "Seu e-mail não está cadastrado na lista de compradores autorizados.";
+      if (errMsg.includes("compradores autorizados") || errMsg.includes("não está cadastrado") || errMsg.includes("Acesso negado")) {
+        const emailStr = user && user.email ? ` (<strong>${user.email}</strong>)` : "";
+        errMsg = `Seu e-mail${emailStr} não está cadastrado na lista de compradores autorizados. <a href="https://pay.kirvano.com/8c50a730-069a-40e8-bed3-078c03089d1d" target="_blank" style="color: #fff; text-decoration: underline; font-weight: bold; display: block; margin-top: 8px;"><i class="fa-solid fa-cart-shopping"></i> Adquirir Acesso Completo aqui</a>`;
+      }
+      authVerificationFailed = true;
+      showLoginError(errMsg);
+      
+      // Log out of Supabase to clear session
+      try {
+        await logout();
+      } catch (logoutErr) {
+        console.error("Logout error after authorization fail:", logoutErr);
+      }
+    } finally {
+      if (loginSubmitBtn) {
+        loginSubmitBtn.disabled = false;
+        loginSubmitBtn.textContent = isRegisterMode ? "Cadastrar" : "Entrar";
+      }
+      if (googleLoginBtn) {
+        googleLoginBtn.disabled = false;
+      }
     }
   }
 }
@@ -2818,12 +3425,18 @@ document.addEventListener('wheel', (e) => {
 
   const chatSidebar = document.getElementById('chatSidebar');
   const dashboardContent = document.getElementById('dashboardContent');
+  const sharedSplitwise = document.getElementById('sharedSplitwiseContainer');
+  const appContainer = document.querySelector(".app-container");
   
   let targetContainer = null;
-  if (chatSidebar && chatSidebar.style.display !== 'none') {
-    targetContainer = document.getElementById('chatMessages');
-  } else if (dashboardContent && dashboardContent.style.display !== 'none') {
-    targetContainer = dashboardContent;
+  if (sharedSplitwise && !sharedSplitwise.classList.contains('hidden')) {
+    targetContainer = sharedSplitwise;
+  } else if (appContainer && !appContainer.classList.contains('hidden')) {
+    if (chatSidebar && chatSidebar.style.display !== 'none') {
+      targetContainer = document.getElementById('chatMessages');
+    } else if (dashboardContent && dashboardContent.style.display !== 'none') {
+      targetContainer = dashboardContent;
+    }
   }
   
   if (targetContainer) {
@@ -3867,5 +4480,104 @@ function enableDragToScroll(el) {
 window.clearAttachment = clearAttachment;
 window.openImageLightbox = openImageLightbox;
 window.enableDragToScroll = enableDragToScroll;
+
+async function handleMagicImportPdf(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  if (file.type !== "application/pdf") {
+    alert("⚠️ Por favor, selecione apenas arquivos PDF.");
+    return;
+  }
+
+  const btn = document.getElementById("magicImportPdfBtn");
+  const originalHtml = btn.innerHTML;
+  btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Lendo PDF...`;
+  btn.disabled = true;
+
+  try {
+    // 1. Extração de texto usando PDF.js
+    const pdfText = await extractTextFromPdf(file);
+    if (!pdfText || pdfText.trim().length === 0) {
+      throw new Error("Não foi possível extrair nenhum texto legível deste PDF. Certifique-se de que não é um arquivo digitalizado protegido ou em formato de imagem pura.");
+    }
+
+    // 2. Chamada à nossa nova API do Gemini
+    const token = await getFreshToken();
+    const response = await fetch("/api/parse-document", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
+      },
+      body: JSON.stringify({ text: pdfText })
+    });
+
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.error || `Erro do servidor (${response.status}) ao analisar o arquivo.`);
+    }
+
+    const result = await response.json();
+    if (!result || !result.type) {
+      throw new Error("Estrutura de resposta inválida da inteligência artificial.");
+    }
+
+    // 3. Aplicação dos dados estruturados
+    if (result.type === "flight") {
+      const flightData = result.data;
+      if (!tripData.flights) tripData.flights = [];
+      tripData.flights.push(flightData);
+      saveState();
+      renderFlights();
+      alert("✓ Passagem aérea importada e cadastrada com sucesso! Veja as informações no painel 'Seus Voos'.");
+    } else if (result.type === "hotel") {
+      const hotelData = result.data;
+      tripData.infoHotel = hotelData.hotel;
+      if (hotelData.hotelLink) tripData.hotelLink = hotelData.hotelLink;
+      if (hotelData.dates) tripData.infoDates = hotelData.dates;
+      
+      // Atualiza a data de início para contagem regressiva se informada
+      if (hotelData.checkInDate) {
+        tripData.targetDate = `${hotelData.checkInDate}T12:00:00`;
+      }
+      
+      saveState();
+      renderDashboard();
+      alert("✓ Hospedagem e hotel atualizados com sucesso!");
+    } else {
+      throw new Error("Não foi possível identificar o tipo de comprovante (voo ou hotel) neste PDF.");
+    }
+
+  } catch (err) {
+    console.error("Erro na importação mágica de PDF:", err);
+    alert(`⚠️ Falha na importação: ${err.message}`);
+  } finally {
+    btn.innerHTML = originalHtml;
+    btn.disabled = false;
+    e.target.value = ""; // limpa o input para novos uploads
+  }
+}
+
+async function extractTextFromPdf(file) {
+  const arrayBuffer = await file.arrayBuffer();
+  
+  // Acessa a biblioteca PDF.js importada via CDN
+  const pdfjsLib = window['pdfjs-dist/build/pdf'];
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+  
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  let text = "";
+  
+  // Limita a leitura às primeiras 3 páginas (geralmente suficiente para bilhetes e vouchers)
+  const maxPages = Math.min(pdf.numPages, 3);
+  for (let i = 1; i <= maxPages; i++) {
+    const page = await pdf.getPage(i);
+    const textContent = await page.getTextContent();
+    const pageText = textContent.items.map(item => item.str).join(" ");
+    text += pageText + "\n";
+  }
+  return text;
+}
 
 
