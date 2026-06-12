@@ -1,8 +1,7 @@
 const CACHE_NAME = 'copiloto-viagem-v1';
 const ASSETS_TO_CACHE = [
   '/',
-  '/index.html',
-  '/app.html',
+  '/app',
   '/style.css',
   '/app.js',
   '/auth.js',
@@ -18,9 +17,29 @@ const ASSETS_TO_CACHE = [
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then(cache => {
+      .then(async cache => {
         console.log('[Service Worker] Caching app shell...');
-        return cache.addAll(ASSETS_TO_CACHE);
+        // Custom addAll to handle redirected responses safely
+        for (const url of ASSETS_TO_CACHE) {
+          try {
+            const response = await fetch(url);
+            if (!response.ok) {
+              throw new Error(`Request for ${url} failed with status ${response.status}`);
+            }
+            // If the response is redirected, clone it without the redirected flag to avoid TypeError in cache.put()
+            let responseToCache = response;
+            if (response.redirected) {
+              responseToCache = new Response(response.body, {
+                status: response.status,
+                statusText: response.statusText,
+                headers: response.headers
+              });
+            }
+            await cache.put(url, responseToCache);
+          } catch (err) {
+            console.error(`[Service Worker] Failed to cache ${url}:`, err);
+          }
+        }
       })
       .then(() => self.skipWaiting())
   );
@@ -68,7 +87,13 @@ self.addEventListener('fetch', event => {
           if (cachedResponse) {
             return cachedResponse;
           }
-          // Optional: fallbacks for specific types (e.g. offline page)
+          // Fallback for navigation requests in offline mode
+          if (event.request.mode === 'navigate') {
+            if (event.request.url.includes('/app')) {
+              return caches.match('/app');
+            }
+            return caches.match('/');
+          }
         });
       })
   );
