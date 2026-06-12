@@ -2101,42 +2101,6 @@ function renderTimeline() {
   
   container.innerHTML = "";
 
-  const getDestinationSuffix = () => {
-    if (!tripData.tripTitle) return "";
-    let title = tripData.tripTitle;
-    
-    // Cut at colon or hyphens
-    const separators = [":", " - ", " – "];
-    for (const sep of separators) {
-      const idx = title.indexOf(sep);
-      if (idx !== -1) {
-        title = title.substring(0, idx).trim();
-      }
-    }
-
-    // Remove common prefixes
-    let dest = title.replace(/viagem\s+para\s+/i, "").replace(/viagem\s+a\s+/i, "").trim();
-    
-    if (dest.includes(",")) {
-      const parts = dest.split(",").map(p => p.trim());
-      const country = parts[parts.length - 1];
-      let city = parts[parts.length - 2] || parts[0];
-      
-      if (city.includes("/")) {
-        city = city.split("/").pop().trim();
-      }
-      
-      const cityWords = city.split(/\s+/);
-      if (cityWords.length > 2) {
-        city = cityWords.slice(-2).join(" ");
-      }
-      
-      return `${city}, ${country}`;
-    }
-    
-    return dest;
-  };
-
   // Helper to classify turn
   const getTurnForActivity = (act, idx, total) => {
     if (!act.time || act.time === '--:--') {
