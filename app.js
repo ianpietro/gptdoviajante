@@ -1691,8 +1691,79 @@ function formatMarkdown(text) {
 }
 
 function stripJsonCodeBlock(text) {
-  return text.replace(/```json[\s\S]*?```/g, "").trim();
+  if (!text) return "";
+
+  // 1. If the entire string is valid JSON, return empty string
+  try {
+    JSON.parse(text.trim());
+    return "";
+  } catch (e) {
+    // Not a raw JSON string
+  }
+
+  // 2. Remove blocks explicitly marked as json/JSON
+  let cleaned = text.replace(/```\s*json\s*[\s\S]*?```/gi, "");
+  
+  // 3. Also remove any code blocks that are valid JSON
+  const genericCodeBlockRegex = /```[\s\S]*?```/g;
+  const matches = cleaned.match(genericCodeBlockRegex);
+  if (matches) {
+    for (const block of matches) {
+      const contentMatch = block.match(/```(?:\w+)?\s*([\s\S]*?)```/);
+      if (contentMatch) {
+        try {
+          JSON.parse(contentMatch[1].trim());
+          cleaned = cleaned.replace(block, "");
+        } catch (e) {
+          // Keep it
+        }
+      }
+    }
+  }
+  return cleaned.trim();
 }
+
+function extractJsonFromReply(replyContent) {
+  if (!replyContent) return null;
+
+  // 1. Try to find code blocks explicitly marked as json/JSON (case-insensitive, optional spaces)
+  const jsonRegex = /```\s*json\s*[\s\S]*?```/i;
+  const match = replyContent.match(jsonRegex);
+  if (match) {
+    try {
+      return JSON.parse(match[1].trim());
+    } catch (e) {
+      console.warn("Failed to parse matched JSON block:", e);
+    }
+  }
+
+  // 2. If no explicit json block, find all code blocks and try to parse them
+  const genericCodeBlockRegex = /```[\s\S]*?```/g;
+  const allBlocks = replyContent.match(genericCodeBlockRegex);
+  if (allBlocks) {
+    for (const block of allBlocks) {
+      const contentMatch = block.match(/```(?:\w+)?\s*([\s\S]*?)```/);
+      if (contentMatch) {
+        const potentialJson = contentMatch[1].trim();
+        try {
+          return JSON.parse(potentialJson);
+        } catch (e) {
+          // Keep looking
+        }
+      }
+    }
+  }
+
+  // 3. Fallback: try parsing the whole string
+  try {
+    return JSON.parse(replyContent.trim());
+  } catch (e) {
+    // No valid JSON
+  }
+
+  return null;
+}
+
 
 // Sending and Receiving Message (Planning Chat)
 async function handleUserSendMessage() {
@@ -1779,9 +1850,9 @@ async function handleUserSendMessage() {
     if (data.error) { appendMessageBubble("assistant", `⚠️ Erro: ${data.error}`, null, 'plan'); return; }
 
     const replyContent = data.content;
-    const jsonMatch = replyContent.match(/```json([\s\S]*?)```/);
-    if (jsonMatch) {
-      try { updateDashboardData(JSON.parse(jsonMatch[1].trim())); } catch (err) { console.warn(err); }
+    const parsedData = extractJsonFromReply(replyContent);
+    if (parsedData) {
+      try { updateDashboardData(parsedData); } catch (err) { console.warn(err); }
     }
 
     const cleanReply = stripJsonCodeBlock(replyContent);
@@ -1884,9 +1955,9 @@ async function handleTravelSendMessage() {
     if (data.error) { appendMessageBubble("assistant", `⚠️ Erro: ${data.error}`, null, 'travel'); return; }
 
     const replyContent = data.content;
-    const jsonMatch = replyContent.match(/```json([\s\S]*?)```/);
-    if (jsonMatch) {
-      try { updateDashboardData(JSON.parse(jsonMatch[1].trim())); } catch (err) { console.warn(err); }
+    const parsedData = extractJsonFromReply(replyContent);
+    if (parsedData) {
+      try { updateDashboardData(parsedData); } catch (err) { console.warn(err); }
     }
 
     const cleanReply = stripJsonCodeBlock(replyContent);

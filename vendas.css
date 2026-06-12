@@ -1391,9 +1391,23 @@ h1, h2, h3, h4 {
     font-size: 1.6rem;
   }
 
-  /* Nav: hide login link — keeps nav from overflowing */
+  /* Nav: show login link but hide header CTA to prevent overflow on mobile */
   .nav-login {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .desktop-only-text {
     display: none;
+  }
+  .mobile-only-text {
+    display: inline !important;
+  }
+  .nav-btn-sm {
+    display: none;
+  }
+  .logo-text {
+    font-size: 1.1rem;
   }
 
   /* Simulator budget cards: 2-column → 1-column on very small screens */

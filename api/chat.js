@@ -84,12 +84,15 @@ module.exports = async function handler(req, res) {
   for (let i = messages.length - 1; i >= 0; i--) {
     const msg = messages[i];
     let content = msg.content;
-    if (msg.role === "assistant" && typeof content === "string" && content.includes("```json")) {
-      if (!foundLatestJson) {
-        foundLatestJson = true; // Keep the latest state JSON block
-      } else {
-        // Remove older JSON blocks to save thousands of tokens per turn
-        content = content.replace(/```json[\s\S]*?```/g, "").trim();
+    if (msg.role === "assistant" && typeof content === "string") {
+      const hasJsonBlock = /```\s*json\s*[\s\S]*?```/i.test(content);
+      if (hasJsonBlock) {
+        if (!foundLatestJson) {
+          foundLatestJson = true; // Keep the latest state JSON block
+        } else {
+          // Remove older JSON blocks to save thousands of tokens per turn
+          content = content.replace(/```\s*json\s*[\s\S]*?```/gi, "").trim();
+        }
       }
     }
     optimizedMessages.unshift({ ...msg, content });
