@@ -125,6 +125,15 @@ body.light-theme #tutorialBtn {
 }
 
 /* Section Header & Component Contrast Overrides */
+body.light-theme .hero h1 {
+  color: #ffffff !important;
+}
+body.light-theme .hero p {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+body.light-theme .countdown-label {
+  color: rgba(255, 255, 255, 0.75) !important;
+}
 body.light-theme .itinerary-opt-banner h4 {
   color: var(--text-main) !important;
 }
