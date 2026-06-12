@@ -641,23 +641,22 @@ a:hover {
   max-width: 860px;
   width: 100%;
   margin: 0 auto;
-  /* slightly more vertical breathing room */
-  padding: 14px 32px 16px;
+  padding: 12px 24px 14px;
 }
 .chat-input-area textarea {
   flex: 1;
   background: var(--bg-input);
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius-md);
-  padding: 13px 16px;
+  padding: 12px 16px;
   color: white;
   font-family: var(--font-body);
   font-size: 0.95rem;
   outline: none;
   resize: none;
-  /* taller default — at least 2 visible lines of text */
-  min-height: 50px;
-  max-height: 120px;
+  /* taller default as requested by user */
+  min-height: 80px;
+  max-height: 160px;
   transition: border-color var(--transition-fast);
   line-height: 1.5;
 }
@@ -667,11 +666,11 @@ a:hover {
 
 .input-actions {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  gap: 14px;
+  gap: 10px;
   flex-shrink: 0;
-  padding-top: 8px;
+  margin-bottom: 4px;
 }
 .input-btn {
   background: transparent;
@@ -4258,12 +4257,24 @@ body.light-theme .tut-dot.active {
 
   /* Chat input area: reduce side padding on mobile, keep vertical roomy */
   .chat-input-area {
-    padding: 12px 12px 14px;
+    padding: 12px 16px 14px;
     gap: 10px;
   }
   .chat-input-area textarea {
-    font-size: 1rem;      /* slightly bigger for easier mobile typing */
-    min-height: 52px;
+    font-size: 1rem;
+    min-height: 70px;
+  }
+  .input-actions {
+    gap: 8px;
+  }
+  .input-btn {
+    width: 32px;
+    height: 32px;
+    font-size: 0.95rem;
+  }
+  .send-btn {
+    width: 34px;
+    height: 34px;
   }
 }
 
@@ -4334,16 +4345,27 @@ body.light-theme .tut-dot.active {
     padding: 0 10px;
   }
   .chat-input-area {
-    padding: 12px 8px 14px;
+    padding: 10px 10px 12px;
     gap: 8px;
     z-index: 1000;
   }
   .chat-input-area textarea {
-    min-height: 52px;
+    min-height: 60px;
     font-size: 1rem;
+    padding: 10px 12px;
   }
   .input-actions {
     z-index: 1001;
+    gap: 6px;
+  }
+  .input-btn {
+    width: 30px;
+    height: 30px;
+    font-size: 0.9rem;
+  }
+  .send-btn {
+    width: 32px;
+    height: 32px;
   }
 
   /* Chat header: tighten */
