@@ -727,7 +727,8 @@ async function loadState() {
   } else {
     console.log("Device offline. Skipping background Supabase load sync.");
   }
-  
+}
+
   tripData.flights = tripData.flights || [];
   tripData.members = tripData.members || ["Você"];
   tripData.expenses = tripData.expenses || [];
