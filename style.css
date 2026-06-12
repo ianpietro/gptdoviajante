@@ -4787,6 +4787,75 @@ dialog.modal-dialog-native[open] {
   animation: modalFadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/* Global Loader Overlay */
+.global-loader-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(7, 9, 14, 0.75);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.3s ease;
+}
+.global-loader-overlay.hidden {
+  display: none !important;
+  opacity: 0;
+  pointer-events: none;
+}
+.global-loader-card {
+  background: rgba(13, 20, 32, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--border-radius-lg);
+  padding: 40px;
+  max-width: 480px;
+  width: 90%;
+  text-align: center;
+  box-shadow: var(--shadow-lg), var(--shadow-glow);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+body.light-theme .global-loader-card {
+  background: rgba(255, 255, 255, 0.98);
+  border-color: rgba(15, 23, 42, 0.08);
+  box-shadow: var(--shadow-lg);
+}
+body.light-theme .global-loader-card h3 {
+  color: var(--text-main);
+}
+body.light-theme .global-loader-card p {
+  color: var(--text-light);
+}
+.loader-spinner {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  box-shadow: 0 0 30px hsla(var(--primary-hue), 85%, 55%, 0.4);
+}
+.spinner-magic-icon {
+  font-size: 2.2rem;
+  color: white;
+  animation: pulseRotate 2s infinite linear;
+}
+
+@keyframes pulseRotate {
+  0% { transform: rotate(0deg) scale(1); }
+  50% { transform: rotate(180deg) scale(1.15); }
+  100% { transform: rotate(360deg) scale(1); }
+}
+
 
 
 

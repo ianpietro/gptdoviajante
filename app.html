@@ -326,6 +326,31 @@
             </div>
           </div>
 
+          <!-- Card 3: Hospedagem -->
+          <div class="glass-panel" style="padding: 24px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 12px;">
+              <h3 style="font-size: 1rem; font-weight: 700; margin: 0; display: flex; align-items: center; gap: 8px; color: var(--text-main);">
+                <i class="fa-solid fa-hotel" style="color: var(--primary);"></i> Sua Hospedagem
+              </h3>
+            </div>
+            
+            <div style="display: flex; flex-direction: column; gap: 14px;">
+              <div>
+                <label for="hotelNameInput" style="display: block; font-size: 0.7rem; color: var(--text-muted); margin-bottom: 6px; font-weight: 600; text-transform: uppercase;">Nome da Hospedagem (Hotel / Airbnb)</label>
+                <input type="text" id="hotelNameInput" placeholder="Ex: Bourbon Resort ou Airbnb Copacabana" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 10px 12px; color: white; outline: none; font-size: 0.85rem; font-family: var(--font-body); box-sizing: border-box;">
+              </div>
+              
+              <div>
+                <label for="hotelLinkInput" style="display: block; font-size: 0.7rem; color: var(--text-muted); margin-bottom: 6px; font-weight: 600; text-transform: uppercase;">Link de Reserva (Booking, Airbnb, etc.)</label>
+                <input type="url" id="hotelLinkInput" placeholder="Ex: https://booking.com/..." style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 10px 12px; color: white; outline: none; font-size: 0.85rem; font-family: var(--font-body); box-sizing: border-box;">
+              </div>
+              
+              <button class="btn btn-primary btn-sm" id="saveHotelBtn" style="width: 100%; margin-top: 8px; justify-content: center; background: linear-gradient(135deg, var(--primary) 0%, #1d4ed8 100%); border: none; font-weight: 700;">
+                <i class="fa-solid fa-floppy-disk"></i> Salvar e Atualizar com IA 🤖
+              </button>
+            </div>
+          </div>
+
         </div>
       </section>
 
@@ -344,16 +369,13 @@
             <div>
               <h4 style="margin: 0; font-size: 0.88rem; font-weight: 700; color: white;">Deixe suas rotas 100% certeiras!</h4>
               <p style="margin: 4px 0 0 0; font-size: 0.76rem; color: var(--text-light); line-height: 1.4;">
-                Cadastre seus voos na aba <strong>Logística</strong> e informe sua hospedagem no <strong>Chat</strong> para que a inteligência artificial ajuste os horários de partida e trajetos do mapa com precisão milimétrica.
+                Cadastre seus voos e hospedagem na aba <strong>Logística</strong>. O CoPiloto irá recalcular e adaptar automaticamente seu cronograma, mala de viagem e orçamento com base nesses novos dados!
               </p>
             </div>
           </div>
           <div style="display: flex; gap: 8px; flex-shrink: 0;">
-            <button class="btn btn-secondary btn-sm" onclick="switchTab('logistica')" style="padding: 6px 12px; font-size: 0.74rem;">
-              <i class="fa-solid fa-plane-departure"></i> Aba Logística
-            </button>
-            <button class="btn btn-primary btn-sm" onclick="switchTab('chat')" style="padding: 6px 12px; font-size: 0.74rem; background: linear-gradient(135deg, var(--primary) 0%, #1d4ed8 100%); border: none;">
-              <i class="fa-solid fa-comments"></i> Informar no Chat
+            <button class="btn btn-primary btn-sm" onclick="switchTab('logistica')" style="padding: 6px 12px; font-size: 0.74rem; background: linear-gradient(135deg, var(--primary) 0%, #1d4ed8 100%); border: none;">
+              <i class="fa-solid fa-plane-departure"></i> Preencher Logística
             </button>
           </div>
         </div>
@@ -1215,6 +1237,17 @@
         </a>
       </div>
 
+    </div>
+  </div>
+
+  <!-- Global AI Integration Loader Overlay -->
+  <div id="globalIntegrationLoader" class="global-loader-overlay hidden">
+    <div class="global-loader-card">
+      <div class="loader-spinner">
+        <i class="fa-solid fa-wand-magic-sparkles spinner-magic-icon"></i>
+      </div>
+      <h3>Sincronizando com o CoPiloto...</h3>
+      <p>A Inteligência Artificial está adaptando seu roteiro, mala de viagem e orçamento com base nas novas informações de logística.</p>
     </div>
   </div>
 

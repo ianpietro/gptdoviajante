@@ -1352,6 +1352,12 @@ function setupUIEventListeners() {
     submitTextImportBtn.addEventListener("click", handleTextPasteImport);
   }
 
+  // Event listener for Save Hotel & Sync button
+  const saveHotelBtn = document.getElementById("saveHotelBtn");
+  if (saveHotelBtn) {
+    saveHotelBtn.addEventListener("click", handleSaveHotelAndSync);
+  }
+
   // Alternador de Tema (Claro/Escuro)
   const toggleThemeBtn = document.getElementById("toggleThemeBtn");
   if (toggleThemeBtn) {
@@ -2032,6 +2038,16 @@ function renderDashboard() {
     infoHotelEl.textContent = tripData.infoHotel;
   }
 
+  // Populate hotel input fields in Logistics tab
+  const hotelNameInput = document.getElementById("hotelNameInput");
+  const hotelLinkInput = document.getElementById("hotelLinkInput");
+  if (hotelNameInput) {
+    hotelNameInput.value = (tripData.infoHotel && tripData.infoHotel !== "A definir") ? tripData.infoHotel : "";
+  }
+  if (hotelLinkInput) {
+    hotelLinkInput.value = tripData.hotelLink || "";
+  }
+
   // 2. Budget Sliders Setup
   document.getElementById("slideHospedagem").value = tripData.budget.hospedagem;
   document.getElementById("slideAlimentacao").value = tripData.budget.alimentacao;
@@ -2080,7 +2096,15 @@ function renderTimeline() {
   }
   
   const optBanner = document.getElementById("itineraryOptimizationBanner");
-  if (optBanner) optBanner.classList.remove("hidden");
+  if (optBanner) {
+    const hasFlights = tripData.flights && tripData.flights.length > 0;
+    const hasHotel = tripData.infoHotel && tripData.infoHotel !== "A definir" && tripData.infoHotel.trim() !== "";
+    if (hasFlights && hasHotel) {
+      optBanner.classList.add("hidden");
+    } else {
+      optBanner.classList.remove("hidden");
+    }
+  }
 
   // Sanitize activities for location/address mismatches dynamically before rendering
   const destCity = getDestinationSuffix();
@@ -3616,6 +3640,7 @@ async function handleFlightFormSubmit(e) {
   saveState();
   closeFlightModal();
   renderFlights();
+  triggerAiLogisticsSync();
 }
 
 function calculateDuration(dep, arr) {
@@ -3640,6 +3665,7 @@ function deleteFlight(index) {
     tripData.flights.splice(index, 1);
     saveState();
     renderFlights();
+    triggerAiLogisticsSync();
   }
 }
 
@@ -4774,6 +4800,7 @@ async function handleMagicImportPdf(e) {
       saveState();
       renderFlights();
       alert("✓ Passagem aérea importada e cadastrada com sucesso! Veja as informações no painel 'Seus Voos'.");
+      triggerAiLogisticsSync();
     } else if (result.type === "hotel") {
       const hotelData = result.data;
       tripData.infoHotel = hotelData.hotel;
@@ -4788,6 +4815,7 @@ async function handleMagicImportPdf(e) {
       saveState();
       renderDashboard();
       alert("✓ Hospedagem e hotel atualizados com sucesso!");
+      triggerAiLogisticsSync();
     } else {
       throw new Error("Não foi possível identificar o tipo de comprovante (voo ou hotel) neste PDF.");
     }
@@ -4969,6 +4997,7 @@ async function handleTextPasteImport() {
       renderFlights();
       alert("✓ Passagem aérea importada e cadastrada com sucesso! Veja as informações no painel 'Seus Voos'.");
       closeTextImportModal();
+      triggerAiLogisticsSync();
     } else if (result.type === "hotel") {
       const hotelData = result.data;
       tripData.infoHotel = hotelData.hotel;
@@ -4983,6 +5012,7 @@ async function handleTextPasteImport() {
       renderDashboard();
       alert("✓ Hospedagem e hotel atualizados com sucesso!");
       closeTextImportModal();
+      triggerAiLogisticsSync();
     } else {
       throw new Error("Não foi possível identificar o tipo de comprovante (voo ou hotel) neste texto.");
     }
@@ -4995,11 +5025,116 @@ async function handleTextPasteImport() {
   }
 }
 
+async function handleSaveHotelAndSync() {
+  const hotelName = document.getElementById("hotelNameInput").value.trim();
+  const hotelLink = document.getElementById("hotelLinkInput").value.trim();
+  
+  tripData.infoHotel = hotelName || "A definir";
+  tripData.hotelLink = hotelLink || "";
+  
+  saveState();
+  renderDashboard();
+  
+  await triggerAiLogisticsSync();
+}
+
+async function triggerAiLogisticsSync() {
+  if (!navigator.onLine) {
+    alert("📴 Modo Offline: Os dados de logística foram salvos localmente, mas a sincronização com a IA requer conexão com a internet.");
+    return;
+  }
+
+  const loader = document.getElementById("globalIntegrationLoader");
+  if (loader) {
+    loader.classList.remove("hidden");
+  }
+
+  const now = new Date();
+  const timeStr = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  const hotelDesc = (tripData.infoHotel && tripData.infoHotel !== "A definir") ? `${tripData.infoHotel} (Link: ${tripData.hotelLink || 'não informado'})` : 'Não definido';
+  const flightsDesc = tripData.flights && tripData.flights.length > 0 ? JSON.stringify(tripData.flights) : 'Nenhum voo cadastrado';
+  
+  const text = `[Ação Automática de Logística]: As informações de voos ou hospedagem foram atualizadas. Por favor, reavalie e adapte todo o roteiro (itinerary), a lista de malas (packing) e o orçamento (budget) com base nas novas informações de logística. Hospedagem cadastrada: ${hotelDesc}. Voos cadastrados: ${flightsDesc}. Retorne o JSON atualizado com as modificações correspondentes no cronograma, mala de viagem e orçamento.`;
+
+  // Push user command to history to keep context in sync
+  const userMsgObject = { role: "user", content: text, time: timeStr };
+  chatHistory.push(userMsgObject);
+  saveState();
+
+  try {
+    const token = await getFreshToken();
+    const response = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+      body: JSON.stringify({ 
+        messages: chatHistory, 
+        travelMode: false,
+        tripContext: {
+          hotel: tripData.infoHotel,
+          hotelLink: tripData.hotelLink,
+          flights: tripData.flights,
+          budget: tripData.budget,
+          dates: tripData.infoDates,
+          destination: tripData.tripTitle
+        }
+      })
+    });
+
+    if (response.status === 401 || response.status === 403) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(`Acesso Não Autorizado: ${errData.error || "Seu e-mail não está cadastrado."}`);
+    }
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.error || `Erro ${response.status} na comunicação com o servidor.`);
+    }
+
+    const data = await response.json();
+    if (data.error) { 
+      throw new Error(data.error); 
+    }
+
+    const replyContent = data.content;
+    const parsedData = extractJsonFromReply(replyContent);
+    if (parsedData) {
+      try { 
+        updateDashboardData(parsedData); 
+      } catch (err) { 
+        console.warn("Failed updating dashboard from sync response:", err); 
+      }
+    }
+
+    const cleanReply = stripJsonCodeBlock(replyContent);
+    const replyTime = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    
+    // Append the assistant's response bubble to the chat
+    const assistantMsgEl = appendMessageBubble("assistant", cleanReply, replyTime, 'plan');
+    if (assistantMsgEl) {
+      const container = document.getElementById("chatMessages");
+      if (container) {
+        container.scrollTo({ top: assistantMsgEl.offsetTop - 10, behavior: "smooth" });
+      }
+    }
+    chatHistory.push({ role: "assistant", content: replyContent, time: replyTime });
+    saveState();
+
+  } catch (error) {
+    console.error("AI Logistics Sync error:", error);
+    alert(`⚠️ Falha na sincronização da IA: ${error.message}. As alterações de voo/hospedagem foram mantidas localmente.`);
+  } finally {
+    if (loader) {
+      loader.classList.add("hidden");
+    }
+  }
+}
+
 // Expose functions globally
 window.openTextImportModal = openTextImportModal;
 window.closeTextImportModal = closeTextImportModal;
 window.handleTextPasteImport = handleTextPasteImport;
 window.subscribeToTripChanges = subscribeToTripChanges;
+window.handleSaveHotelAndSync = handleSaveHotelAndSync;
+window.triggerAiLogisticsSync = triggerAiLogisticsSync;
 
 
 
