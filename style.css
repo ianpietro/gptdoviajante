@@ -2311,10 +2311,63 @@ footer p {
 
   /* Budget */
   .budget-grid {
-    grid-template-columns: 1fr;
-    gap: 40px;
-    padding: 24px;
+    grid-template-columns: 1fr !important;
+    gap: 32px !important;
+    padding: 20px !important;
   }
+  #budgetAnalysisCard {
+    grid-column: span 1 !important;
+  }
+  .sub-tab-bar {
+    overflow-x: auto;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+    display: flex;
+  }
+  .sub-tab-bar button {
+    flex-shrink: 0;
+  }
+  .splitwise-header {
+    flex-direction: column;
+    align-items: stretch !important;
+    gap: 12px;
+  }
+  .splitwise-header h2 {
+    font-size: 1.05rem !important;
+  }
+  .splitwise-header button {
+    align-self: flex-start;
+  }
+  .balance-item {
+    flex-direction: column;
+    align-items: stretch !important;
+    gap: 10px;
+    padding: 12px !important;
+  }
+  .balance-item button {
+    align-self: flex-end;
+    width: auto;
+  }
+  .expense-item {
+    flex-direction: column;
+    align-items: stretch !important;
+    gap: 12px;
+    padding: 12px 14px !important;
+  }
+  .expense-left {
+    align-items: flex-start !important;
+  }
+  .expense-right {
+    justify-content: space-between;
+    width: 100%;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    padding-top: 10px;
+    gap: 10px !important;
+  }
+  .expense-val {
+    text-align: left !important;
+  }
+
 
   /* Packing */
   .packing-list {
@@ -2581,6 +2634,58 @@ footer p {
   .budget-grid {
     grid-template-columns: 1fr !important;
     gap: 30px !important;
+  }
+  #budgetAnalysisCard {
+    grid-column: span 1 !important;
+  }
+  .sub-tab-bar {
+    overflow-x: auto;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+    display: flex;
+  }
+  .sub-tab-bar button {
+    flex-shrink: 0;
+  }
+  .splitwise-header {
+    flex-direction: column;
+    align-items: stretch !important;
+    gap: 12px;
+  }
+  .splitwise-header h2 {
+    font-size: 1.05rem !important;
+  }
+  .splitwise-header button {
+    align-self: flex-start;
+  }
+  .balance-item {
+    flex-direction: column;
+    align-items: stretch !important;
+    gap: 10px;
+    padding: 12px !important;
+  }
+  .balance-item button {
+    align-self: flex-end;
+    width: auto;
+  }
+  .expense-item {
+    flex-direction: column;
+    align-items: stretch !important;
+    gap: 12px;
+    padding: 12px 14px !important;
+  }
+  .expense-left {
+    align-items: flex-start !important;
+  }
+  .expense-right {
+    justify-content: space-between;
+    width: 100%;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    padding-top: 10px;
+    gap: 10px !important;
+  }
+  .expense-val {
+    text-align: left !important;
   }
 
   .packing-list {
