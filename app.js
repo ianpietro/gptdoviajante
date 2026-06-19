@@ -2744,7 +2744,7 @@ function updateBudget() {
       if (total === 0) {
         feedback = "Mova os sliders acima para ver as estimativas diárias e dicas do consultor para a sua viagem.";
       } else if (dailyAvg < limEco) {
-        feedback = `Você propôs um estilo **Econômico** (Mochilão) para este destino (menos de R$ ${limEco.toLocaleString("pt-BR")}/dia). Dica do GPT: utilize transporte público e priorize alimentação em pequenos mercados ou feiras locais.`;
+        feedback = `Você propôs um estilo **Econômico** (Mochilão) para este destino (menos de R$ ${limEco.toLocaleString("pt-BR")}/dia). Dica do CoPiloto: utilize transporte público e priorize alimentação em pequenos mercados ou feiras locais.`;
       } else if (dailyAvg <= limInt) {
         feedback = `Você propôs um estilo **Intermediário** (Custo-benefício) para este destino (de R$ ${limEco.toLocaleString("pt-BR")}/dia a R$ ${limInt.toLocaleString("pt-BR")}/dia). Esta faixa é super realista para garantir conforto básico sem gastar demais. Dica: mescle refeições em restaurantes locais com lanches simples.`;
       } else {
