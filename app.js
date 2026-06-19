@@ -91,23 +91,18 @@ function getDestinationSuffix() {
   // Remove common prefixes
   let dest = title.replace(/viagem\s+para\s+/i, "").replace(/viagem\s+a\s+/i, "").trim();
   
-  // If the destination title is too long or contains a comma (e.g. "Something, City, Country")
+  // If the destination title contains a comma (e.g. "City, Country" or "City, State, Country")
   if (dest.includes(",")) {
     const parts = dest.split(",").map(p => p.trim());
     const country = parts[parts.length - 1];
-    let city = parts[parts.length - 2] || parts[0];
+    let city = parts[0]; // Always use the FIRST part as city (e.g. "Juiz de Fora" in "Juiz de Fora, MG")
     
     // If the city part has a slash like "Chiado/Bairro Alto", grab the last part
     if (city.includes("/")) {
       city = city.split("/").pop().trim();
     }
     
-    // If city is still long, keep last 2 words
-    const cityWords = city.split(/\s+/);
-    if (cityWords.length > 2) {
-      city = cityWords.slice(-2).join(" ");
-    }
-    
+    // NOTE: Do NOT truncate city words — "Juiz de Fora" must stay as-is
     return `${city}, ${country}`;
   }
   
@@ -1602,6 +1597,40 @@ function scrollToBottom() {
   if (container) container.scrollTop = container.scrollHeight;
 }
 
+// Auto-inject Google Maps + TripAdvisor buttons after bold place/restaurant names in chat messages
+function autoInjectPlaceLinks(html) {
+  const mealKeywords = /almo[cç]o|jantar|caf[eé][ -]|restaurante|bistr[oô]|\bbar\b|lanchon|padaria|pizz|sushi|churrascaria|confeitaria|petiscaria|botequim|brasserie/i;
+  const visitKeywords = /visita|passeio|\btour\b|museu|galeria|parque|\bpraia\b|catedral|pal[aá]cio|feira|mercado|mirante|castelo|templo|jardim|monumento|fortaleza|convento|mosteiro/i;
+  const timePrefix = /^\d{1,2}[h:]\d{0,2}\s*[-–—]\s*/;
+
+  return html.replace(/<strong>([^<]{3,100})<\/strong>/g, (match, label) => {
+    const cleanLabel = label.replace(timePrefix, '').trim();
+    const shouldInject = mealKeywords.test(cleanLabel) || visitKeywords.test(cleanLabel) || timePrefix.test(label);
+    if (!shouldInject || cleanLabel.length < 3) return match;
+
+    // Use current destination from tripData, stripping subtitles after comma
+    const dest = (typeof tripData !== 'undefined' &&
+      tripData.tripTitle &&
+      tripData.tripTitle !== 'Minha Próxima Viagem')
+      ? tripData.tripTitle.split(',')[0].trim()
+      : '';
+
+    const query = dest ? `${cleanLabel}, ${dest}` : cleanLabel;
+    const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
+    const taUrl   = `https://www.tripadvisor.com.br/Search?q=${encodeURIComponent(query)}`;
+
+    return `<strong>${label}</strong>` +
+      ` <span class="chat-place-links">` +
+        `<a href="${mapsUrl}" target="_blank" rel="noopener noreferrer" class="chat-place-btn maps-btn" title="Ver no Google Maps">` +
+          `<i class="fa-solid fa-location-dot"></i>` +
+        `</a>` +
+        `<a href="${taUrl}" target="_blank" rel="noopener noreferrer" class="chat-place-btn ta-btn" title="Ver no TripAdvisor">` +
+          `<i class="fa-solid fa-star"></i>` +
+        `</a>` +
+      `</span>`;
+  });
+}
+
 // Custom Markdown Formatter
 function formatMarkdown(text) {
   // Step 1: escape HTML
@@ -1626,6 +1655,9 @@ function formatMarkdown(text) {
     /\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g,
     '<a href="$2" target="_blank" rel="noopener noreferrer" class="chat-link">$1 \uD83D\uDD17</a>'
   );
+
+  // Step 5b: Auto-inject Maps + TripAdvisor buttons
+  html = autoInjectPlaceLinks(html);
 
   // Step 6: Tables (lines that start/end with |)
   const tableRegex = /((?:^[ \t]*\|.*\|[ \t]*\n?)+)/gm;
@@ -2022,6 +2054,149 @@ function updateDashboardData(newJson) {
   renderDashboard();
 }
 
+const parseLocalDate = (dateStr) => {
+  if (!dateStr) return null;
+  let normalized = dateStr;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+    normalized += 'T00:00:00';
+  }
+  const date = new Date(normalized);
+  if (isNaN(date.getTime())) return null;
+  return date;
+};
+
+const getMostCommon = (arr) => {
+  const counts = {};
+  let maxCount = 0;
+  let maxEl = arr[0];
+  for (const el of arr) {
+    counts[el] = (counts[el] || 0) + 1;
+    if (counts[el] > maxCount) {
+      maxCount = counts[el];
+      maxEl = el;
+    }
+  }
+  return maxEl;
+};
+
+const getWMOWeatherDescription = (code) => {
+  const mapping = {
+    0: { text: "Céu Limpo", emoji: "☀️" },
+    1: { text: "Parcialmente Limpo", emoji: "🌤️" },
+    2: { text: "Parcialmente Nublado", emoji: "⛅" },
+    3: { text: "Nublado", emoji: "☁️" },
+    45: { text: "Nevoeiro", emoji: "🌫️" },
+    48: { text: "Nevoeiro com Gelo", emoji: "🌫️" },
+    51: { text: "Chuvisco Leve", emoji: "🌧️" },
+    53: { text: "Chuvisco Moderado", emoji: "🌧️" },
+    55: { text: "Chuvisco Intenso", emoji: "🌧️" },
+    56: { text: "Chuvisco Congelante", emoji: "🌧️" },
+    57: { text: "Chuvisco Congelante Intenso", emoji: "🌧️" },
+    61: { text: "Chuva Leve", emoji: "🌧️" },
+    63: { text: "Chuva Moderada", emoji: "☔" },
+    65: { text: "Chuva Forte", emoji: "☔" },
+    66: { text: "Chuva Congelante Leve", emoji: "☔" },
+    67: { text: "Chuva Congelante Forte", emoji: "☔" },
+    71: { text: "Neve Leve", emoji: "❄️" },
+    73: { text: "Neve Moderada", emoji: "❄️" },
+    75: { text: "Neve Forte", emoji: "❄️" },
+    77: { text: "Granizo de Neve", emoji: "❄️" },
+    80: { text: "Pancadas de Chuva Leves", emoji: "🌦️" },
+    81: { text: "Pancadas de Chuva Moderadas", emoji: "🌦️" },
+    82: { text: "Pancadas de Chuva Fortes", emoji: "🌦️" },
+    85: { text: "Pancadas de Neve Leves", emoji: "❄️" },
+    86: { text: "Pancadas de Neve Fortes", emoji: "❄️" },
+    95: { text: "Tempestade", emoji: "⛈️" },
+    96: { text: "Tempestade com Granizo Leve", emoji: "⛈️" },
+    99: { text: "Tempestade com Granizo Forte", emoji: "⛈️" }
+  };
+  return mapping[code] || { text: "Clima Variável", emoji: "⛅" };
+};
+
+let lastFetchedWeatherTripId = null;
+
+const fetchRealWeatherForecast = async () => {
+  const city = tripData.tripTitle ? tripData.tripTitle.split(',')[0].trim() : '';
+  if (!city || city === "Minha Próxima Viagem" || city === "A definir") return;
+
+  const cacheKey = (tripData.id || "temp") + "_" + city;
+  if (lastFetchedWeatherTripId === cacheKey) return;
+
+  try {
+    const geoUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=pt`;
+    const geoRes = await fetch(geoUrl);
+    if (!geoRes.ok) return;
+    const geoData = await geoRes.json();
+    if (!geoData.results || geoData.results.length === 0) return;
+
+    const loc = geoData.results[0];
+    const lat = loc.latitude;
+    const lon = loc.longitude;
+
+    let weatherText = "";
+    const targetDateObj = parseLocalDate(tripData.targetDate);
+
+    if (targetDateObj) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const diffTime = targetDateObj.getTime() - today.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+      if (diffDays >= 0 && diffDays <= 14) {
+        const numDays = (tripData.itinerary && tripData.itinerary.length > 0) ? tripData.itinerary.length : 3;
+        const endDateObj = new Date(targetDateObj.getTime());
+        endDateObj.setDate(targetDateObj.getDate() + numDays - 1);
+
+        const formatDate = (d) => d.toISOString().split('T')[0];
+        const start_date = formatDate(targetDateObj);
+        const end_date = formatDate(endDateObj);
+
+        const forecastUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=temperature_2m_max,temperature_2m_min,weathercode&timezone=auto&start_date=${start_date}&end_date=${end_date}`;
+        const weatherRes = await fetch(forecastUrl);
+        if (weatherRes.ok) {
+          const weatherData = await weatherRes.json();
+          if (weatherData.daily && weatherData.daily.temperature_2m_max) {
+            const tempsMax = weatherData.daily.temperature_2m_max;
+            const tempsMin = weatherData.daily.temperature_2m_min;
+            const codes = weatherData.daily.weathercode;
+
+            const avgMax = Math.round(tempsMax.reduce((a, b) => a + b, 0) / tempsMax.length);
+            const avgMin = Math.round(tempsMin.reduce((a, b) => a + b, 0) / tempsMin.length);
+            const mostCommonCode = getMostCommon(codes);
+            const weatherDesc = getWMOWeatherDescription(mostCommonCode);
+
+            weatherText = `${avgMin}°C a ${avgMax}°C (${weatherDesc.emoji} ${weatherDesc.text})`;
+          }
+        }
+      }
+    }
+
+    if (!weatherText) {
+      const currentUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true&timezone=auto`;
+      const currentRes = await fetch(currentUrl);
+      if (currentRes.ok) {
+        const currentData = await currentRes.json();
+        if (currentData.current_weather) {
+          const temp = Math.round(currentData.current_weather.temperature);
+          const code = currentData.current_weather.weathercode;
+          const weatherDesc = getWMOWeatherDescription(code);
+          weatherText = `Hoje lá: ${temp}°C ${weatherDesc.emoji} (${tripData.infoWeather && tripData.infoWeather !== 'A definir' ? tripData.infoWeather : weatherDesc.text})`;
+        }
+      }
+    }
+
+    if (weatherText) {
+      const infoWeatherEl = document.getElementById("infoWeather");
+      if (infoWeatherEl) {
+        infoWeatherEl.innerHTML = `<span class="weather-forecast" title="Previsão real obtida de satélite">${weatherText}</span>`;
+      }
+      lastFetchedWeatherTripId = cacheKey;
+    }
+  } catch (err) {
+    console.warn("Erro ao carregar clima:", err);
+  }
+};
+
 function renderDashboard() {
   // 1. Text Info Fields
   document.getElementById("tripTitle").textContent = tripData.tripTitle;
@@ -2069,6 +2244,9 @@ function renderDashboard() {
 
   // 5. Check itinerary state to show banner/nav glow
   checkItineraryStatus();
+
+  // 6. Fetch dynamic weather in background
+  fetchRealWeatherForecast();
 }
 
 // Timeline dia a dia
@@ -2145,26 +2323,153 @@ function renderTimeline() {
     return 'noite';
   };
 
-  // Helper to generate Google Maps link
-  const getGoogleMapsRouteLink = (turnActs) => {
-    if (!turnActs || turnActs.length === 0) return "#";
-    const destSuffix = getDestinationSuffix();
-    const locations = turnActs.map(act => {
-      let loc = act.title.trim();
-      if (destSuffix) loc += `, ${destSuffix}`;
-      return encodeURIComponent(loc);
-    });
+  // Helper to extract the city for a given day (used for scoped Maps links)
+  const getDayCity = (day) => {
+    // Prefer explicit 'city' field from the AI response
+    if (day.city && day.city.trim()) {
+      // Clean up in case the AI filled it with example text
+      const c = day.city.trim();
+      if (c.length < 60 && !c.includes('(Ex:') && !c.includes('OBRIGATÓRIO')) return c;
+    }
+    // Fallback: try to extract city from dayTitle
+    // e.g. "Explorando Lisboa", "Dia em Roma", "Porto: Vinhos e Pontes"
+    if (day.dayTitle) {
+      const t = day.dayTitle.trim();
+      // Remove "Dia X - " prefix patterns
+      const cleaned = t.replace(/^dia\s+\d+\s*[-–:]\s*/i, '').replace(/^dia\s+\d+\s*/i, '');
+      // Check if short enough to be a city name
+      if (cleaned.length > 0 && cleaned.length <= 40 && !cleaned.includes('(')) {
+        // Grab first part before colon or hyphen
+        const parts = cleaned.split(/[:–-]/);
+        const candidate = parts[0].trim();
+        // Strip common words
+        const stripped = candidate
+          .replace(/^(explorando|explorações em|explorações|chegando em|chegada em|dia em|visita a|passeio em|visita à|chegada à|partida de|rumo a|rumo à)\s+/i, '')
+          .trim();
+        if (stripped.length >= 2 && stripped.length <= 35) return stripped;
+      }
+    }
+    // Final fallback: global trip destination
+    return getDestinationSuffix();
+  };
 
-    if (locations.length === 1) {
-      return `https://www.google.com/maps/search/?api=1&query=${locations[0]}`;
+  // Shared helper: clean an activity title to get the actual place name for Maps searches
+  // e.g. "Almoço no Churrasqueira" → "Churrasqueira"
+  //      "Subida ao Morro do Cristo" → "Morro do Cristo"
+  //      "Visita ao Museu Nacional" → "Museu Nacional"
+  const cleanActivityTitle = (title) => {
+    if (!title) return '';
+    // Strip address/city suffix after comma
+    let clean = title.trim().split(',')[0].trim();
+    // Strip common Portuguese action-verb prefixes
+    clean = clean.replace(
+      /^(subida\s+ao?\s+|subida\s+à\s+|visita\s+ao?\s+|visita\s+à\s+|visita\s+às?\s+|passeio\s+pelo?\s+|passeio\s+pela\s+|caminhada\s+ao?\s+|caminhada\s+até\s+|caminhada\s+pela\s+|trilha\s+ao?\s+|trilha\s+até\s+|trilha\s+para\s+|tour\s+pelo?\s+|tour\s+pela\s+|tour\s+ao?\s+|tour\s+à\s+|ida\s+ao?\s+|ida\s+à\s+|chegada\s+ao?\s+|chegada\s+à\s+|almoço\s+no?\s+|almoço\s+na\s+|jantar\s+no?\s+|jantar\s+na\s+|café\s+da\s+manhã\s+no?\s+|café\s+da\s+manhã\s+na\s+|café\s+no?\s+|café\s+na\s+|lanche\s+no?\s+|lanche\s+na\s+|check-in\s+no?\s+|check-in\s+na\s+|check-out\s+do?\s+|check-out\s+da\s+|embarque\s+em\s+|partida\s+do?\s+|partida\s+da\s+)/i,
+      ''
+    ).trim();
+    // Remove text inside parentheses (e.g. descriptions like "(entrada livre)")
+    clean = clean.replace(/\(.*?\)/g, '').trim();
+    // Remove text inside square brackets (e.g. "[Passeio Pago]")
+    clean = clean.replace(/\[.*?\]/g, '').trim();
+    // Remove emojis and decorative icons to prevent Google Maps search errors
+    clean = clean.replace(/[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDC00-\uDFFF]/g, '').trim();
+    // Clean up multiple spaces and leading/trailing dashes or commas
+    clean = clean.replace(/\s+/g, ' ').replace(/^[-–,]+|[-–,]+$/g, '').trim();
+    return clean;
+  };
+
+  // Generate a scoped Google Maps search URL for a single activity within a city.
+  // City is ALWAYS included — never optional. Generic names get type enrichment.
+  const getActivityMapLink = (actTitle, cityCtx) => {
+    if (!actTitle) return '#';
+    const cleanTitle = cleanActivityTitle(actTitle);
+    if (!cleanTitle) return '#';
+
+    // Resolve city: prefer explicit dayCity, fallback to tripTitle destination, last resort empty
+    const city = (cityCtx && cityCtx.trim()) ? cityCtx.trim() : getDestinationSuffix();
+
+    // Enrich generic names with their type so Maps doesn't guess randomly
+    // e.g. "Padaria" alone → "Padaria, Lisboa, Portugal" is still generic
+    // but detecting the type from the original title lets us prefix it properly
+    const genericTypes = [
+      { pattern: /^padaria$/i,        prefix: 'padaria' },
+      { pattern: /^restaurante$/i,    prefix: 'restaurante' },
+      { pattern: /^bar$/i,            prefix: 'bar' },
+      { pattern: /^café$/i,           prefix: 'café' },
+      { pattern: /^bistrô?$/i,        prefix: 'bistrô' },
+      { pattern: /^pizzaria$/i,       prefix: 'pizzaria' },
+      { pattern: /^lanchonete$/i,     prefix: 'lanchonete' },
+      { pattern: /^mercado$/i,        prefix: 'mercado' },
+      { pattern: /^supermercado$/i,   prefix: 'supermercado' },
+      { pattern: /^museu$/i,          prefix: 'museu' },
+      { pattern: /^parque$/i,         prefix: 'parque' },
+      { pattern: /^praia$/i,          prefix: 'praia' },
+      { pattern: /^feira$/i,          prefix: 'feira' },
+      { pattern: /^shopping$/i,       prefix: 'shopping' },
+    ];
+
+    // Detect the activity type from the ORIGINAL title (before cleaning)
+    // e.g. "Almoço no Mercado" → type hint = "mercado"
+    let typeHint = '';
+    const originalLower = actTitle.toLowerCase();
+    if (/almo[cç]o|jantar|caf[eé][ -]da[ -]manh[aã]|lanche/.test(originalLower)) {
+      // It's a meal — if the clean name is generic (≤ 10 chars, single word), add "restaurante"
+      if (cleanTitle.split(' ').length === 1 && cleanTitle.length <= 12) {
+        typeHint = 'restaurante';
+      }
     }
-    const origin = locations[0];
-    const destination = locations[locations.length - 1];
-    if (locations.length === 2) {
-      return `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}`;
+
+    // Build query: always include city; optionally prepend type hint for disambiguation
+    let queryParts = [];
+    if (typeHint && !cleanTitle.toLowerCase().includes(typeHint)) {
+      queryParts.push(`${cleanTitle} ${typeHint}`);
+    } else {
+      queryParts.push(cleanTitle);
     }
-    const waypoints = locations.slice(1, -1).join("|");
-    return `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&waypoints=${waypoints}`;
+    if (city) queryParts.push(city);
+
+    const query = queryParts.join(', ');
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
+  };
+
+  // getGoogleMapsRouteLink removed (routing descontinuado)
+
+  const getBookingHtml = (act) => {
+    if (!act.booking) return "";
+    const platform = act.booking.platform || 'civitatis';
+    const text = act.booking.suggestedText || 'Reservar ingresso online';
+    let link = '#';
+    const query = encodeURIComponent(act.booking.searchQuery || act.title);
+    if (platform.toLowerCase() === 'civitatis') {
+      link = `https://www.civitatis.com/br/busca/?q=${query}&aid=10433`;
+    } else if (platform.toLowerCase() === 'getyourguide') {
+      link = `https://www.getyourguide.com/s?q=${query}&partner_id=L9P64H5`;
+    } else if (platform.toLowerCase() === 'booking') {
+      link = `https://www.booking.com/searchresults.html?ss=${query}&aid=2311224`;
+    }
+    
+    const platformLabel = platform.charAt(0).toUpperCase() + platform.slice(1);
+    
+    return `
+      <div class="affiliate-widget" onclick="event.stopPropagation()">
+        <div class="affiliate-header">
+          <h5 class="affiliate-title">
+            <i class="fa-solid fa-ticket" style="color: var(--secondary);"></i>
+            Recomendado para Conforto
+          </h5>
+          <div class="affiliate-badges">
+            <span class="affiliate-badge ${platform.toLowerCase()}">${platformLabel}</span>
+            <span class="affiliate-badge trust"><i class="fa-solid fa-shield-check"></i> Seguro</span>
+          </div>
+        </div>
+        <p class="affiliate-desc">Evite filas e garanta seu lugar com antecedência através de parceiros oficiais.</p>
+        <a href="${link}" target="_blank" class="affiliate-btn ${platform.toLowerCase()}-btn">
+          <i class="fa-solid fa-arrow-up-right-from-square"></i> ${text}
+        </a>
+        <div class="affiliate-footer">
+          <i class="fa-solid fa-circle-check"></i> Cancelamento grátis disponível • Garantia do menor preço
+        </div>
+      </div>
+    `;
   };
 
   tripData.itinerary.forEach(day => {
@@ -2173,7 +2478,8 @@ function renderTimeline() {
 
     if (activeFilter !== 'all' && activeFilter != day.dayNum) return;
 
-    // Group activities by turn or render chronologically in calendar view
+    // Extract the city for this day (used for scoped Maps links)
+    const dayCity = getDayCity(day);
     let activitiesHtml = "";
     if (day.activities && day.activities.length > 0) {
       if (itineraryViewMode === 'calendar') {
@@ -2190,44 +2496,7 @@ function renderTimeline() {
         let calendarActsHtml = "";
         
         sortedActivities.forEach(act => {
-          let bookingHtml = "";
-          if (act.booking) {
-            const platform = act.booking.platform || 'civitatis';
-            const text = act.booking.suggestedText || 'Reservar ingresso online';
-            let link = '#';
-            const query = encodeURIComponent(act.booking.searchQuery || act.title);
-            if (platform.toLowerCase() === 'civitatis') {
-              link = `https://www.civitatis.com/br/busca/?q=${query}&aid=10433`;
-            } else if (platform.toLowerCase() === 'getyourguide') {
-              link = `https://www.getyourguide.com/s?q=${query}&partner_id=L9P64H5`;
-            } else if (platform.toLowerCase() === 'booking') {
-              link = `https://www.booking.com/searchresults.html?ss=${query}&aid=2311224`;
-            }
-            
-            const platformLabel = platform.charAt(0).toUpperCase() + platform.slice(1);
-            
-            bookingHtml = `
-              <div class="affiliate-widget" onclick="event.stopPropagation()">
-                <div class="affiliate-header">
-                  <h5 class="affiliate-title">
-                    <i class="fa-solid fa-ticket" style="color: var(--secondary);"></i>
-                    Recomendado para Conforto
-                  </h5>
-                  <div class="affiliate-badges">
-                    <span class="affiliate-badge ${platform.toLowerCase()}">${platformLabel}</span>
-                    <span class="affiliate-badge trust"><i class="fa-solid fa-shield-check"></i> Seguro</span>
-                  </div>
-                </div>
-                <p class="affiliate-desc">Evite filas e garanta seu lugar com antecedência através de parceiros oficiais.</p>
-                <a href="${link}" target="_blank" class="affiliate-btn ${platform.toLowerCase()}-btn">
-                  <i class="fa-solid fa-arrow-up-right-from-square"></i> ${text}
-                </a>
-                <div class="affiliate-footer">
-                  <i class="fa-solid fa-circle-check"></i> Cancelamento grátis disponível • Garantia do menor preço
-                </div>
-              </div>
-            `;
-          }
+          const bookingHtml = getBookingHtml(act);
 
           calendarActsHtml += `
             <div class="calendar-activity-item" onclick="event.stopPropagation()">
@@ -2236,7 +2505,10 @@ function renderTimeline() {
                 <div class="calendar-activity-time-label">
                   <i class="fa-regular fa-clock"></i> ${act.time || '--:--'}
                 </div>
-                <h4>${act.title}</h4>
+                <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                  <h4 style="margin:0; flex:1;">${act.title}</h4>
+                  <a href="${getActivityMapLink(act.title, dayCity)}" target="_blank" class="act-map-link" onclick="event.stopPropagation()" title="Ver no Google Maps"><i class="fa-solid fa-location-dot"></i></a>
+                </div>
                 <p>${act.desc}</p>
                 ${bookingHtml}
               </div>
@@ -2271,54 +2543,19 @@ function renderTimeline() {
         turnConfigs.forEach(cfg => {
           const turnActs = turns[cfg.key];
           if (turnActs && turnActs.length > 0) {
-            const routeLink = getGoogleMapsRouteLink(turnActs);
             let turnActsHtml = "";
             
             turnActs.forEach(act => {
-              let bookingHtml = "";
-              if (act.booking) {
-                const platform = act.booking.platform || 'civitatis';
-                const text = act.booking.suggestedText || 'Reservar ingresso online';
-                let link = '#';
-                const query = encodeURIComponent(act.booking.searchQuery || act.title);
-                if (platform.toLowerCase() === 'civitatis') {
-                  link = `https://www.civitatis.com/br/busca/?q=${query}&aid=10433`;
-                } else if (platform.toLowerCase() === 'getyourguide') {
-                  link = `https://www.getyourguide.com/s?q=${query}&partner_id=L9P64H5`;
-                } else if (platform.toLowerCase() === 'booking') {
-                  link = `https://www.booking.com/searchresults.html?ss=${query}&aid=2311224`;
-                }
-                
-                const platformLabel = platform.charAt(0).toUpperCase() + platform.slice(1);
-                
-                bookingHtml = `
-                  <div class="affiliate-widget" onclick="event.stopPropagation()">
-                    <div class="affiliate-header">
-                      <h5 class="affiliate-title">
-                        <i class="fa-solid fa-ticket" style="color: var(--secondary);"></i>
-                        Recomendado para Conforto
-                      </h5>
-                      <div class="affiliate-badges">
-                        <span class="affiliate-badge ${platform.toLowerCase()}">${platformLabel}</span>
-                        <span class="affiliate-badge trust"><i class="fa-solid fa-shield-check"></i> Seguro</span>
-                      </div>
-                    </div>
-                    <p class="affiliate-desc">Evite filas e garanta seu lugar com antecedência através de parceiros oficiais.</p>
-                    <a href="${link}" target="_blank" class="affiliate-btn ${platform.toLowerCase()}-btn">
-                      <i class="fa-solid fa-arrow-up-right-from-square"></i> ${text}
-                    </a>
-                    <div class="affiliate-footer">
-                      <i class="fa-solid fa-circle-check"></i> Cancelamento grátis disponível • Garantia do menor preço
-                    </div>
-                  </div>
-                `;
-              }
+              const bookingHtml = getBookingHtml(act);
 
               turnActsHtml += `
                 <div class="activity-block">
                   <div class="activity-time">${act.time || '--:--'}</div>
                   <div class="activity-details">
-                    <h4>${act.title}</h4>
+                    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                      <h4 style="margin:0; flex:1;">${act.title}</h4>
+                      <a href="${getActivityMapLink(act.title, dayCity)}" target="_blank" class="act-map-link" onclick="event.stopPropagation()" title="Ver no Google Maps"><i class="fa-solid fa-location-dot"></i></a>
+                    </div>
                     <p>${act.desc}</p>
                     ${bookingHtml}
                   </div>
@@ -2330,7 +2567,6 @@ function renderTimeline() {
               <div class="timeline-turn-group" onclick="event.stopPropagation()">
                 <div class="turn-header-row">
                   <h4 class="turn-title"><i class="fa-solid ${cfg.icon}"></i> ${cfg.label}</h4>
-                  <a href="${routeLink}" target="_blank" class="btn-turn-route" onclick="event.stopPropagation()"><i class="fa-solid fa-map-location-dot"></i> Veja no mapa</a>
                 </div>
                 <div class="turn-activities">
                   ${turnActsHtml}
@@ -2341,7 +2577,6 @@ function renderTimeline() {
         });
       }
     }
-    const dayRouteLink = getGoogleMapsRouteLink(day.activities);
     const card = document.createElement("div");
     card.className = "timeline-item";
     card.innerHTML = `
@@ -2351,16 +2586,9 @@ function renderTimeline() {
           <span class="timeline-day">DIA ${day.dayNum} - ${day.dayTitle || 'Explorações'}</span>
           <span class="timeline-date">${day.date || ''}</span>
         </div>
-        <h3><i class="fa-solid fa-compass" style="color: var(--secondary); margin-right: 8px;"></i> Programação Recomendada</h3>
+        <h3><i class="fa-solid fa-compass" style="color: var(--secondary); margin-right: 8px;"></i> Programação</h3>
         
         <div class="timeline-expandable">
-          ${day.activities && day.activities.length > 0 ? `
-          <div style="margin-bottom: 20px; display: flex; justify-content: flex-end;">
-            <a href="${dayRouteLink}" target="_blank" class="btn btn-secondary btn-sm" style="display: inline-flex; align-items: center; gap: 8px; font-size: 0.76rem; background: rgba(59, 130, 246, 0.1); border: 1.5px solid var(--primary); padding: 8px 16px; border-radius: var(--border-radius-md); color: white;" onclick="event.stopPropagation()">
-              <i class="fa-solid fa-map-location-dot" style="color: var(--primary);"></i> Ver Rota do Dia Completa no GPS 🗺️
-            </a>
-          </div>
-          ` : ''}
           ${activitiesHtml}
           
           <div class="timeline-footer-details">
@@ -2535,7 +2763,7 @@ function updateBudget() {
   tripData.budget.alimentacao = slideAlimentacao;
   tripData.budget.passeios = slidePasseios;
   tripData.budget.compras = slideCompras;
-  localStorage.setItem(getUserStorageKey("gptViajante_tripData"), JSON.stringify(tripData));
+  saveState();
 }
 window.updateBudget = updateBudget;
 
@@ -2824,7 +3052,7 @@ async function deleteDocument(docId) {
 
     tripData.documents = tripData.documents.filter(d => d.id !== docId);
     renderDocuments();
-    localStorage.setItem(getUserStorageKey("gptViajante_tripData"), JSON.stringify(tripData));
+    saveState();
   } catch (err) {
     console.error("Error deleting document:", err);
     alert("⚠️ Ocorreu um erro ao excluir o documento.");
@@ -2847,7 +3075,8 @@ function setupCountdown() {
     return;
   }
 
-  const targetTime = new Date(tripData.targetDate).getTime();
+  const targetDateObj = parseLocalDate(tripData.targetDate);
+  const targetTime = targetDateObj ? targetDateObj.getTime() : NaN;
   if (isNaN(targetTime)) {
     countdown.classList.add("hidden");
     return;
@@ -2864,7 +3093,7 @@ function setupCountdown() {
       countdown.innerHTML = `
         <div class="glass-panel" style="padding: 16px 40px; border-radius: var(--border-radius-md); text-align: center;">
           <span class="countdown-num" style="color: var(--accent); font-size: 1.6rem; font-weight: 700;">Chegou a hora! ✈️</span>
-          <p style="color: white; font-size: 0.9rem; margin-top: 4px;">Aproveite ao máximo a sua viagem!</p>
+          <p style="color: var(--text-main); font-size: 0.9rem; margin-top: 4px;">Aproveite ao máximo a sua viagem!</p>
         </div>
       `;
       return;
@@ -4306,7 +4535,7 @@ function renderSharedSplitwise(shareParam) {
     console.error("Failed to decode shared data:", err);
     if (container) {
       container.innerHTML = `
-        <div class="glass-panel" style="max-width: 500px; padding: 30px; text-align: center; color: white;">
+        <div class="glass-panel" style="max-width: 500px; padding: 30px; text-align: center; color: var(--text-main);">
           <i class="fa-solid fa-triangle-exclamation" style="font-size: 3rem; color: #ef4444; margin-bottom: 16px;"></i>
           <h2>Link Inválido</h2>
           <p style="color: var(--text-light); font-size: 0.9rem; margin-top: 10px;">Este link de compartilhamento parece estar corrompido ou incompleto. Por favor, solicite um novo link.</p>
@@ -4625,10 +4854,10 @@ function renderAttachmentPreview(mode) {
     <div style="display: flex; align-items: center; gap: 10px; width: 100%;">
       ${previewHtml}
       <div style="flex: 1; min-width: 0; text-align: left;">
-        <span style="font-size: 0.8rem; font-weight: 600; color: white; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${attachment.name}</span>
+        <span style="font-size: 0.8rem; font-weight: 600; color: var(--text-main); display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${attachment.name}</span>
         <span style="font-size: 0.68rem; color: var(--text-muted); display: block;">Pronto para enviar</span>
       </div>
-      <button onclick="window.clearAttachment('${mode}')" style="background: none; border: none; padding: 6px; color: var(--text-muted); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: color 0.2s;" onmouseover="this.style.color='white'" onmouseout="this.style.color='var(--text-muted)'">
+      <button onclick="window.clearAttachment('${mode}')" style="background: none; border: none; padding: 6px; color: var(--text-muted); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: color 0.2s;" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-muted)'">
         <i class="fa-solid fa-xmark" style="font-size: 1.1rem;"></i>
       </button>
     </div>

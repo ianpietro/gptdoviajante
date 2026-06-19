@@ -251,21 +251,21 @@
           
           <!-- Card 1: Voos -->
           <div class="glass-panel" style="padding: 24px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 12px; gap: 8px; flex-wrap: wrap;">
-              <h3 style="font-size: 1rem; font-weight: 700; margin: 0; display: flex; align-items: center; gap: 8px; color: var(--text-main);">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 12px; gap: 12px; flex-wrap: wrap;">
+              <h3 style="font-size: 1rem; font-weight: 700; margin: 0; display: flex; align-items: center; gap: 8px; color: var(--text-main); white-space: nowrap;">
                 <i class="fa-solid fa-plane" style="color: var(--primary);"></i> Seus Voos
               </h3>
-              <div style="display: flex; gap: 8px;">
-                <button class="btn btn-secondary btn-sm" id="magicImportPdfBtn" style="padding: 6px 12px; font-size: 0.76rem; background: rgba(59, 130, 246, 0.1); border: 1px dashed var(--primary); display: flex; align-items: center; gap: 6px; cursor: pointer; color: white;">
+              <div style="display: flex; gap: 8px; flex-wrap: wrap; flex: 1; justify-content: flex-end; min-width: 0;">
+                <button class="btn btn-secondary btn-sm" id="magicImportPdfBtn" style="padding: 6px 12px; font-size: 0.76rem; background: rgba(59, 130, 246, 0.1); border: 1px dashed var(--primary); display: flex; align-items: center; gap: 6px; cursor: pointer; color: white; white-space: nowrap;">
                   <i class="fa-solid fa-wand-magic-sparkles" style="color: var(--primary);"></i> Importar PDF
                 </button>
                 <input type="file" id="magicImportPdfFileInput" accept="application/pdf" style="display: none;">
                 
-                <button class="btn btn-secondary btn-sm" id="openTextImportModalBtn" style="padding: 6px 12px; font-size: 0.76rem; background: rgba(16, 185, 129, 0.1); border: 1px dashed #10b981; display: flex; align-items: center; gap: 6px; cursor: pointer; color: white;">
+                <button class="btn btn-secondary btn-sm" id="openTextImportModalBtn" style="padding: 6px 12px; font-size: 0.76rem; background: rgba(16, 185, 129, 0.1); border: 1px dashed #10b981; display: flex; align-items: center; gap: 6px; cursor: pointer; color: white; white-space: nowrap;">
                   <i class="fa-solid fa-paste" style="color: #10b981;"></i> Colar Texto 📝
                 </button>
 
-                <button class="btn btn-primary btn-sm" id="openAddFlightModalBtn" style="padding: 6px 12px; font-size: 0.76rem; background: linear-gradient(135deg, var(--primary) 0%, #1d4ed8 100%); border: none;">
+                <button class="btn btn-primary btn-sm" id="openAddFlightModalBtn" style="padding: 6px 12px; font-size: 0.76rem; background: linear-gradient(135deg, var(--primary) 0%, #1d4ed8 100%); border: none; white-space: nowrap;">
                   <i class="fa-solid fa-plus"></i> Adicionar Voo
                 </button>
               </div>
@@ -363,18 +363,15 @@
         </div>
 
         <!-- Banner incentivando o preenchimento de voos e hospedagem -->
-        <div id="itineraryOptimizationBanner" class="hidden itinerary-opt-banner" style="margin-bottom: 24px; padding: 16px; background: rgba(59, 130, 246, 0.06); border: 1px solid rgba(59, 130, 246, 0.15); border-radius: var(--border-radius-md, 12px); display: flex; align-items: center; justify-content: space-between; gap: 16px; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);">
-          <div style="display: flex; align-items: center; gap: 14px; text-align: left;">
-            <div style="font-size: 1.5rem; color: var(--primary);"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
-            <div>
-              <h4 style="margin: 0; font-size: 0.88rem; font-weight: 700; color: white;">Deixe suas rotas 100% certeiras!</h4>
-              <p style="margin: 4px 0 0 0; font-size: 0.76rem; color: var(--text-light); line-height: 1.4;">
-                Cadastre seus voos e hospedagem na aba <strong>Logística</strong>. O CoPiloto irá recalcular e adaptar automaticamente seu cronograma, mala de viagem e orçamento com base nesses novos dados!
-              </p>
-            </div>
+        <div id="itineraryOptimizationBanner" class="hidden itinerary-opt-banner" style="margin-bottom: 24px; padding: 12px 16px; background: rgba(59, 130, 246, 0.06); border: 1px solid rgba(59, 130, 246, 0.15); border-radius: var(--border-radius-md, 12px); display: flex; align-items: center; justify-content: space-between; gap: 12px; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); flex-wrap: wrap;">
+          <div style="display: flex; align-items: center; gap: 10px; text-align: left; min-width: 0;">
+            <div style="font-size: 1.2rem; color: var(--primary); flex-shrink: 0;"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
+            <p style="margin: 0; font-size: 0.78rem; color: var(--text-light); line-height: 1.4;">
+              <strong style="color: white;">Rotas mais certeiras!</strong> Cadastre seus voos e hospedagem na aba <strong>Logística</strong> para sincronizar tudo.
+            </p>
           </div>
-          <div style="display: flex; gap: 8px; flex-shrink: 0;">
-            <button class="btn btn-primary btn-sm" onclick="switchTab('logistica')" style="padding: 6px 12px; font-size: 0.74rem; background: linear-gradient(135deg, var(--primary) 0%, #1d4ed8 100%); border: none;">
+          <div style="flex-shrink: 0;">
+            <button class="btn btn-primary btn-sm" onclick="switchTab('logistica')" style="padding: 6px 12px; font-size: 0.74rem; background: linear-gradient(135deg, var(--primary) 0%, #1d4ed8 100%); border: none; white-space: nowrap;">
               <i class="fa-solid fa-plane-departure"></i> Preencher Logística
             </button>
           </div>
@@ -901,9 +898,9 @@
 
   <!-- Text Import Modal (Native Dialog with Light-Dismiss) -->
   <dialog id="textImportModal" closedby="any" class="modal-dialog-native" style="border: none; background: transparent; padding: 0; outline: none; z-index: 100000; max-width: 520px; width: calc(100% - 40px); border-radius: var(--border-radius-lg); box-shadow: var(--shadow-lg); margin: auto;">
-    <div class="modal-card glass-panel" style="padding: 30px; display: flex; flex-direction: column; gap: 20px; width: 100%; box-sizing: border-box; background: rgba(15, 23, 42, 0.95); border: 1.5px solid rgba(255, 255, 255, 0.1); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);">
+    <div class="modal-card glass-panel text-import-modal-card" style="padding: 30px; display: flex; flex-direction: column; gap: 20px; width: 100%; box-sizing: border-box; background: rgba(15, 23, 42, 0.95); border: 1.5px solid rgba(255, 255, 255, 0.1); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);">
       <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 12px; margin-bottom: 4px;">
-        <h3 style="margin: 0; font-size: 1.25rem; font-weight: 800; color: white; display: flex; align-items: center; gap: 10px;">
+        <h3 class="text-import-title" style="margin: 0; font-size: 1.25rem; font-weight: 800; color: white; display: flex; align-items: center; gap: 10px;">
           <i class="fa-solid fa-paste" style="color: #10b981;"></i> Importar por Texto
         </h3>
         <button class="modal-close" id="closeTextImportModal" style="background: transparent; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.2rem; transition: color 0.2s, transform 0.2s;"><i class="fa-solid fa-xmark"></i></button>
@@ -915,7 +912,7 @@
       
       <div style="display: flex; flex-direction: column; gap: 8px;">
         <label for="textImportArea" style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: var(--text-light); letter-spacing: 0.05em;">Texto da Reserva</label>
-        <textarea id="textImportArea" placeholder="Cole aqui o e-mail ou comprovante..." style="width: 100%; height: 180px; background: rgba(0, 0, 0, 0.25); border: 1.5px solid var(--border-color); border-radius: var(--border-radius-md); padding: 12px; color: white; outline: none; font-size: 0.88rem; font-family: var(--font-body); resize: vertical; box-sizing: border-box; line-height: 1.5; transition: border-color 0.2s;"></textarea>
+        <textarea id="textImportArea" class="text-import-area" placeholder="Cole aqui o e-mail ou comprovante..." style="width: 100%; height: 180px; background: rgba(0, 0, 0, 0.25); border: 1.5px solid var(--border-color); border-radius: var(--border-radius-md); padding: 12px; color: white; outline: none; font-size: 0.88rem; font-family: var(--font-body); resize: vertical; box-sizing: border-box; line-height: 1.5; transition: border-color 0.2s;"></textarea>
       </div>
       
       <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 10px;">

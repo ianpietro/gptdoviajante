@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Política de Privacidade - CoPiloto de Viagem</title>
+  <meta name="description" content="Política de Privacidade do CoPiloto de Viagem. Saiba como protegemos seus dados pessoais e informações de roteiros.">
+  
+  <!-- Modern Typography (Google Fonts) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Main Stylesheet (Reused sales page style) -->
+  <link rel="stylesheet" href="/vendas.css">
+  
+  <style>
+    .politica-content h2 {
+      font-size: 1.35rem;
+      margin-top: 15px;
+      color: var(--primary);
+      border-left: 3px solid var(--primary);
+      padding-left: 10px;
+    }
+    .politica-content p, .politica-content ul {
+      color: var(--text-light);
+      font-size: 0.95rem;
+      line-height: 1.7;
+    }
+    .politica-content ul {
+      padding-left: 20px;
+      margin-top: -10px;
+    }
+    .politica-content li {
+      margin-bottom: 8px;
+    }
+    .btn-back {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--primary);
+      text-decoration: none;
+      font-weight: 700;
+      font-size: 0.9rem;
+      transition: var(--transition);
+    }
+    .btn-back:hover {
+      color: var(--text-main);
+      transform: translateX(-3px);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 1. Header / Barra de Navegação -->
+  <nav class="header-nav" id="mainHeader" style="position: sticky; top: 0; background: rgba(7, 8, 14, 0.8); backdrop-filter: blur(12px); z-index: 1000; border-bottom: 1px solid var(--border-color);">
+    <div class="container nav-wrapper">
+      <a href="/" class="logo-container" id="brandLogo">
+        <div class="logo-icon"><i class="fa-solid fa-compass"></i></div>
+        <div class="logo-text">CoPiloto de Viagem</div>
+      </a>
+      <div class="nav-actions">
+        <a href="/" class="btn-back">
+          <i class="fa-solid fa-arrow-left"></i> Voltar ao site
+        </a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- 2. Conteúdo da Política -->
+  <main class="section-padding" style="padding: 60px 0;">
+    <div class="container" style="max-width: 850px;">
+      <div class="glass-card" style="padding: 40px; border-radius: var(--radius-md);">
+        
+        <header style="margin-bottom: 30px; border-bottom: 1px solid var(--border-color); padding-bottom: 20px;">
+          <span class="badge"><i class="fa-solid fa-shield-halved"></i> Segurança &amp; Privacidade</span>
+          <h1 style="font-size: 2.2rem; font-weight: 800; margin: 10px 0; font-family: var(--font-heading); color: var(--text-main);">Política de Privacidade</h1>
+          <p style="color: var(--text-muted); font-size: 0.85rem;">Última atualização: 19 de Junho de 2026</p>
+        </header>
+
+        <div class="politica-content" style="display: flex; flex-direction: column; gap: 24px;">
+          <p>
+            O <strong>CoPiloto de Viagem</strong> valoriza a sua privacidade. Esta política descreve, de forma transparente e simplificada, como a nossa plataforma lida com as suas informações e garante que seus planos permaneçam estritamente privados.
+          </p>
+
+          <h2>1. Como funciona o processamento dos seus planos</h2>
+          <p>
+            O CoPiloto foi desenvolvido para atuar como um painel pessoal seguro. A dinâmica de funcionamento técnico de dados é a seguinte:
+          </p>
+          <ul>
+            <li><strong>Sua conversa é direta com a IA:</strong> As mensagens que você troca no chat para estruturar sua viagem (datas, destinos, estilo de roteiro) são processadas de forma segura e imediata pelas APIs oficiais de inteligência artificial (como OpenAI e Google Gemini). <strong>Nós, os criadores e administradores do CoPiloto, nunca temos acesso, não lemos e não inspecionamos de forma alguma o conteúdo das suas conversas ou os roteiros que você cria.</strong> Sua privacidade é absoluta.</li>
+            <li><strong>Salvamento seguro no seu dispositivo/painel:</strong> As informações estruturadas (roteiros, estimativas de custos, checklists de malas e logísticas de voos) são armazenadas de forma segura e protegida em banco de dados privado (Supabase) sob a regra de <strong>RLS (Row-Level Security)</strong>. Isso significa que apenas a sua conta autenticada possui permissão técnica para carregar e exibir esses dados na tela do seu painel. Ninguém mais tem acesso visual ou físico a essas informações.</li>
+            <li><strong>Cadastro e Autorização:</strong> O único dado cadastral que armazenamos ativamente é o seu e-mail e nome (fornecidos ao se registrar ou fazer login direto com sua conta Google). Usamos essas informações exclusivamente para validar se você possui um acesso ativo ao produto e permitir sua autenticação segura na plataforma.</li>
+            <li><strong>PDFs e Comprovantes de Viagem:</strong> Se você optar por usar o recurso de importação de documentos (como reservas de hotéis ou passagens em PDF), esses arquivos são lidos localmente no navegador, processados de forma isolada pela IA parceira para extração das datas/horários, e os dados são salvos apenas no seu próprio painel. Nós não armazenamos nem mantemos cópias desses documentos para nosso uso ou leitura.</li>
+          </ul>
+
+          <h2>2. O que NÃO Coletamos</h2>
+          <p>
+            <strong>Dados de Pagamento:</strong> Nós não processamos, acessamos ou armazenamos suas informações financeiras (como dados de cartão de crédito ou chaves Pix). Todo o fluxo de checkout e faturamento é feito de forma 100% segura através do nosso gateway de pagamento parceiro integrado.
+          </p>
+
+          <h2>3. Compartilhamento de Informações</h2>
+          <p>
+            Nossos parceiros de processamento de inteligência artificial (OpenAI e Google Gemini) operam sob rígidas políticas de privacidade de APIs empresariais, o que garante que nenhuma informação enviada no chat seja utilizada para treinar modelos de linguagem públicos. Não compartilhamos, vendemos ou divulgamos seus dados para quaisquer outras empresas ou terceiros.
+          </p>
+
+          <h2>4. Seus Direitos e Controle de Dados</h2>
+          <p>
+            Você é o único proprietário dos seus dados. A qualquer momento, você pode:
+          </p>
+          <ul>
+            <li>Visualizar, alterar ou limpar seus roteiros e cronogramas direto pelo painel de controle do aplicativo.</li>
+            <li>Solicitar a exclusão definitiva e irreversível da sua conta e de todos os dados salvos associados a ela, bastando entrar em contato com o nosso suporte.</li>
+            <li>Salvar e exportar seus roteiros em formato PDF localmente para visualização offline.</li>
+          </ul>
+
+          <h2>7. Atualizações Desta Política</h2>
+          <p>
+            Podemos atualizar esta Política de Privacidade de tempos em tempos para refletir mudanças operacionais ou regulamentares. Qualquer atualização importante será publicada nesta página com a respectiva data de atualização.
+          </p>
+
+          <h2>8. Contato</h2>
+          <p>
+            Se você tiver qualquer dúvida ou solicitação a respeito de seus dados e privacidade, entre em contato através do e-mail do suporte disponibilizado em nossa página principal.
+          </p>
+        </div>
+
+      </div>
+    </div>
+  </main>
+
+  <!-- 3. Rodapé / Footer -->
+  <footer class="main-footer" id="mainFooter">
+    <div class="container">
+      <a href="/" class="footer-logo">
+        <div class="logo-icon"><i class="fa-solid fa-compass"></i></div>
+        <div class="logo-text">CoPiloto de Viagem</div>
+      </a>
+      
+      <p class="footer-copy">
+        &copy; 2026 CoPiloto de Viagem. Todos os direitos reservados. Criado e desenvolvido por Ian Pietro Capo.<br>
+        Esta aplicação usa a API do Gemini/OpenAI de forma segura. Seus dados estão protegidos sob nossa política de privacidade.
+      </p>
+    </div>
+  </footer>
+
+</body>
+</html>

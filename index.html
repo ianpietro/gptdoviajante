@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>CoPiloto de Viagem - Organize sua viagem em 5 minutos</title>
-  <meta name="description" content="Feche as 15 abas abertas. O CoPiloto de Viagem monta seu roteiro dia a dia, calcula custos reais, gera sua lista de mala e divide as contas do grupo. Por R$ 49,90, acesso vitalício.">
+  <meta name="description" content="Feche as 15 abas abertas. O CoPiloto de Viagem monta roteiro, calcula custos e gera malas. Oferta de lançamento para os 120 primeiros: acesso vitalício por R$ 49,90.">
   
   <!-- SEO OpenGraph Meta Tags -->
   <meta property="og:title" content="CoPiloto de Viagem: Painel de Controle da Sua Próxima Aventura">
@@ -36,7 +36,7 @@
         <div class="logo-text">CoPiloto de Viagem</div>
       </a>
       <div class="nav-actions">
-        <a href="/app" class="nav-login" id="linkToLogin">
+        <a href="/app.html" class="nav-login" id="linkToLogin">
           <i class="fa-solid fa-right-to-bracket"></i> 
           <span class="desktop-only-text">Acessar meu CoPiloto</span>
           <span class="mobile-only-text" style="display: none;">Acessar</span>
@@ -71,131 +71,173 @@
             <i class="fa-solid fa-star"></i>
             <i class="fa-solid fa-star"></i>
           </div>
-          <span>Mais de 1.200 viagens planejadas esta semana</span>
+          <span>Usado por viajantes em 34 países</span>
         </div>
       </div>
       
-      <!-- Lado Direito: Simulador de Roteiro Interativo -->
-      <div class="glass-card simulator-widget" id="simulatorWidget">
-        
-        <!-- Estado 1: Formulário de Configuração -->
-        <div class="simulator-form" id="simFormState">
-          <div class="simulator-header">
-            <h3><i class="fa-solid fa-sliders"></i> Simule Seu Roteiro</h3>
-            <span class="simulator-badge"><i class="fa-solid fa-bolt"></i> Grátis</span>
-          </div>
-          
-          <div class="sim-input-group">
-            <label for="simDest">Qual o destino dos sonhos?</label>
-            <input type="text" id="simDest" class="sim-input" placeholder="Ex: Paris, Santiago, Salvador..." required>
-          </div>
-          
-          <div class="sim-input-group">
-            <div class="sim-days-value">
-              <label>Quantos dias de viagem?</label>
-              <span id="simDaysLabel">5 Dias</span>
+      <!-- Lado Direito: Preview Real do Painel -->
+      <div class="glass-card panel-preview-widget" id="panelPreviewWidget">
+
+        <!-- Cabeçalho do painel -->
+        <div class="ppw-header">
+          <div class="ppw-trip-info">
+            <div class="ppw-trip-badge"><i class="fa-solid fa-compass"></i></div>
+            <div>
+              <div class="ppw-trip-name">Buenos Aires, Argentina</div>
+              <div class="ppw-trip-meta">6 dias · 2 pessoas · Set 2026</div>
             </div>
-            <input type="range" id="simDays" class="sim-slider" min="1" max="15" value="5">
           </div>
-          
-          <div class="sim-input-group">
-            <label for="simProfile">Quem vai viajar com você?</label>
-            <select id="simProfile" class="sim-input sim-select">
-              <option value="casal">Casal (Romântico & Conforto)</option>
-              <option value="familia">Família (Diversão & Logística)</option>
-              <option value="mochila">Mochilão (Econômico & Aventura)</option>
-              <option value="amigos">Grupo de Amigos (Vida Noturna & Passeios)</option>
-            </select>
-          </div>
-          
-          <button type="button" class="btn-generate" id="btnSimulate"><i class="fa-solid fa-wand-magic-sparkles"></i> Gerar Roteiro Simulado</button>
+          <span class="ppw-live-badge"><i class="fa-solid fa-circle"></i> Ao vivo</span>
         </div>
-        
-        <!-- Estado 2: Painel de Pré-visualização Interativa (Escondido por padrão) -->
-        <div class="simulator-screen hidden" id="simChatState">
-          <div class="simulator-header">
-            <h3><i class="fa-solid fa-compass"></i> Demonstrador do Painel</h3>
-            <span class="simulator-badge success" style="background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.2);"><i class="fa-solid fa-circle-check"></i> Criado</span>
-          </div>
-          
-          <div class="sim-preview-meta">
-            <span id="simMetaDest">Destino</span> • <span id="simMetaDays">5 Dias</span> • <span id="simMetaProfile">Perfil</span>
-          </div>
 
-          <!-- Abas da Simulação -->
-          <div class="sim-tabs">
-            <button type="button" class="sim-tab active" data-sim-tab="roteiro"><i class="fa-solid fa-calendar-day"></i> Roteiro</button>
-            <button type="button" class="sim-tab" data-sim-tab="orcamento"><i class="fa-solid fa-wallet"></i> Custos</button>
-            <button type="button" class="sim-tab" data-sim-tab="mala"><i class="fa-solid fa-suitcase"></i> Mala</button>
-          </div>
+        <!-- Abas -->
+        <div class="ppw-tabs">
+          <button class="ppw-tab active" data-ppw="roteiro"><i class="fa-solid fa-route"></i> Roteiro</button>
+          <button class="ppw-tab" data-ppw="orcamento"><i class="fa-solid fa-wallet"></i> Orçamento</button>
+          <button class="ppw-tab" data-ppw="mala"><i class="fa-solid fa-suitcase"></i> Mala</button>
+        </div>
 
-          <div class="sim-tab-content-container">
-            <!-- Aba Roteiro -->
-            <div class="sim-tab-content active" id="simTabRoteiro">
-              <div class="sim-day-card">
-                <div class="sim-day-card-header">
-                  <strong>DIA 1: Chegada & Primeiro Contato</strong>
-                </div>
-                <div class="sim-day-turns">
-                  <div class="sim-turn">🌅 <strong>Manhã:</strong> Chegada no aeroporto e check-in na hospedagem recomendada.</div>
-                  <div class="sim-turn">🌇 <strong>Tarde:</strong> Caminhada leve de reconhecimento e pontos icônicos da região.</div>
-                  <div class="sim-turn">🌙 <strong>Noite:</strong> Jantar de boas-vindas com prato típico local sugerido.</div>
-                </div>
+        <!-- ABA: ROTEIRO -->
+        <div class="ppw-content active" id="ppwRoteiro">
+          <div class="ppw-day-label">DIA 1 — Domingo: Centro Histórico &amp; San Telmo</div>
+          <div class="ppw-turns">
+            <div class="ppw-turn">
+              <div class="ppw-turn-header ppw-manha">
+                <i class="fa-solid fa-cloud-sun"></i> Manhã
               </div>
-              <div class="sim-day-card blurred">
-                <div class="sim-day-card-header">
-                  <strong>DIA 2: Exploração Cultural</strong>
-                  <i class="fa-solid fa-lock lock-icon-inline"></i>
+              <div class="ppw-activity">
+                <span class="ppw-time">08:30</span>
+                <div class="ppw-act-body">
+                  <strong>Plaza de Mayo &amp; Casa Rosada</strong>
+                  <p>Início do dia no coração histórico. Fotos em frente à Casa Rosada e visita rápida à Catedral Metropolitana antes de a feira abrir.</p>
                 </div>
+                <a href="https://www.google.com/maps/search/?api=1&query=Plaza+de+Mayo,+Buenos+Aires" target="_blank" class="ppw-pin-link"><i class="fa-solid fa-location-dot ppw-pin"></i></a>
               </div>
-              <div class="sim-day-card blurred">
-                <div class="sim-day-card-header">
-                  <strong>DIA 3: Segredos Locais & Experiência Wow</strong>
-                  <i class="fa-solid fa-lock lock-icon-inline"></i>
+              <div class="ppw-activity">
+                <span class="ppw-time">10:00</span>
+                <div class="ppw-act-body">
+                  <strong>Feira de San Telmo (Calle Defensa)</strong>
+                  <p>A feira começa na Plaza de Mayo e segue pela Calle Defensa. Caminhada de 2h entre artistas de rua, relíquias, apresentações de tango e artesanato local.</p>
                 </div>
+                <a href="https://www.google.com/maps/search/?api=1&query=Feira+de+San+Telmo,+Buenos+Aires" target="_blank" class="ppw-pin-link"><i class="fa-solid fa-location-dot ppw-pin"></i></a>
               </div>
             </div>
-
-            <!-- Aba Orçamento -->
-            <div class="sim-tab-content" id="simTabOrcamento">
-              <div class="sim-budget-cards">
-                <div class="sim-budget-card">
-                  <span class="budget-card-title">Econômico</span>
-                  <strong class="budget-card-val" id="simBudgetValueEco">R$ 0</strong>
-                </div>
-                <div class="sim-budget-card recommended">
-                  <span class="budget-card-title">Conforto</span>
-                  <strong class="budget-card-val" id="simBudgetValueConf">R$ 0</strong>
-                </div>
-                <div class="sim-budget-card">
-                  <span class="budget-card-title">Premium</span>
-                  <strong class="budget-card-val" id="simBudgetValuePrem">R$ 0</strong>
-                </div>
+            <div class="ppw-turn">
+              <div class="ppw-turn-header ppw-tarde">
+                <i class="fa-solid fa-sun"></i> Tarde
               </div>
-              <p class="sim-budget-desc">Valores aproximados para alimentação, passeios e transporte local calculados sob medida.</p>
+              <div class="ppw-activity">
+                <span class="ppw-time">12:15</span>
+                <div class="ppw-act-body">
+                  <strong>Almoço no Bar El Federal</strong>
+                  <p>Um "Bar Notable" fundado em 1864, muito frequentado por locais. Atmosfera portenha legítima com cerveja artesanal e ojo de bife com fritas impecável.</p>
+                </div>
+                <a href="https://www.google.com/maps/search/?api=1&query=Bar+El+Federal,+Buenos+Aires" target="_blank" class="ppw-pin-link"><i class="fa-solid fa-location-dot ppw-pin"></i></a>
+              </div>
+              <div class="ppw-activity">
+                <span class="ppw-time">13:45</span>
+                <div class="ppw-act-body">
+                  <strong>Sobremesa na Heladería Rapa Nui</strong>
+                  <p>Sorvete artesanal de doce de leite argentino e os famosos Franui (framboesas frescas cobertas de chocolate trufado) para adoçar a tarde.</p>
+                </div>
+                <a href="https://www.google.com/maps/search/?api=1&query=Heladeria+Rapa+Nui,+Recoleta,+Buenos+Aires" target="_blank" class="ppw-pin-link"><i class="fa-solid fa-location-dot ppw-pin"></i></a>
+              </div>
+              <div class="ppw-activity">
+                <span class="ppw-time">15:30</span>
+                <div class="ppw-act-body">
+                  <strong>Livraria El Ateneo Grand Splendid</strong>
+                  <p>Desloque-se à Recoleta para conhecer a icônica livraria instalada dentro de um luxuoso teatro clássico preservado de 1919. Entrada livre.</p>
+                </div>
+                <a href="https://www.google.com/maps/search/?api=1&query=El+Ateneo+Grand+Splendid,+Buenos+Aires" target="_blank" class="ppw-pin-link"><i class="fa-solid fa-location-dot ppw-pin"></i></a>
+              </div>
+              <div class="ppw-activity">
+                <span class="ppw-time">17:00</span>
+                <div class="ppw-act-body">
+                  <strong>Pôr do Sol no Parque Tres de Febrero (Palermo)</strong>
+                  <p>Passeio relaxante pelos lagos de Palermo e pelo famoso Rosedal. O fim de tarde perfeito com o clima da primavera portenha.</p>
+                </div>
+                <a href="https://www.google.com/maps/search/?api=1&query=Parque+Tres+de+Febrero,+Buenos+Aires" target="_blank" class="ppw-pin-link"><i class="fa-solid fa-location-dot ppw-pin"></i></a>
+              </div>
             </div>
-
-            <!-- Aba Mala -->
-            <div class="sim-tab-content" id="simTabMala">
-              <div class="sim-packing-list">
-                <div class="sim-pack-item"><i class="fa-solid fa-square-check"></i> Documentos da viagem e reservas de hotel</div>
-                <div class="sim-pack-item"><i class="fa-solid fa-square-check"></i> Calçados confortáveis para caminhada diária</div>
-                <div class="sim-pack-item blurred-item"><i class="fa-solid fa-lock"></i> Itens de vestuário específicos para o clima local</div>
-                <div class="sim-pack-item blurred-item"><i class="fa-solid fa-lock"></i> Kit de remédios essenciais recomendados</div>
+            <div class="ppw-turn">
+              <div class="ppw-turn-header ppw-noite">
+                <i class="fa-solid fa-moon"></i> Noite
+              </div>
+              <div class="ppw-activity">
+                <span class="ppw-time">21:00</span>
+                <div class="ppw-act-body">
+                  <strong>Show de Tango no Café de los Angelitos</strong>
+                  <p>Espetáculo de tango ao vivo de altíssimo nível combinado com um jantar tradicional portenho completo de 3 passos.</p>
+                </div>
+                <a href="https://www.google.com/maps/search/?api=1&query=Cafe+de+los+Angelitos,+Buenos+Aires" target="_blank" class="ppw-pin-link"><i class="fa-solid fa-location-dot ppw-pin"></i></a>
               </div>
             </div>
           </div>
-          
-          <!-- Botão ou Bloco de Checkout integrado pós-simulação -->
-          <div class="sim-lock-overlay" id="simLockOverlay">
-            <div class="lock-icon"><i class="fa-solid fa-lock"></i></div>
-            <h4 class="sim-lock-title">Seu CoPiloto está pronto!</h4>
-            <p class="sim-lock-text">
-              Garanta seu acesso para desbloquear o painel completo: roteiro interativo, lista de mala e planilha financeira reativa.
-            </p>
-            <a href="#oferta" class="btn btn-accent btn-lock-unlock" id="btnSimUnlock"><i class="fa-solid fa-plane-departure"></i> Garantir meu CoPiloto por R$ 49,90</a>
+          <div class="ppw-more-days">
+            <i class="fa-solid fa-lock ppw-lock"></i>
+            <span>+ 5 dias de roteiro completo no seu painel</span>
           </div>
         </div>
+
+        <!-- ABA: ORÇAMENTO -->
+        <div class="ppw-content" id="ppwOrcamento">
+          <div class="ppw-budget-intro">Estimativa para <strong>2 pessoas · 6 dias</strong> em Buenos Aires</div>
+          <div class="ppw-budget-tiers">
+            <div class="ppw-tier">
+              <div class="ppw-tier-label">🟠 Econômico</div>
+              <div class="ppw-tier-total">R$ 3.100</div>
+              <div class="ppw-tier-day">≈ R$ 517/dia</div>
+              <div class="ppw-tier-desc">Hostels em Palermo, metrô, parillas populares e museus gratuitos.</div>
+            </div>
+            <div class="ppw-tier ppw-tier-recommended">
+              <div class="ppw-tier-rec-badge">✦ Recomendado</div>
+              <div class="ppw-tier-label">🟡 Conforto</div>
+              <div class="ppw-tier-total">R$ 6.800</div>
+              <div class="ppw-tier-day">≈ R$ 1.133/dia</div>
+              <div class="ppw-tier-desc">Hotel 3★ em Recoleta, parrillas tradicionais e show de tango incluso.</div>
+            </div>
+            <div class="ppw-tier">
+              <div class="ppw-tier-label">🟢 Premium</div>
+              <div class="ppw-tier-total">R$ 14.200</div>
+              <div class="ppw-tier-day">≈ R$ 2.367/dia</div>
+              <div class="ppw-tier-desc">Boutique hotel 5★, churrascaria El Gaucho e tour privado da cidade.</div>
+            </div>
+          </div>
+          <div class="ppw-budget-note"><i class="fa-solid fa-circle-info"></i> Câmbio dólar blue considerado. Valores atualizados para Set/2026.</div>
+        </div>
+
+        <!-- ABA: MALA -->
+        <div class="ppw-content" id="ppwMala">
+          <div class="ppw-packing-intro">Lista gerada para <strong>Buenos Aires · Setembro · Casal</strong></div>
+          <div class="ppw-packing-cats">
+            <div class="ppw-pack-cat">
+              <div class="ppw-pack-cat-title"><i class="fa-solid fa-shirt"></i> Vestuário</div>
+              <div class="ppw-pack-item ppw-checked"><i class="fa-solid fa-circle-check"></i> Casaco e agasalho (primavera portenha, ~12°C à noite)</div>
+              <div class="ppw-pack-item ppw-checked"><i class="fa-solid fa-circle-check"></i> Roupas em camadas (dias ensolarados chegam a 18°C)</div>
+              <div class="ppw-pack-item ppw-checked"><i class="fa-solid fa-circle-check"></i> Sapato fechado confortável para muito asfalto</div>
+            </div>
+            <div class="ppw-pack-cat">
+              <div class="ppw-pack-cat-title"><i class="fa-solid fa-id-card"></i> Documentos</div>
+              <div class="ppw-pack-item ppw-checked"><i class="fa-solid fa-circle-check"></i> RG ou Passaporte (brasileiros não precisam de visto)</div>
+              <div class="ppw-pack-item ppw-checked"><i class="fa-solid fa-circle-check"></i> Seguro viagem contratado</div>
+              <div class="ppw-pack-item"><i class="fa-regular fa-circle"></i> Dólares em espécie para câmbio blue</div>
+            </div>
+            <div class="ppw-pack-cat">
+              <div class="ppw-pack-cat-title"><i class="fa-solid fa-kit-medical"></i> Saúde</div>
+              <div class="ppw-pack-item"><i class="fa-regular fa-circle"></i> Remédios para frio e gripe</div>
+              <div class="ppw-pack-item"><i class="fa-regular fa-circle"></i> Analgésico e antidiarreico</div>
+            </div>
+          </div>
+          <div class="ppw-more-days">
+            <i class="fa-solid fa-lock ppw-lock"></i>
+            <span>+ 26 itens personalizados no seu painel completo</span>
+          </div>
+        </div>
+
+        <!-- CTA dentro do widget -->
+        <a href="#oferta" class="ppw-cta-btn">
+          <i class="fa-solid fa-plane-departure"></i> Garantir Acesso Vitalício — R$ 49,90
+        </a>
 
       </div>
 
@@ -300,54 +342,7 @@
     </div>
   </section>
 
-  <!-- 4.5. Novidades Recentes (Versão 2.0) -->
-  <section class="section-padding pain-section" id="novidades" style="border-bottom: 1px solid var(--border-color);">
-    <div class="container">
-      <div class="section-header">
-        <span class="badge badge-accent"><i class="fa-solid fa-fire"></i> Novidades da Versão 2.0</span>
-        <h2 class="section-title">O que já era incrível ficou ainda mais inteligente.</h2>
-        <p class="section-subtitle">
-          Acabamos de liberar recursos de última geração para tornar sua experiência na estrada impecável.
-        </p>
-      </div>
-      
-      <div class="features-grid">
-        
-        <div class="glass-card feature-item accent-theme">
-          <div class="feature-icon-box"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
-          <div class="feature-body">
-            <h3>Leitor Inteligente de PDF 🪄</h3>
-            <p>Faça upload de suas passagens aéreas e comprovantes em PDF. Nossa IA lê os bilhetes e preenche os detalhes de voos e hotéis no painel em segundos.</p>
-          </div>
-        </div>
-        
-        <div class="glass-card feature-item yellow-theme">
-          <div class="feature-icon-box"><i class="fa-solid fa-map-location-dot"></i></div>
-          <div class="feature-body">
-            <h3>GPS do Dia Completo no Mapa 🗺️</h3>
-            <p>Chega de digitar destino por destino no GPS. Com um único clique, abra toda a rota planejada do dia sequenciada no Google Maps pronta para navegar.</p>
-          </div>
-        </div>
-        
-        <div class="glass-card feature-item">
-          <div class="feature-icon-box"><i class="fa-solid fa-bolt"></i></div>
-          <div class="feature-body">
-            <h3>Auto-Sync em Tempo Real 🔄</h3>
-            <p>Seus ajustes e conversas no chat de planejamento e no chat de viagem atualizam todo o painel de logística e roteiro de forma instantânea.</p>
-          </div>
-        </div>
-        
-        <div class="glass-card feature-item purple-theme">
-          <div class="feature-icon-box"><i class="fa-solid fa-circle-half-stroke"></i></div>
-          <div class="feature-body">
-            <h3>Tema Claro & Escuro 🌓</h3>
-            <p>Alterne facilmente entre um tema escuro imersivo ou um tema claro limpo de alta legibilidade, perfeito para usar sob a luz do sol durante os passeios.</p>
-          </div>
-        </div>
-        
-      </div>
-    </div>
-  </section>
+
 
   <!-- 5. Como Funciona -->
   <section class="section-padding how-section" id="como-funciona">
@@ -362,24 +357,107 @@
       
       <div class="steps-grid">
         
-        <div class="glass-card step-card">
-          <div class="step-number">1</div>
-          <h3>1. Defina sua viagem</h3>
-          <p>Informe o destino, datas e seu estilo de viagem direto no chat, sem preencher formulários longos.</p>
+        <div class="glass-card step-card step-card-with-screenshot">
+          <div class="step-text-side">
+            <div class="step-number">1</div>
+            <h3>1. Defina sua viagem</h3>
+            <p>Informe o destino, datas e seu estilo de viagem direto no chat, sem preencher formulários longos.</p>
+          </div>
+          <div class="step-screenshot-side">
+            <div class="screenshot-placeholder screenshot-step" id="screenshot-chat">
+              <div class="screenshot-ph-inner">
+                <i class="fa-solid fa-comments screenshot-ph-icon"></i>
+                <span class="screenshot-ph-label">Screenshot — Chat de Planejamento</span>
+              </div>
+            </div>
+          </div>
         </div>
         
-        <div class="glass-card step-card">
-          <div class="step-number">2</div>
-          <h3>2. Visualize o painel</h3>
-          <p>Veja seu painel montado com roteiro por turnos, custos locais detalhados e sua lista de mala de viagem pronta.</p>
+        <div class="glass-card step-card step-card-with-screenshot">
+          <div class="step-text-side">
+            <div class="step-number">2</div>
+            <h3>2. Visualize o painel</h3>
+            <p>Veja seu painel montado com roteiro por turnos, custos locais detalhados e sua lista de mala de viagem pronta.</p>
+          </div>
+          <div class="step-screenshot-side">
+            <div class="screenshot-placeholder screenshot-step" id="screenshot-roteiro-passo2">
+              <div class="screenshot-ph-inner">
+                <i class="fa-solid fa-route screenshot-ph-icon"></i>
+                <span class="screenshot-ph-label">Screenshot — Roteiro Montado</span>
+              </div>
+            </div>
+          </div>
         </div>
         
-        <div class="glass-card step-card">
-          <div class="step-number">3</div>
-          <h3>3. Viaje sem preocupação</h3>
-          <p>Adicione o CoPiloto à tela do celular, use offline e compartilhe o PDF do roteiro no grupo da viagem.</p>
+        <div class="glass-card step-card step-card-with-screenshot">
+          <div class="step-text-side">
+            <div class="step-number">3</div>
+            <h3>3. Viaje sem preocupação</h3>
+            <p>Adicione o CoPiloto à tela do celular, use offline e compartilhe o PDF do roteiro no grupo da viagem.</p>
+          </div>
+          <div class="step-screenshot-side">
+            <div class="screenshot-placeholder screenshot-step" id="screenshot-mala">
+              <div class="screenshot-ph-inner">
+                <i class="fa-solid fa-suitcase screenshot-ph-icon"></i>
+                <span class="screenshot-ph-label">Screenshot — Mala com Itens Marcados</span>
+              </div>
+            </div>
+          </div>
         </div>
         
+      </div>
+    </div>
+  </section>
+
+  <!-- POSIÇÃO 3: Nova seção Veja o painel por dentro -->
+  <section class="section-padding screenshot-gallery-section" id="painel-por-dentro">
+    <div class="container">
+      <div class="section-header">
+        <span class="badge"><i class="fa-solid fa-mobile-screen"></i> Interface</span>
+        <h2 class="section-title">Veja o painel por dentro</h2>
+        <p class="section-subtitle">Tudo que você precisa, organizado num painel que cabe no bolso.</p>
+      </div>
+      <div class="screenshot-gallery-grid">
+
+        <div class="screenshot-gallery-card">
+          <div class="screenshot-placeholder" id="screenshot-orcamento">
+            <div class="screenshot-ph-inner">
+              <i class="fa-solid fa-wallet screenshot-ph-icon"></i>
+              <span class="screenshot-ph-label">Screenshot — Orçamento</span>
+            </div>
+          </div>
+          <div class="screenshot-gallery-info">
+            <h3>Orçamento em tempo real</h3>
+            <p>Sliders por categoria, gráfico visual e perfil de gasto. Você sabe exatamente quanto vai gastar antes de embarcar.</p>
+          </div>
+        </div>
+
+        <div class="screenshot-gallery-card">
+          <div class="screenshot-placeholder" id="screenshot-na-viagem">
+            <div class="screenshot-ph-inner">
+              <i class="fa-solid fa-compass screenshot-ph-icon"></i>
+              <span class="screenshot-ph-label">Screenshot — Na Viagem</span>
+            </div>
+          </div>
+          <div class="screenshot-gallery-info">
+            <h3>Guia local no bolso</h3>
+            <p>Durante a viagem o CoPiloto vira seu guia em campo. Ele já sabe seu hotel, seu destino e seu roteiro.</p>
+          </div>
+        </div>
+
+        <div class="screenshot-gallery-card">
+          <div class="screenshot-placeholder" id="screenshot-logistica">
+            <div class="screenshot-ph-inner">
+              <i class="fa-solid fa-plane-departure screenshot-ph-icon"></i>
+              <span class="screenshot-ph-label">Screenshot — Logística</span>
+            </div>
+          </div>
+          <div class="screenshot-gallery-info">
+            <h3>Voos e documentos centralizados</h3>
+            <p>Cadastre voos, faça upload de passagens em PDF e o CoPiloto extrai os dados automaticamente.</p>
+          </div>
+        </div>
+
       </div>
     </div>
   </section>
@@ -485,16 +563,23 @@
   <section class="section-padding pricing-section" id="oferta">
     <div class="container">
       <div class="section-header">
-        <span class="badge badge-accent"><i class="fa-solid fa-tag"></i> Oferta de Lançamento</span>
-        <h2 class="section-title">Evitar um único erro na viagem já paga o CoPiloto.</h2>
+        <span class="badge badge-accent"><i class="fa-solid fa-fire"></i> Lançamento Exclusivo</span>
+        <h2 class="section-title">Você gasta 6 horas pesquisando. O CoPiloto organiza tudo em 5 minutos. Por R$ 49,90.</h2>
         <p class="section-subtitle">
-          Evite excesso de bagagem de R$ 350, guias desatualizados de R$ 90 ou roteiros de agência por R$ 800. Tenha acesso vitalício ao CoPiloto por um pagamento único de <strong>R$ 49,90</strong>.
+          Evitar um único erro na viagem já paga o investimento. Oferta vitalícia exclusiva para os 120 primeiros compradores — depois custará R$ 79,90/ano.
         </p>
       </div>
       
       <div class="glass-card pricing-box" id="priceCard">
         <div class="pricing-box-content">
+          <div class="pricing-alert-banner">
+            <i class="fa-solid fa-hourglass-half"></i> <strong>Lote Promocional:</strong> Apenas para os 120 primeiros.
+          </div>
           <span class="pricing-title">Acesso Total Vitalício ao CoPiloto</span>
+          
+          <p class="pricing-hero-statement">
+            "Você vai mesmo gastar mais um final de semana inteiro comparando abas de navegador para economizar o valor de uma única pizza?"
+          </p>
           
           <div class="price-container">
             <span class="price-currency">R$</span>
@@ -502,6 +587,7 @@
             <span class="price-currency">,90</span>
             <span class="price-period">único</span>
           </div>
+          <div class="price-comparison-label">Mais barato que um café da manhã no aeroporto.</div>
           
           <ul class="price-list">
             <li><i class="fa-solid fa-circle-check"></i> Viagens ilimitadas: planeje quantas vezes quiser para sempre</li>
@@ -519,6 +605,8 @@
           </a>
           
           <p class="price-note">Pagamento 100% seguro via Pix ou Cartão. Acesso liberado imediatamente no seu e-mail.</p>
+          
+          <p class="price-next-batch">⚠️ Após esgotar o lote (120 vagas), o acesso vitalício será encerrado e o CoPiloto passará a custar <strong>R$ 79,90/ano</strong>.</p>
         </div>
       </div>
     </div>
@@ -544,7 +632,7 @@
           </button>
           <div class="faq-answer">
             <div class="faq-answer-inner">
-              Assim que o pagamento de R$ 49,90 for confirmado, você recebe um e-mail automático com o link de acesso. Clique, crie sua senha e já comece a planejar sua próxima aventura. Leva menos de 2 minutos.
+              Assim que o pagamento for confirmado, você receberá um e-mail automático com o link de acesso. Basta acessar, criar sua conta com o mesmo e-mail usado na compra (ou fazer login direto usando sua conta Google) e pronto! Em menos de 2 minutos você já poderá começar a planejar.
             </div>
           </div>
         </div>
@@ -556,7 +644,7 @@
           </button>
           <div class="faq-answer">
             <div class="faq-answer-inner">
-              Pode, e não tem limite. É um acesso vitalício: você planeja a viagem deste ano, a do ano que vem, a da lua de mel, a viagem em família. Resetou, começou de novo. Sem custo adicional, sem pedir permissão.
+              Pode, e não tem limite de roteiros. Você planeja a viagem deste ano, a do ano que vem, a da lua de mel, a viagem em família... Enquanto seu plano estiver ativo (acesso vitalício para quem garantir o lote de lançamento, ou anualmente para os lotes seguintes), você pode planejar quantos roteiros desejar. Resetou, começou de novo. Sem custos adicionais por roteiro.
             </div>
           </div>
         </div>
@@ -568,7 +656,7 @@
           </button>
           <div class="faq-answer">
             <div class="faq-answer-inner">
-              Não. O pagamento é único de R$ 49,90. Nenhuma cobrança recorrente, nenhuma taxa surpresa, nenhuma assinatura mensal. Pagou uma vez, é seu para sempre.
+              Não para quem garantir o lote de lançamento. Os 120 primeiros compradores pagam uma única taxa de R$ 49,90 e têm acesso vitalício completo. Após o preenchimento dessas vagas, o CoPiloto passará a custar R$ 79,90 por ano.
             </div>
           </div>
         </div>
@@ -592,7 +680,7 @@
           </button>
           <div class="faq-answer">
             <div class="faq-answer-inner">
-              Dentro do painel, tem um botão "Baixar em PDF". Um clique e o arquivo com o roteiro completo, lista de mala e tabela financeira é gerado. Dá pra salvar no celular ou jogar direto no grupo do WhatsApp. Funciona offline na estrada.
+              Dentro do painel, basta clicar em "Exportar PDF". O sistema abrirá a tela de visualização e impressão do seu próprio navegador ou celular, onde você pode salvar o roteiro completo como PDF. Depois, é só enviar no grupo do WhatsApp ou salvar no aparelho para acessar offline durante a viagem.
             </div>
           </div>
         </div>
@@ -616,12 +704,12 @@
         <li><a href="#como-funciona">Como Funciona</a></li>
         <li><a href="#criador">Quem Criou</a></li>
         <li><a href="#oferta">Garantir Acesso</a></li>
-        <li><a href="/app">Meu CoPiloto</a></li>
+        <li><a href="/app.html">Meu CoPiloto</a></li>
       </ul>
       
       <p class="footer-copy">
         &copy; 2026 CoPiloto de Viagem. Todos os direitos reservados. Criado e desenvolvido por Ian Pietro Capo.<br>
-        Esta aplicação usa a API do Gemini/OpenAI de forma segura. Seus dados estão protegidos sob nossa política de privacidade.
+        Esta aplicação usa a API do Gemini/OpenAI de forma segura. Seus dados estão protegidos sob nossa <a href="/politica-privacidade.html" style="color: var(--primary); text-decoration: underline;">política de privacidade</a>.
       </p>
     </div>
   </footer>

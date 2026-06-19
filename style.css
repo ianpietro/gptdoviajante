@@ -124,6 +124,20 @@ body.light-theme #tutorialBtn {
   color: var(--text-main) !important;
 }
 
+/* Button secondary and import title light theme overrides */
+body.light-theme .btn-secondary {
+  background: rgba(15, 23, 42, 0.05) !important;
+  border-color: rgba(15, 23, 42, 0.12) !important;
+  color: var(--text-main) !important;
+}
+body.light-theme .btn-secondary:hover {
+  background: rgba(15, 23, 42, 0.09) !important;
+  border-color: rgba(15, 23, 42, 0.25) !important;
+}
+body.light-theme .text-import-title {
+  color: var(--text-main) !important;
+}
+
 /* Section Header & Component Contrast Overrides */
 body.light-theme .hero h1 {
   color: #ffffff !important;
@@ -154,6 +168,71 @@ body.light-theme .analysis-item {
 }
 body.light-theme #aiBudgetAnalysisBlock {
   border-bottom: 1px dashed rgba(15, 23, 42, 0.08) !important;
+}
+
+/* Flight action buttons — hardcoded color: white becomes invisible in light theme */
+body.light-theme #magicImportPdfBtn {
+  color: #1d4ed8 !important;
+  background: rgba(59, 130, 246, 0.08) !important;
+  border-color: var(--primary) !important;
+}
+body.light-theme #magicImportPdfBtn i {
+  color: #1d4ed8 !important;
+}
+body.light-theme #openTextImportModalBtn {
+  color: #065f46 !important;
+  background: rgba(16, 185, 129, 0.08) !important;
+  border-color: #10b981 !important;
+}
+body.light-theme #openTextImportModalBtn i {
+  color: #059669 !important;
+}
+
+/* Map pin link buttons in light theme */
+body.light-theme .act-map-link {
+  color: #1d4ed8 !important;
+  background: rgba(59, 130, 246, 0.08) !important;
+  border-color: rgba(59, 130, 246, 0.3) !important;
+}
+body.light-theme .btn-turn-route {
+  color: #1d4ed8 !important;
+  background: rgba(59, 130, 246, 0.08) !important;
+  border-color: rgba(59, 130, 246, 0.3) !important;
+}
+
+/* Logistics optimization banner in light theme */
+body.light-theme .itinerary-opt-banner p,
+body.light-theme .itinerary-opt-banner strong {
+  color: #1e293b !important;
+}
+
+/* Text Import Modal — light theme */
+body.light-theme .text-import-modal-card {
+  background: #ffffff !important;
+  border-color: rgba(15, 23, 42, 0.1) !important;
+}
+body.light-theme .text-import-title {
+  color: #0f172a !important;
+}
+body.light-theme .text-import-modal-card p,
+body.light-theme .text-import-modal-card label {
+  color: #475569 !important;
+}
+body.light-theme .text-import-modal-card .modal-header {
+  border-bottom-color: rgba(15, 23, 42, 0.1) !important;
+}
+body.light-theme .text-import-area {
+  background: #f8fafc !important;
+  color: #0f172a !important;
+  border-color: rgba(15, 23, 42, 0.15) !important;
+}
+body.light-theme .text-import-area::placeholder {
+  color: #94a3b8 !important;
+}
+body.light-theme #cancelTextImportBtn {
+  color: #334155 !important;
+  background: rgba(15, 23, 42, 0.06) !important;
+  border-color: rgba(15, 23, 42, 0.12) !important;
 }
 
 /* Login screen light theme */
@@ -1155,6 +1234,64 @@ a:hover {
   transform: translateY(0);
 }
 
+/* Day full route GPS button */
+.btn-day-route {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.76rem;
+  background: rgba(59, 130, 246, 0.1);
+  border: 1.5px solid var(--primary);
+  padding: 8px 16px;
+  border-radius: var(--border-radius-md);
+  color: #93c5fd;
+  text-decoration: none;
+  transition: all var(--transition-fast);
+}
+.btn-day-route i {
+  color: var(--primary);
+}
+.btn-day-route:hover {
+  background: rgba(59, 130, 246, 0.2);
+  color: white;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+}
+body.light-theme .btn-day-route {
+  color: #1d4ed8 !important;
+  background: rgba(59, 130, 246, 0.08) !important;
+}
+body.light-theme .btn-day-route i {
+  color: #1d4ed8 !important;
+}
+body.light-theme .btn-day-route:hover {
+  color: #1e3a8a !important;
+  background: rgba(59, 130, 246, 0.15) !important;
+}
+
+/* Individual activity map pin link */
+.act-map-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: rgba(59, 130, 246, 0.1);
+  color: #60a5fa;
+  border: 1.5px solid rgba(59, 130, 246, 0.2);
+  border-radius: 50%;
+  font-size: 0.75rem;
+  text-decoration: none;
+  flex-shrink: 0;
+  transition: all var(--transition-fast);
+}
+.act-map-link:hover {
+  background: rgba(59, 130, 246, 0.25);
+  color: white;
+  border-color: rgba(59, 130, 246, 0.45);
+  transform: scale(1.1);
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+}
+
 /* Timeline Footer Metadata */
 .timeline-footer-details {
   display: grid;
@@ -1508,6 +1645,43 @@ footer p {
   background: rgba(99, 102, 241, 0.25);
   color: #fff;
 }
+
+/* Auto-injected place buttons (Maps + TripAdvisor) */
+.chat-place-links {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 5px;
+  vertical-align: middle;
+}
+.chat-place-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  font-size: 0.72rem;
+  text-decoration: none;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+  opacity: 0.75;
+}
+.chat-place-btn:hover {
+  transform: scale(1.15);
+  opacity: 1;
+}
+.maps-btn {
+  background: rgba(66, 133, 244, 0.18);
+  color: #4285f4;
+  border: 1px solid rgba(66, 133, 244, 0.3);
+}
+.maps-btn:hover { background: rgba(66, 133, 244, 0.32); color: #4285f4; }
+.ta-btn {
+  background: rgba(52, 211, 153, 0.15);
+  color: #34d399;
+  border: 1px solid rgba(52, 211, 153, 0.3);
+}
+.ta-btn:hover { background: rgba(52, 211, 153, 0.28); color: #34d399; }
 .hotel-link {
   color: var(--accent);
   text-decoration: none;

@@ -29,6 +29,8 @@ module.exports = async function handler(req, res) {
 Sua missão é gerar um plano de pré-visualização espetacular e ultra personalizado para o Dia 1 de uma viagem a "${destination}" por ${days} dias, adaptado ao perfil "${profile}".
 
 NÃO seja genérico ou robótico. Evite termos clichês, respostas curtas ou formais. Escreva como um sommelier de viagens: direto, prático, acolhedor e focado em curadoria ativa. Não use travessões (—) para separar explicações. Recomende pontos específicos e DEFENDA suas escolhas com detalhes sensoriais e logísticos reais.
+Sempre avalie se atrações vizinhas permitem deslocamento a pé confortável. Indique explicitamente a caminhada apenas se souber que o trajeto é seguro para pedestres no local e horário indicados; caso contrário, recomende transporte público ou Uber/táxi.
+Adapte a logística cirurgicamente ao meio de transporte do usuário: se ele viajar de CARRO, descreva o tempo e caminho de carro (ex: "um caminho de 20 minutos de carro"); se usar TRANSPORTE PÚBLICO, cite a linha de metrô/ônibus e tempo estimado; caso contrário, sugira a opção ideal de melhor custo-benefício.
 
 Você deve retornar estritamente um objeto JSON com as chaves indicadas abaixo, sem qualquer texto adicional antes ou depois.
 
