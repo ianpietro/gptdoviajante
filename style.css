@@ -1,6 +1,9 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&display=swap');
+
 /* ==========================================================================
    COPILOTO DE VIAGEM - PREMIUM DESIGN SYSTEM & STYLESHEET (2026)
    ========================================================================== */
+
 
 :root {
   /* HSL Color System */
@@ -45,23 +48,38 @@
 }
 
 body.light-theme {
-  --bg-app: #f1f5f9;
-  --bg-card: rgba(255, 255, 255, 0.85);
+  --primary-hue: 220;
+  --secondary-hue: 185;
+  --accent-hue: 38;
+
+  --primary: #151e2b;
+  --primary-hover: #0e141d;
+  --primary-light: rgba(21, 30, 43, 0.12);
+  
+  --secondary: #2e94a8;
+  --accent: #f0a829;
+  
+  --bg-app: #f8fafc;
+  --bg-card: rgba(255, 255, 255, 0.72);
   --bg-sidebar: rgba(255, 255, 255, 0.95);
   --bg-input: #ffffff;
   
-  --border-color: rgba(15, 23, 42, 0.08);
-  --border-color-glow: rgba(37, 99, 235, 0.18);
+  --border-color: rgba(21, 30, 43, 0.12);
+  --border-color-glow: rgba(46, 148, 168, 0.2);
   
-  --text-main: #0f172a;
-  --text-light: #334155;
-  --text-muted: #64748b;
+  --text-main: #151e2b;
+  --text-light: #5b6c84;
+  --text-muted: #7e8794;
 
-  --shadow-sm: 0 2px 8px rgba(15, 23, 42, 0.04);
-  --shadow-md: 0 10px 20px -5px rgba(15, 23, 42, 0.06), 0 0 1px 1px rgba(15, 23, 42, 0.02);
-  --shadow-lg: 0 20px 25px -5px rgba(15, 23, 42, 0.1), 0 10px 10px -5px rgba(15, 23, 42, 0.04);
-  --shadow-glow: 0 0 20px rgba(37, 99, 235, 0.06);
+  --shadow-sm: 0 4px 20px -2px rgba(21, 30, 43, 0.05);
+  --shadow-md: 0 12px 30px -4px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 20px 40px -4px rgba(0, 0, 0, 0.12);
+  --shadow-glow: 0 0 20px rgba(46, 148, 168, 0.08);
+
+  --font-title: 'Playfair Display', Georgia, serif;
+  --font-body: 'Outfit', sans-serif;
 }
+
 
 /* Scrollbar styling in Light Mode */
 body.light-theme ::-webkit-scrollbar-thumb {
@@ -73,16 +91,19 @@ body.light-theme ::-webkit-scrollbar-thumb:hover {
 
 /* Chat bubble enhancements for Light Mode */
 body.light-theme .message.user .message-bubble {
-  background: linear-gradient(135deg, var(--primary) 0%, #1d4ed8 100%) !important;
+  background: linear-gradient(135deg, var(--secondary) 0%, #1c5f6e 100%) !important;
   border: none !important;
   color: white !important;
 }
 body.light-theme .message.assistant .message-bubble {
-  background: #ffffff !important;
-  border: 1px solid rgba(15, 23, 42, 0.08) !important;
-  box-shadow: 0 4px 6px -1px rgba(15, 23, 42, 0.04) !important;
+  background: var(--bg-card) !important;
+  border: 1px solid var(--border-color) !important;
+  box-shadow: var(--shadow-sm) !important;
   color: var(--text-main) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
 }
+
 
 /* Global Form Controls Contrast Override (resolves inline color: white) */
 body.light-theme input,
@@ -107,36 +128,68 @@ body.light-theme textarea:focus {
 
 /* Clean Dashboard Pastels in Light Mode */
 body.light-theme .dashboard-content {
-  background-image: 
-    radial-gradient(at 100% 0%, hsla(var(--primary-hue), 80%, 95%, 0.3) 0px, transparent 50%),
-    radial-gradient(at 0% 100%, hsla(var(--secondary-hue), 80%, 95%, 0.2) 0px, transparent 50%) !important;
+  background-image: linear-gradient(180deg, rgba(215, 230, 250, 0.78) 0%, rgba(190, 215, 245, 0.85) 100%) !important;
+  background-attachment: scroll !important;
+  background-size: cover !important;
 }
+
 
 /* Settings panel in Light Mode */
 body.light-theme .settings-panel {
-  background: rgba(15, 23, 42, 0.03) !important;
+  background: rgba(21, 30, 43, 0.03) !important;
 }
 
 /* Tutorial button in Light Mode */
 body.light-theme #tutorialBtn {
-  background: rgba(15, 23, 42, 0.05) !important;
-  border-color: rgba(15, 23, 42, 0.1) !important;
+  background: rgba(21, 30, 43, 0.05) !important;
+  border-color: rgba(21, 30, 43, 0.1) !important;
   color: var(--text-main) !important;
 }
 
-/* Button secondary and import title light theme overrides */
+/* Button overrides in Light Mode */
+body.light-theme .btn-primary {
+  background: linear-gradient(135deg, var(--primary) 0%, #263859 100%) !important;
+  color: white !important;
+  box-shadow: 0 4px 14px rgba(21, 30, 43, 0.2) !important;
+}
+body.light-theme .btn-primary:hover {
+  background: linear-gradient(135deg, #263859 0%, #0a0f19 100%) !important;
+  box-shadow: 0 6px 20px rgba(21, 30, 43, 0.3) !important;
+  transform: translateY(-2px);
+}
+body.light-theme .btn-accent {
+  background: linear-gradient(135deg, var(--accent) 0%, #ffc107 100%) !important;
+  color: #151e2b !important;
+  box-shadow: 0 4px 14px rgba(240, 168, 41, 0.2) !important;
+}
+body.light-theme .btn-accent:hover {
+  background: linear-gradient(135deg, #ffc107 0%, var(--accent) 100%) !important;
+  box-shadow: 0 6px 20px rgba(240, 168, 41, 0.3) !important;
+  transform: translateY(-2px);
+}
 body.light-theme .btn-secondary {
-  background: rgba(15, 23, 42, 0.05) !important;
-  border-color: rgba(15, 23, 42, 0.12) !important;
+  background: rgba(21, 30, 43, 0.05) !important;
+  border-color: rgba(21, 30, 43, 0.12) !important;
   color: var(--text-main) !important;
 }
 body.light-theme .btn-secondary:hover {
-  background: rgba(15, 23, 42, 0.09) !important;
-  border-color: rgba(15, 23, 42, 0.25) !important;
+  background: rgba(21, 30, 43, 0.09) !important;
+  border-color: rgba(21, 30, 43, 0.25) !important;
 }
+
 body.light-theme .text-import-title {
   color: var(--text-main) !important;
 }
+
+body.light-theme .badge {
+  background: hsl(var(--primary-hue), 20%, 92%) !important;
+  color: var(--primary) !important;
+}
+body.light-theme .badge-accent {
+  background: hsl(var(--accent-hue), 90%, 90%) !important;
+  color: var(--primary) !important;
+}
+
 
 /* Section Header & Component Contrast Overrides */
 body.light-theme .hero h1 {
@@ -152,7 +205,7 @@ body.light-theme .itinerary-opt-banner h4 {
   color: var(--text-main) !important;
 }
 body.light-theme .packing-header-title {
-  border-bottom-color: rgba(15, 23, 42, 0.12) !important;
+  border-bottom-color: rgba(21, 30, 43, 0.12) !important;
 }
 body.light-theme #packingTripTitle {
   color: var(--text-main) !important;
@@ -163,42 +216,43 @@ body.light-theme #aiBudgetAnalysisBlock strong {
   color: var(--text-main) !important;
 }
 body.light-theme .analysis-item {
-  background: rgba(15, 23, 42, 0.02) !important;
-  border-color: rgba(15, 23, 42, 0.08) !important;
+  background: rgba(21, 30, 43, 0.02) !important;
+  border-color: rgba(21, 30, 43, 0.08) !important;
 }
 body.light-theme #aiBudgetAnalysisBlock {
-  border-bottom: 1px dashed rgba(15, 23, 42, 0.08) !important;
+  border-bottom: 1px dashed rgba(21, 30, 43, 0.08) !important;
 }
 
 /* Flight action buttons — hardcoded color: white becomes invisible in light theme */
 body.light-theme #magicImportPdfBtn {
-  color: #1d4ed8 !important;
-  background: rgba(59, 130, 246, 0.08) !important;
-  border-color: var(--primary) !important;
+  color: var(--secondary) !important;
+  background: rgba(46, 148, 168, 0.08) !important;
+  border-color: var(--secondary) !important;
 }
 body.light-theme #magicImportPdfBtn i {
-  color: #1d4ed8 !important;
+  color: var(--secondary) !important;
 }
 body.light-theme #openTextImportModalBtn {
-  color: #065f46 !important;
-  background: rgba(16, 185, 129, 0.08) !important;
-  border-color: #10b981 !important;
+  color: #0d5c3a !important;
+  background: rgba(13, 92, 58, 0.08) !important;
+  border-color: #0d5c3a !important;
 }
 body.light-theme #openTextImportModalBtn i {
-  color: #059669 !important;
+  color: #0d5c3a !important;
 }
 
 /* Map pin link buttons in light theme */
 body.light-theme .act-map-link {
-  color: #1d4ed8 !important;
-  background: rgba(59, 130, 246, 0.08) !important;
-  border-color: rgba(59, 130, 246, 0.3) !important;
+  color: var(--secondary) !important;
+  background: rgba(46, 148, 168, 0.08) !important;
+  border-color: rgba(46, 148, 168, 0.3) !important;
 }
 body.light-theme .btn-turn-route {
-  color: #1d4ed8 !important;
-  background: rgba(59, 130, 246, 0.08) !important;
-  border-color: rgba(59, 130, 246, 0.3) !important;
+  color: var(--secondary) !important;
+  background: rgba(46, 148, 168, 0.08) !important;
+  border-color: rgba(46, 148, 168, 0.3) !important;
 }
+
 
 /* Logistics optimization banner in light theme */
 body.light-theme .itinerary-opt-banner p,
@@ -209,42 +263,41 @@ body.light-theme .itinerary-opt-banner strong {
 /* Text Import Modal — light theme */
 body.light-theme .text-import-modal-card {
   background: #ffffff !important;
-  border-color: rgba(15, 23, 42, 0.1) !important;
+  border-color: rgba(21, 30, 43, 0.1) !important;
 }
 body.light-theme .text-import-title {
-  color: #0f172a !important;
+  color: #151e2b !important;
 }
 body.light-theme .text-import-modal-card p,
 body.light-theme .text-import-modal-card label {
-  color: #475569 !important;
+  color: #5b6c84 !important;
 }
 body.light-theme .text-import-modal-card .modal-header {
-  border-bottom-color: rgba(15, 23, 42, 0.1) !important;
+  border-bottom-color: rgba(21, 30, 43, 0.1) !important;
 }
 body.light-theme .text-import-area {
   background: #f8fafc !important;
-  color: #0f172a !important;
-  border-color: rgba(15, 23, 42, 0.15) !important;
+  color: #151e2b !important;
+  border-color: rgba(21, 30, 43, 0.15) !important;
 }
 body.light-theme .text-import-area::placeholder {
   color: #94a3b8 !important;
 }
 body.light-theme #cancelTextImportBtn {
-  color: #334155 !important;
-  background: rgba(15, 23, 42, 0.06) !important;
-  border-color: rgba(15, 23, 42, 0.12) !important;
+  color: #5b6c84 !important;
+  background: rgba(21, 30, 43, 0.06) !important;
+  border-color: rgba(21, 30, 43, 0.12) !important;
 }
 
 /* Login screen light theme */
 body.light-theme .login-screen {
-  background-color: #f1f5f9 !important;
-  background-image: 
-    radial-gradient(at 0% 0%, hsla(var(--primary-hue), 80%, 93%, 0.4) 0px, transparent 50%),
-    radial-gradient(at 100% 100%, hsla(var(--secondary-hue), 80%, 93%, 0.3) 0px, transparent 50%) !important;
+  background-color: #f8fafc !important;
+  background-image: linear-gradient(180deg, rgba(215, 230, 250, 0.78) 0%, rgba(190, 215, 245, 0.85) 100%) !important;
 }
 body.light-theme .login-tab.active {
   color: var(--text-main) !important;
 }
+
 
 /* Desktop Simulation Light Mode Override */
 @media (min-width: 769px) {
@@ -1900,12 +1953,13 @@ footer p {
   .hero h1 {
     color: #ffffff !important;
     font-size: 2.2rem !important;
-    font-family: 'Outfit', sans-serif !important;
+    font-family: 'Playfair Display', Georgia, serif !important;
     font-weight: 700 !important;
     margin-top: 8px !important;
     margin-bottom: 8px !important;
     text-shadow: none !important;
   }
+
 
   .hero p {
     color: #94a3b8 !important;
@@ -2005,11 +2059,12 @@ footer p {
   .section-title {
     color: #151e2b !important;
     font-size: 1.8rem !important;
-    font-family: 'Outfit', sans-serif !important;
+    font-family: 'Playfair Display', Georgia, serif !important;
     font-weight: 700 !important;
     margin-top: 8px !important;
     margin-bottom: 4px !important;
   }
+
 
   .section-subtitle {
     color: #64748b !important;
@@ -2079,6 +2134,7 @@ footer p {
     color: #2e94a8 !important; /* Teal day label */
     font-size: 1.15rem !important;
     font-weight: 700 !important;
+    font-family: 'Playfair Display', Georgia, serif !important;
   }
 
   .timeline-date {
@@ -2089,11 +2145,12 @@ footer p {
   .timeline-card h3 {
     color: #151e2b !important;
     font-size: 1.3rem !important;
-    font-family: 'Outfit', sans-serif !important;
+    font-family: 'Playfair Display', Georgia, serif !important;
     font-weight: 700 !important;
     margin-bottom: 15px !important;
     margin-top: 0 !important;
   }
+
 
   .timeline-expandable {
     max-height: none !important;
@@ -2404,10 +2461,11 @@ footer p {
 
   .footer-brand {
     color: #151e2b !important;
-    font-family: 'Outfit', sans-serif !important;
+    font-family: 'Playfair Display', Georgia, serif !important;
     font-weight: 700 !important;
     font-size: 1.2rem !important;
   }
+
 
   footer p {
     color: #64748b !important;
