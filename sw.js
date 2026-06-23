@@ -1,13 +1,13 @@
-const CACHE_NAME = 'copiloto-viagem-v1.3';
+const CACHE_NAME = 'copiloto-viagem-v1.4';
 const ASSETS_TO_CACHE = [
   '/',
   '/app',
-  '/style.css',
-  '/app.js',
-  '/auth.js',
-  '/config.js',
-  '/vendas.css',
-  '/vendas.js',
+  '/style.css?v=1.1.2',
+  '/app.js?v=1.1.2',
+  '/auth.js?v=1.1.2',
+  '/config.js?v=1.1.2',
+  '/vendas.css?v=1.1.2',
+  '/vendas.js?v=1.1.2',
   '/assets/logo.jpeg',
   '/assets/logo-robozim.jpeg',
   '/assets/robo.png'
@@ -18,13 +18,16 @@ self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(async cache => {
-        console.log('[Service Worker] Caching app shell...');
-        // Custom addAll to handle redirected responses safely
+        console.log('[Service Worker] Caching app shell with cache-busting...');
         for (const url of ASSETS_TO_CACHE) {
           try {
-            const response = await fetch(url);
+            // Append cache buster to force download from server, bypassing HTTP/CDN caches
+            const separator = url.includes('?') ? '&' : '?';
+            const fetchUrl = url + separator + 'cb=' + Date.now();
+            const response = await fetch(fetchUrl);
+            
             if (!response.ok) {
-              throw new Error(`Request for ${url} failed with status ${response.status}`);
+              throw new Error(`Request for ${fetchUrl} failed with status ${response.status}`);
             }
             // If the response is redirected, clone it without the redirected flag to avoid TypeError in cache.put()
             let responseToCache = response;
@@ -83,7 +86,7 @@ self.addEventListener('fetch', event => {
       .catch(() => {
         // If network fails, serve from cache
         console.log('[Service Worker] Network failed, serving from cache:', event.request.url);
-        return caches.match(event.request).then(cachedResponse => {
+        return caches.match(event.request, { ignoreSearch: true }).then(cachedResponse => {
           if (cachedResponse) {
             return cachedResponse;
           }
