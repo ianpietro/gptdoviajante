@@ -1,4 +1,4 @@
-const CACHE_NAME = 'copiloto-viagem-v1.2';
+const CACHE_NAME = 'copiloto-viagem-v1.3';
 const ASSETS_TO_CACHE = [
   '/',
   '/app',
