@@ -472,6 +472,8 @@ async function init() {
   setupVisualViewportListener();
   setupAttachFlightDropdown();
   setupItineraryOptimizationBannerListener();
+  setupLogisticaSubTabs();
+  setupGoogleFlightsSearch();
 }
 
 if (document.readyState === "loading") {
@@ -830,40 +832,6 @@ async function saveState() {
 // ==========================================================================
 let travelMode = false;
 
-let lastScrollTop = 0;
-const scrollThreshold = 10;
-
-function handleScroll(e) {
-  if (window.innerWidth > 768) {
-    const appContainer = document.querySelector(".app-container");
-    if (appContainer) appContainer.classList.remove("nav-hidden");
-    return;
-  }
-
-  // If the chat input is focused, keep nav hidden regardless of scroll
-  const chatInput = document.getElementById("chatInput");
-  if (chatInput && document.activeElement === chatInput) {
-    return;
-  }
-
-  const scrollTop = e.target.scrollTop;
-  const appContainer = document.querySelector(".app-container");
-  if (!appContainer) return;
-
-  // Prevent trigger on very small scrolls or negative scroll (iOS bounce)
-  if (Math.abs(lastScrollTop - scrollTop) <= scrollThreshold) return;
-  if (scrollTop < 0) return;
-
-  if (scrollTop > lastScrollTop) {
-    // Scrolling down -> hide nav
-    appContainer.classList.add("nav-hidden");
-  } else {
-    // Scrolling up -> show nav
-    appContainer.classList.remove("nav-hidden");
-  }
-  lastScrollTop = scrollTop;
-}
-
 function setupBottomNav() {
   const chatSidebar = document.getElementById('chatSidebar');
   const dashboardContent = document.getElementById('dashboardContent');
@@ -878,14 +846,6 @@ function setupBottomNav() {
       switchTab(btn.dataset.tab);
     });
   });
-
-  // Attach scroll listeners to hide/show bottom nav
-  if (chatMessages) {
-    chatMessages.addEventListener('scroll', handleScroll);
-  }
-  if (dashboardContent) {
-    dashboardContent.addEventListener('scroll', handleScroll);
-  }
 }
 
 function switchTab(tab) {
@@ -1087,22 +1047,7 @@ function setupUIEventListeners() {
       }
     });
 
-    // Hide navigation when typing
-    chatInput.addEventListener("focus", () => {
-      if (window.innerWidth > 768) return;
-      const appContainer = document.querySelector(".app-container");
-      if (appContainer) appContainer.classList.add("nav-hidden");
-    });
-    
-    chatInput.addEventListener("blur", () => {
-      const appContainer = document.querySelector(".app-container");
-      if (appContainer) {
-        // Small delay to ensure clicks on bottom-nav button elements go through
-        setTimeout(() => {
-          appContainer.classList.remove("nav-hidden");
-        }, 150);
-      }
-    });
+    // Typing focus listeners removed to keep bottom nav fixed
 
     // Show navigation bar if resizing to desktop
     window.addEventListener("resize", () => {
@@ -1132,15 +1077,7 @@ function setupUIEventListeners() {
         handleTravelSendMessage();
       }
     });
-    travelChatInput.addEventListener("focus", () => {
-      if (window.innerWidth > 768) return;
-      const appContainer = document.querySelector(".app-container");
-      if (appContainer) appContainer.classList.add("nav-hidden");
-    });
-    travelChatInput.addEventListener("blur", () => {
-      const appContainer = document.querySelector(".app-container");
-      if (appContainer) setTimeout(() => appContainer.classList.remove("nav-hidden"), 150);
-    });
+    // Typing focus listeners removed to keep bottom nav fixed
   }
   if (travelSendBtn) {
     travelSendBtn.addEventListener("click", handleTravelSendMessage);
@@ -2527,38 +2464,24 @@ function renderTimeline() {
   const getBookingHtml = (act) => {
     if (!act.booking) return "";
     const platform = act.booking.platform || 'civitatis';
-    const text = act.booking.suggestedText || 'Reservar ingresso online';
+    const text = act.booking.suggestedText || 'Reservar ingresso';
     let link = '#';
     const query = encodeURIComponent(act.booking.searchQuery || act.title);
     if (platform.toLowerCase() === 'civitatis') {
       link = `https://www.civitatis.com/br/busca/?q=${query}&aid=10433`;
     } else if (platform.toLowerCase() === 'getyourguide') {
       link = `https://www.getyourguide.com/s?q=${query}&partner_id=L9P64H5`;
-    } else if (platform.toLowerCase() === 'booking') {
-      link = `https://www.booking.com/searchresults.html?ss=${query}&aid=2311224`;
+    } else {
+      link = `https://www.civitatis.com/br/busca/?q=${query}&aid=10433`;
     }
     
-    const platformLabel = platform.charAt(0).toUpperCase() + platform.slice(1);
+    const platformLabel = platform.toLowerCase() === 'civitatis' ? 'Civitatis' : 'GetYourGuide';
     
     return `
-      <div class="affiliate-widget" onclick="event.stopPropagation()">
-        <div class="affiliate-header">
-          <h5 class="affiliate-title">
-            <i class="fa-solid fa-ticket" style="color: var(--secondary);"></i>
-            Recomendado para Conforto
-          </h5>
-          <div class="affiliate-badges">
-            <span class="affiliate-badge ${platform.toLowerCase()}">${platformLabel}</span>
-            <span class="affiliate-badge trust"><i class="fa-solid fa-shield-check"></i> Seguro</span>
-          </div>
-        </div>
-        <p class="affiliate-desc">Evite filas e garanta seu lugar com antecedência através de parceiros oficiais.</p>
-        <a href="${link}" target="_blank" class="affiliate-btn ${platform.toLowerCase()}-btn">
-          <i class="fa-solid fa-arrow-up-right-from-square"></i> ${text}
+      <div class="affiliate-link-container" onclick="event.stopPropagation()" style="margin-top: 8px;">
+        <a href="${link}" target="_blank" class="btn-affiliate-link" style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; font-size: 0.72rem; font-weight: 700; color: white; background: rgba(249, 115, 22, 0.1); border: 1px solid rgba(249, 115, 22, 0.3); border-radius: 6px; text-decoration: none; transition: background 0.2s, border-color 0.2s;">
+          <i class="fa-solid fa-ticket" style="color: #f97316;"></i> ${text} (${platformLabel})
         </a>
-        <div class="affiliate-footer">
-          <i class="fa-solid fa-circle-check"></i> Cancelamento grátis disponível • Garantia do menor preço
-        </div>
       </div>
     `;
   };
@@ -3187,9 +3110,9 @@ function setupCountdown() {
     if (distance < 0) {
       clearInterval(countdownInterval);
       countdown.innerHTML = `
-        <div class="glass-panel" style="padding: 16px 40px; border-radius: var(--border-radius-md); text-align: center;">
-          <span class="countdown-num" style="color: var(--accent); font-size: 1.6rem; font-weight: 700;">Chegou a hora! ✈️</span>
-          <p style="color: var(--text-main); font-size: 0.9rem; margin-top: 4px;">Aproveite ao máximo a sua viagem!</p>
+        <div style="background: rgba(13, 20, 32, 0.85); border: 1.5px solid rgba(255, 255, 255, 0.15); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); padding: 18px 30px; border-radius: var(--border-radius-md); text-align: center; max-width: 320px; margin: 0 auto;">
+          <span style="color: #fb923c; font-size: 1.5rem; font-weight: 800; text-shadow: 0 0 15px rgba(249, 115, 22, 0.35); display: block; letter-spacing: 0.02em;">Chegou a hora! ✈️</span>
+          <p style="color: #ffffff; font-size: 0.85rem; margin: 6px 0 0; font-weight: 500; opacity: 0.95;">Aproveite ao máximo a sua viagem!</p>
         </div>
       `;
       return;
@@ -5694,6 +5617,96 @@ async function refreshFlightStatus(index) {
   }
 }
 window.refreshFlightStatus = refreshFlightStatus;
+
+// Google Flights Sub-tab pre-filling and search logic
+function prefillGoogleFlightsInputs() {
+  const gFlightsOrigin = document.getElementById("gFlightsOrigin");
+  const gFlightsDest = document.getElementById("gFlightsDest");
+  const gFlightsDateIda = document.getElementById("gFlightsDateIda");
+  const gFlightsDateVolta = document.getElementById("gFlightsDateVolta");
+
+  if (!gFlightsOrigin || !gFlightsDest || !gFlightsDateIda || !gFlightsDateVolta) return;
+
+  // Prefill Destino
+  if (tripData.tripTitle && tripData.tripTitle !== "Minha Próxima Viagem") {
+    const cleanDest = tripData.tripTitle.split(',')[0].trim();
+    gFlightsDest.value = cleanDest;
+  } else {
+    gFlightsDest.value = "";
+  }
+
+  // Prefill Dates
+  if (tripData.targetDate) {
+    const targetDateObj = new Date(tripData.targetDate);
+    if (!isNaN(targetDateObj.getTime())) {
+      const year = targetDateObj.getFullYear();
+      const month = String(targetDateObj.getMonth() + 1).padStart(2, '0');
+      const day = String(targetDateObj.getDate()).padStart(2, '0');
+      gFlightsDateIda.value = `${year}-${month}-${day}`;
+
+      if (tripData.itinerary && tripData.itinerary.length > 0) {
+        const numDays = tripData.itinerary.length;
+        const endDateObj = new Date(targetDateObj.getTime());
+        endDateObj.setDate(endDateObj.getDate() + (numDays - 1));
+        
+        const endYear = endDateObj.getFullYear();
+        const endMonth = String(endDateObj.getMonth() + 1).padStart(2, '0');
+        const endDay = String(endDateObj.getDate()).padStart(2, '0');
+        gFlightsDateVolta.value = `${endYear}-${endMonth}-${endDay}`;
+      }
+    }
+  }
+}
+
+function setupGoogleFlightsSearch() {
+  const searchBtn = document.getElementById("searchGoogleFlightsBtn");
+  if (searchBtn) {
+    searchBtn.addEventListener("click", () => {
+      const origin = document.getElementById("gFlightsOrigin").value.trim();
+      const dest = document.getElementById("gFlightsDest").value.trim();
+      const dateIda = document.getElementById("gFlightsDateIda").value;
+      const dateVolta = document.getElementById("gFlightsDateVolta").value;
+
+      if (!dest) {
+        alert("Por favor, preencha o Destino da viagem.");
+        return;
+      }
+
+      let query = "voos";
+      if (origin) query += ` de ${origin}`;
+      query += ` para ${dest}`;
+      if (dateIda) query += ` em ${dateIda}`;
+      if (dateVolta) query += ` retorno ${dateVolta}`;
+
+      const searchUrl = `https://www.google.com/travel/flights?q=${encodeURIComponent(query)}`;
+      window.open(searchUrl, "_blank");
+    });
+  }
+}
+
+function setupLogisticaSubTabs() {
+  const subTabLogisticaMainBtn = document.getElementById("subTabLogisticaMainBtn");
+  const subTabGoogleFlightsBtn = document.getElementById("subTabGoogleFlightsBtn");
+  const logisticaMainPanel = document.getElementById("logisticaMainPanel");
+  const googleFlightsPanel = document.getElementById("googleFlightsPanel");
+
+  if (subTabLogisticaMainBtn && subTabGoogleFlightsBtn && logisticaMainPanel && googleFlightsPanel) {
+    subTabLogisticaMainBtn.addEventListener("click", () => {
+      subTabLogisticaMainBtn.classList.add("active");
+      subTabGoogleFlightsBtn.classList.remove("active");
+      logisticaMainPanel.classList.remove("hidden");
+      googleFlightsPanel.classList.add("hidden");
+    });
+
+    subTabGoogleFlightsBtn.addEventListener("click", () => {
+      subTabGoogleFlightsBtn.classList.add("active");
+      subTabLogisticaMainBtn.classList.remove("active");
+      googleFlightsPanel.classList.remove("hidden");
+      logisticaMainPanel.classList.add("hidden");
+      prefillGoogleFlightsInputs();
+    });
+  }
+}
 
 
 
