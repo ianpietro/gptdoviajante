@@ -304,9 +304,15 @@ h1, h2, h3, h4 {
   line-height: 1.1;
   letter-spacing: -0.03em;
   margin-bottom: 24px;
-  background: linear-gradient(to right, #ffffff 40%, #a5b4fc 80%, #60a5fa 100%);
+  color: #ffffff;
+}
+
+.hero-title .highlight {
+  background: linear-gradient(135deg, #a5b4fc 0%, #60a5fa 100%);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
+  display: inline-block;
 }
 
 .hero-description {

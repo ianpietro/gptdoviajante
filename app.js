@@ -43,6 +43,7 @@ let tripData = {
 
 let countdownInterval = null;
 let activeFilter = 'all';
+let mobileShowAllDays = false;
 let firebaseIdToken = null;
 let currentUser = null;
 let authVerificationFailed = false;
@@ -467,6 +468,10 @@ async function init() {
       }
     });
   }
+
+  setupVisualViewportListener();
+  setupAttachFlightDropdown();
+  setupItineraryOptimizationBannerListener();
 }
 
 if (document.readyState === "loading") {
@@ -1167,30 +1172,83 @@ function setupUIEventListeners() {
 
   // Reset Data
   if (clearDataBtn) {
-    clearDataBtn.addEventListener("click", () => {
+    clearDataBtn.addEventListener("click", async () => {
       if (confirm("Deseja redefinir todo o chat e o painel de viagem? Isso apagará o roteiro atual.")) {
-        localStorage.removeItem(getUserStorageKey("gptViajante_chatHistory"));
-        localStorage.removeItem(getUserStorageKey("gptViajante_travelChatHistory"));
-        localStorage.removeItem(getUserStorageKey("gptViajante_tripData"));
-        localStorage.removeItem(getUserStorageKey("gptViajante_packingState"));
-        chatHistory = [];
-        travelChatHistory = [];
-        tripData = {
-          tripTitle: "Minha Próxima Viagem",
-          tripSubtitle: "Planeje sua viagem conversando pelo chat!",
-          infoDates: "A definir",
-          infoWeather: "A definir",
-          infoGroup: "A definir",
-          infoHotel: "A definir",
-          hotelLink: "",
-          targetDate: null,
+        // Define default reset data schema for DB
+        const defaultTripDb = {
+          title: "Minha Próxima Viagem",
+          subtitle: "Planeje sua viagem conversando pelo chat!",
+          dates: "A definir",
+          weather: "A definir",
+          group_type: "A definir",
+          hotel: "A definir",
+          hotel_link: "",
+          target_date: null,
           budget: { hospedagem: 0, alimentacao: 0, passeios: 0, compras: 0 },
+          budget_thresholds: { economico: 150, intermediario: 450 },
+          budget_analysis: "",
           packing: [],
           itinerary: [],
           flights: [],
           members: ["Você"],
           expenses: []
         };
+
+        // If authenticated and we have a valid trip ID, update/clear remote data on Supabase
+        if (currentUser && currentUser.id && tripData.id) {
+          try {
+            await Promise.all([
+              // 1. Reset remote trip to default
+              supabase
+                .from('trips')
+                .update(defaultTripDb)
+                .eq('id', tripData.id),
+              
+              // 2. Clear remote chat histories for this trip
+              supabase
+                .from('chat_histories')
+                .update({ messages: [] })
+                .eq('trip_id', tripData.id),
+              
+              // 3. Delete remote files metadata associated with this trip
+              supabase
+                .from('documents')
+                .delete()
+                .eq('trip_id', tripData.id)
+            ]);
+            console.log("Remote trip data and chat successfully reset in Supabase.");
+          } catch (dbErr) {
+            console.error("Erro ao resetar dados no Supabase:", dbErr);
+          }
+        }
+
+        // Clear local storage cache
+        localStorage.removeItem(getUserStorageKey("gptViajante_chatHistory"));
+        localStorage.removeItem(getUserStorageKey("gptViajante_travelChatHistory"));
+        localStorage.removeItem(getUserStorageKey("gptViajante_tripData"));
+        localStorage.removeItem(getUserStorageKey("gptViajante_packingState"));
+        
+        chatHistory = [];
+        travelChatHistory = [];
+        tripData = {
+          tripTitle: defaultTripDb.title,
+          tripSubtitle: defaultTripDb.subtitle,
+          infoDates: defaultTripDb.dates,
+          infoWeather: defaultTripDb.weather,
+          infoGroup: defaultTripDb.group_type,
+          infoHotel: defaultTripDb.hotel,
+          hotelLink: defaultTripDb.hotel_link,
+          targetDate: defaultTripDb.target_date,
+          budget: defaultTripDb.budget,
+          budgetThresholds: defaultTripDb.budget_thresholds,
+          budgetAnalysis: defaultTripDb.budget_analysis,
+          packing: defaultTripDb.packing,
+          itinerary: defaultTripDb.itinerary,
+          flights: defaultTripDb.flights,
+          members: defaultTripDb.members,
+          expenses: defaultTripDb.expenses
+        };
+
         location.reload();
       }
     });
@@ -1371,6 +1429,8 @@ function setupUIEventListeners() {
         localStorage.setItem("gptViajante_theme", "dark");
         toggleThemeBtn.innerHTML = `<i class="fa-solid fa-sun"></i> Tema Claro`;
       }
+      const settingsPanel = document.getElementById("settingsPanel");
+      if (settingsPanel) settingsPanel.classList.add("hidden");
     });
   }
 }
@@ -1765,7 +1825,7 @@ function extractJsonFromReply(replyContent) {
   if (!replyContent) return null;
 
   // 1. Try to find code blocks explicitly marked as json/JSON (case-insensitive, optional spaces)
-  const jsonRegex = /```\s*json\s*[\s\S]*?```/i;
+  const jsonRegex = /```\s*json\s*([\s\S]*?)```/i;
   const match = replyContent.match(jsonRegex);
   if (match) {
     try {
@@ -2018,14 +2078,18 @@ async function handleTravelSendMessage() {
 // ==========================================================================
 // 5. DASHBOARD STATE SYNC & RENDERING
 // ==========================================================================
-function updateDashboardData(newJson) {
+function updateDashboardData(newJson, skipLogisticsUpdate = false) {
   if (newJson.tripTitle) tripData.tripTitle = newJson.tripTitle;
   if (newJson.tripSubtitle) tripData.tripSubtitle = newJson.tripSubtitle;
   if (newJson.infoDates) tripData.infoDates = newJson.infoDates;
   if (newJson.infoWeather) tripData.infoWeather = newJson.infoWeather;
   if (newJson.infoGroup) tripData.infoGroup = newJson.infoGroup;
-  if (newJson.infoHotel) tripData.infoHotel = newJson.infoHotel;
-  if (newJson.hotelLink) tripData.hotelLink = newJson.hotelLink;
+  
+  if (!skipLogisticsUpdate) {
+    if (newJson.infoHotel) tripData.infoHotel = newJson.infoHotel;
+    if (newJson.hotelLink) tripData.hotelLink = newJson.hotelLink;
+  }
+  
   if (newJson.targetDate) tripData.targetDate = newJson.targetDate;
   
   if (newJson.budget) {
@@ -2044,7 +2108,10 @@ function updateDashboardData(newJson) {
 
   if (newJson.packing) tripData.packing = newJson.packing;
   if (newJson.itinerary) tripData.itinerary = newJson.itinerary;
-  if (newJson.flights) tripData.flights = newJson.flights;
+  
+  if (!skipLogisticsUpdate) {
+    if (newJson.flights) tripData.flights = newJson.flights;
+  }
 
   // Persist State
   saveState();
@@ -2198,6 +2265,29 @@ const fetchRealWeatherForecast = async () => {
 };
 
 function renderDashboard() {
+  // Ensure budget object exists
+  tripData.budget = tripData.budget || { hospedagem: 0, alimentacao: 0, passeios: 0, compras: 0 };
+  
+  // Calculate total budget to check if it is empty/zero
+  const totalBudget = (tripData.budget.hospedagem || 0) + 
+                      (tripData.budget.alimentacao || 0) + 
+                      (tripData.budget.passeios || 0) + 
+                      (tripData.budget.compras || 0);
+
+  if (totalBudget === 0) {
+    const numDays = (tripData.itinerary && tripData.itinerary.length > 0) ? tripData.itinerary.length : 5;
+    const thresholds = tripData.budgetThresholds || { economico: 150, intermediario: 450 };
+    const dailyEst = thresholds.economico ? thresholds.economico * 2 : 300; 
+    const estimatedTotal = dailyEst * numDays;
+    
+    tripData.budget.hospedagem = Math.round(estimatedTotal * 0.40);
+    tripData.budget.alimentacao = Math.round(estimatedTotal * 0.30);
+    tripData.budget.passeios = Math.round(estimatedTotal * 0.20);
+    tripData.budget.compras = Math.round(estimatedTotal * 0.10);
+    
+    saveState();
+  }
+
   // 1. Text Info Fields
   document.getElementById("tripTitle").textContent = tripData.tripTitle;
   document.getElementById("tripSubtitle").textContent = tripData.tripSubtitle;
@@ -2268,8 +2358,8 @@ function renderTimeline() {
   nav.classList.remove("hidden");
   container.classList.remove("hidden");
 
-  // Default to first day on mobile devices to prevent DOM load lags
-  if (activeFilter === 'all' && window.innerWidth <= 768 && tripData.itinerary && tripData.itinerary.length > 0) {
+  // Default to first day on mobile devices to prevent DOM load lags on initial load
+  if (activeFilter === 'all' && window.innerWidth <= 768 && tripData.itinerary && tripData.itinerary.length > 0 && !mobileShowAllDays) {
     activeFilter = tripData.itinerary[0].dayNum || 1;
   }
   
@@ -2277,7 +2367,8 @@ function renderTimeline() {
   if (optBanner) {
     const hasFlights = tripData.flights && tripData.flights.length > 0;
     const hasHotel = tripData.infoHotel && tripData.infoHotel !== "A definir" && tripData.infoHotel.trim() !== "";
-    if (hasFlights && hasHotel) {
+    const isDismissed = localStorage.getItem("gptViajante_optBannerDismissed") === "true";
+    if ((hasFlights && hasHotel) || isDismissed) {
       optBanner.classList.add("hidden");
     } else {
       optBanner.classList.remove("hidden");
@@ -2629,6 +2720,11 @@ window.toggleCard = toggleCard; // Bind to window so HTML onclick finds it
 window.switchTab = switchTab; // Bind to window so HTML onclick finds it
 
 function filterTimeline(filter) {
+  if (filter === 'all') {
+    mobileShowAllDays = true;
+  } else {
+    mobileShowAllDays = false;
+  }
   activeFilter = filter;
   renderTimeline();
   // Scroll to the first visible day card after a short paint delay
@@ -3338,6 +3434,43 @@ function setupAuthUI() {
     warningEl.classList.remove("hidden");
   }
 
+  // Pre-fill email from URL if present (?email=user@email.com)
+  const urlParams = new URLSearchParams(window.location.search);
+  const emailParam = urlParams.get("email");
+  if (emailParam) {
+    const emailInput = document.getElementById("loginEmail");
+    if (emailInput) {
+      emailInput.value = decodeURIComponent(emailParam.trim());
+      // For new purchase flows, automatically direct them to create password
+      isRegisterMode = true;
+      syncAuthMode();
+      
+      const passwordInput = document.getElementById("loginPassword");
+      if (passwordInput) {
+        setTimeout(() => passwordInput.focus(), 100);
+      }
+    }
+  }
+
+  // Toggle password visibility
+  const togglePasswordBtn = document.getElementById("togglePasswordVisibilityBtn");
+  const passwordInput = document.getElementById("loginPassword");
+  const passwordEyeIcon = document.getElementById("passwordEyeIcon");
+
+  if (togglePasswordBtn && passwordInput && passwordEyeIcon) {
+    togglePasswordBtn.addEventListener("click", () => {
+      if (passwordInput.type === "password") {
+        passwordInput.type = "text";
+        passwordEyeIcon.classList.remove("fa-eye");
+        passwordEyeIcon.classList.add("fa-eye-slash");
+      } else {
+        passwordInput.type = "password";
+        passwordEyeIcon.classList.remove("fa-eye-slash");
+        passwordEyeIcon.classList.add("fa-eye");
+      }
+    });
+  }
+
   if (googleBtn) {
     googleBtn.addEventListener("click", async () => {
       hideLoginError();
@@ -3359,7 +3492,7 @@ function setupAuthUI() {
       const submitBtn = document.getElementById("loginSubmitBtn");
 
       submitBtn.disabled = true;
-      submitBtn.textContent = isRegisterMode ? "Cadastrando..." : "Entrando...";
+      submitBtn.textContent = isRegisterMode ? "Definindo senha..." : "Entrando...";
 
       try {
         if (isRegisterMode) {
@@ -3369,19 +3502,23 @@ function setupAuthUI() {
         }
       } catch (err) {
         let errMsg = "Erro de autenticação.";
-        if (err.code === "auth/invalid-credential" || err.code === "auth/wrong-password" || err.code === "auth/user-not-found") {
-          errMsg = `E-mail ou senha incorretos.<br><span style="font-size: 0.76rem; opacity: 0.9; display: block; margin-top: 6px; line-height: 1.35; font-weight: 500;">Se você acabou de comprar o acesso, lembre-se de clicar na aba <strong>"Criar Conta"</strong> no topo para cadastrar sua senha primeiro!</span>`;
-        } else if (err.code === "auth/weak-password") {
-          errMsg = "A senha deve conter pelo menos 6 caracteres.";
-        } else if (err.code === "auth/email-already-in-use") {
-          errMsg = "Este e-mail já está em uso.";
+        const msg = (err.message || "").toLowerCase();
+        
+        if (msg.includes("invalid login credentials") || err.status === 400 && !isRegisterMode) {
+          errMsg = `E-mail ou senha incorretos.<br><span style="font-size: 0.78rem; opacity: 0.9; display: block; margin-top: 6px; line-height: 1.35; font-weight: 500;">Se você acabou de comprar o acesso e este é seu primeiro acesso, lembre-se de clicar na aba <strong>"Primeiro acesso"</strong> no topo para cadastrar sua senha primeiro!</span>`;
+        } else if (msg.includes("at least 6 characters") || msg.includes("should be at least")) {
+          errMsg = "A senha de cadastro deve conter pelo menos 6 caracteres.";
+        } else if (msg.includes("already registered") || msg.includes("already exists") || msg.includes("email-already-in-use")) {
+          errMsg = `Este e-mail já está cadastrado.<br><span style="font-size: 0.78rem; opacity: 0.9; display: block; margin-top: 6px; line-height: 1.35; font-weight: 500;">Clique na aba <strong>"Já tenho senha"</strong> no topo para fazer login!</span>`;
+        } else if (msg.includes("rate limit") || err.status === 429) {
+          errMsg = "Muitas tentativas em pouco tempo. Por favor, aguarde alguns minutos antes de tentar.";
         } else {
-          errMsg = err.message;
+          errMsg = err.message || "Erro desconhecido. Tente novamente.";
         }
         showLoginError(errMsg);
       } finally {
         submitBtn.disabled = false;
-        submitBtn.textContent = isRegisterMode ? "Cadastrar" : "Entrar";
+        submitBtn.textContent = isRegisterMode ? "Ativar Meu Painel" : "Entrar";
       }
     });
   }
@@ -3420,13 +3557,15 @@ function syncAuthMode() {
   const subtitle = document.querySelector(".login-header p");
   const tabLogin = document.getElementById("tabLogin");
   const tabRegister = document.getElementById("tabRegister");
+  const helperText = document.getElementById("authHelperText");
 
   if (isRegisterMode) {
-    if (title) title.textContent = "Criar Conta";
-    if (subtitle) subtitle.textContent = "Cadastre-se para planejar suas viagens";
-    if (submitBtn) submitBtn.textContent = "Cadastrar";
-    if (toggleText) toggleText.textContent = "Já tem uma conta?";
-    if (toggleLink) toggleLink.textContent = "Entrar";
+    if (title) title.textContent = "Criar Minha Senha";
+    if (subtitle) subtitle.textContent = "Primeiro acesso: defina sua senha para ativar o painel";
+    if (submitBtn) submitBtn.textContent = "Ativar Meu Painel";
+    if (toggleText) toggleText.textContent = "Já criou sua senha anteriormente?";
+    if (toggleLink) toggleLink.textContent = "Fazer Login";
+    if (helperText) helperText.textContent = "Acabou de comprar? Digite seu e-mail de compra e escolha uma senha de 6+ caracteres abaixo.";
     
     if (tabRegister) {
       tabRegister.classList.add("active");
@@ -3444,8 +3583,9 @@ function syncAuthMode() {
     if (title) title.textContent = "CoPiloto de Viagem";
     if (subtitle) subtitle.textContent = "Acesse seu painel inteligente de viagem";
     if (submitBtn) submitBtn.textContent = "Entrar";
-    if (toggleText) toggleText.textContent = "Não tem uma conta?";
-    if (toggleLink) toggleLink.textContent = "Cadastre-se";
+    if (toggleText) toggleText.textContent = "Acabou de adquirir o CoPiloto?";
+    if (toggleLink) toggleLink.textContent = "Definir senha (Primeiro acesso)";
+    if (helperText) helperText.textContent = "Se você já criou sua senha, faça login digitando seus dados abaixo.";
 
     if (tabLogin) {
       tabLogin.classList.add("active");
@@ -3625,6 +3765,7 @@ function renderFlights() {
       <div class="flight-card glass-panel" data-index="${index}">
         ${isSharedView ? '' : `
         <div class="flight-card-actions">
+          <button class="flight-action-btn refresh" onclick="window.refreshFlightStatus(${index})" title="Atualizar Status"><i class="fa-solid fa-rotate"></i></button>
           <button class="flight-action-btn edit" onclick="window.editFlight(${index})"><i class="fa-solid fa-pen"></i></button>
           <button class="flight-action-btn delete" onclick="window.deleteFlight(${index})"><i class="fa-solid fa-trash"></i></button>
         </div>
@@ -3911,6 +4052,16 @@ setInterval(() => {
 
 // Forward wheel/scroll events on document/margins to the active container inside the simulated app
 document.addEventListener('wheel', (e) => {
+  // Check if tutorial modal is open
+  const openTutorialCard = document.querySelector('.tutorial-overlay:not(.hidden) .tutorial-card');
+  if (openTutorialCard) {
+    if (!e.composedPath().includes(openTutorialCard)) {
+      openTutorialCard.scrollTop += e.deltaY;
+      e.preventDefault();
+    }
+    return;
+  }
+
   // Check if a modal is open
   const openModalCard = document.querySelector('.modal-overlay:not(.hidden) .modal-card');
   if (openModalCard) {
@@ -5327,7 +5478,7 @@ async function triggerAiLogisticsSync() {
     const parsedData = extractJsonFromReply(replyContent);
     if (parsedData) {
       try { 
-        updateDashboardData(parsedData); 
+        updateDashboardData(parsedData, true); // Preserve user's manual/imported logistics info
       } catch (err) { 
         console.warn("Failed updating dashboard from sync response:", err); 
       }
@@ -5364,6 +5515,185 @@ window.handleTextPasteImport = handleTextPasteImport;
 window.subscribeToTripChanges = subscribeToTripChanges;
 window.handleSaveHotelAndSync = handleSaveHotelAndSync;
 window.triggerAiLogisticsSync = triggerAiLogisticsSync;
+
+
+// ==========================================================================
+// CUSTOM BINDINGS AND HELPERS (UI/UX updates)
+// ==========================================================================
+
+// Visual Viewport Keyboard Adjustment
+function setupVisualViewportListener() {
+  if (!window.visualViewport) return;
+
+  const chatSidebar = document.querySelector(".chat-sidebar");
+  if (!chatSidebar) return;
+
+  const handleResize = () => {
+    if (window.innerWidth > 768) {
+      chatSidebar.style.height = "";
+      return;
+    }
+
+    const appContainer = document.querySelector(".app-container");
+    const isNavHidden = appContainer && appContainer.classList.contains("nav-hidden");
+    const viewportHeight = window.visualViewport.height;
+
+    if (isNavHidden) {
+      chatSidebar.style.height = `${viewportHeight}px`;
+    } else {
+      chatSidebar.style.height = `calc(${viewportHeight}px - 68px - env(safe-area-inset-bottom, 0px))`;
+    }
+    
+    // Auto-scroll messages to the bottom
+    const activeMessagesContainer = document.querySelector(".chat-messages");
+    if (activeMessagesContainer) {
+      activeMessagesContainer.scrollTop = activeMessagesContainer.scrollHeight;
+    }
+  };
+
+  window.visualViewport.addEventListener("resize", handleResize);
+  window.visualViewport.addEventListener("scroll", handleResize);
+  
+  const appContainer = document.querySelector(".app-container");
+  if (appContainer) {
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.type === "attributes" && mutation.attributeName === "class") {
+          handleResize();
+        }
+      });
+    });
+    observer.observe(appContainer, { attributes: true });
+  }
+}
+
+// Consolidated Attach Flights Dropdown setup
+function setupAttachFlightDropdown() {
+  const attachFlightDropdownBtn = document.getElementById("attachFlightDropdownBtn");
+  const attachFlightDropdownMenu = document.getElementById("attachFlightDropdownMenu");
+
+  if (attachFlightDropdownBtn && attachFlightDropdownMenu) {
+    attachFlightDropdownBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      attachFlightDropdownMenu.classList.toggle("hidden");
+    });
+
+    document.addEventListener("click", () => {
+      attachFlightDropdownMenu.classList.add("hidden");
+    });
+
+    const pdfBtn = document.getElementById("magicImportPdfBtnDropdown");
+    const pasteBtn = document.getElementById("openTextImportModalBtnDropdown");
+    const manualBtn = document.getElementById("openAddFlightModalBtnDropdown");
+
+    if (pdfBtn) {
+      pdfBtn.addEventListener("click", () => {
+        const origBtn = document.getElementById("magicImportPdfBtn");
+        if (origBtn) origBtn.click();
+      });
+    }
+    if (pasteBtn) {
+      pasteBtn.addEventListener("click", () => {
+        const origBtn = document.getElementById("openTextImportModalBtn");
+        if (origBtn) origBtn.click();
+      });
+    }
+    if (manualBtn) {
+      manualBtn.addEventListener("click", () => {
+        const origBtn = document.getElementById("openAddFlightModalBtn");
+        if (origBtn) origBtn.click();
+      });
+    }
+  }
+}
+
+// Itinerary optimization banner close listener
+function setupItineraryOptimizationBannerListener() {
+  const closeOptBannerBtn = document.getElementById("closeItineraryOptimizationBanner");
+  if (closeOptBannerBtn) {
+    closeOptBannerBtn.addEventListener("click", () => {
+      const optBanner = document.getElementById("itineraryOptimizationBanner");
+      if (optBanner) optBanner.classList.add("hidden");
+      localStorage.setItem("gptViajante_optBannerDismissed", "true");
+    });
+  }
+}
+
+// Open tutorial at specific slide index
+function openTutorialAtSlide(slideIndex) {
+  const modal = document.getElementById('tutorialModal');
+  if (!modal) return;
+  modal.classList.remove('hidden');
+  goToSlide(slideIndex);
+  document.body.style.overflow = 'hidden';
+}
+window.openTutorialAtSlide = openTutorialAtSlide;
+
+// Refresh flight status call
+async function refreshFlightStatus(index) {
+  const flight = tripData.flights[index];
+  if (!flight || !flight.flightNumber) return;
+
+  const card = document.querySelector(`.flight-card[data-index="${index}"]`);
+  const refreshBtn = card ? card.querySelector('.flight-action-btn.refresh') : null;
+  const originalHtml = refreshBtn ? refreshBtn.innerHTML : null;
+
+  if (refreshBtn) {
+    refreshBtn.disabled = true;
+    refreshBtn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i>';
+  }
+
+  try {
+    const token = await getFreshToken();
+    const response = await fetch("/api/flight", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        flightNumber: flight.flightNumber,
+        date: flight.date
+      })
+    });
+
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.error || "Voo não encontrado.");
+    }
+
+    const updatedData = await response.json();
+    
+    tripData.flights[index] = {
+      ...flight,
+      airline: updatedData.airline || flight.airline,
+      status: updatedData.status || flight.status,
+      departureAirport: updatedData.departureAirport || flight.departureAirport,
+      departureCity: updatedData.departureCity || flight.departureCity,
+      arrivalAirport: updatedData.arrivalAirport || flight.arrivalAirport,
+      arrivalCity: updatedData.arrivalCity || flight.arrivalCity,
+      scheduledDeparture: updatedData.scheduledDeparture || flight.scheduledDeparture,
+      scheduledArrival: updatedData.scheduledArrival || flight.scheduledArrival,
+      terminal: updatedData.terminal !== undefined ? updatedData.terminal : flight.terminal,
+      gate: updatedData.gate !== undefined ? updatedData.gate : flight.gate,
+      carousel: updatedData.carousel !== undefined ? updatedData.carousel : flight.carousel
+    };
+
+    saveState();
+    renderFlights();
+    
+    await triggerAiLogisticsSync();
+  } catch (err) {
+    console.error("Refresh flight failed:", err);
+    alert("Não foi possível atualizar o status do voo: " + err.message);
+  } finally {
+    if (refreshBtn) {
+      refreshBtn.disabled = false;
+      refreshBtn.innerHTML = originalHtml;
+    }
+  }
+}
+window.refreshFlightStatus = refreshFlightStatus;
 
 
 

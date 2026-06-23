@@ -41,11 +41,17 @@
       <!-- Tabs for toggling Login / Registration -->
       <div class="login-tabs" style="display: flex; border-bottom: 1px solid var(--border-color); margin-bottom: 24px; position: relative;">
         <button type="button" class="login-tab active" id="tabLogin" style="flex: 1; text-align: center; padding: 12px; background: none; border: none; color: white; font-weight: 700; font-size: 0.95rem; cursor: pointer; border-bottom: 2px solid var(--primary); transition: all 0.2s; outline: none;">
-          Entrar
+          Já tenho senha
         </button>
         <button type="button" class="login-tab" id="tabRegister" style="flex: 1; text-align: center; padding: 12px; background: none; border: none; color: var(--text-muted); font-weight: 600; font-size: 0.95rem; cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.2s; outline: none;">
-          Criar Conta
+          Primeiro acesso
         </button>
+      </div>
+      
+      <!-- Helper Banner for onboarding -->
+      <div class="auth-helper-banner" id="authHelperBanner" style="margin-bottom: 16px; padding: 10px 12px; background: rgba(46, 148, 168, 0.08); border: 1px solid rgba(46, 148, 168, 0.2); border-radius: var(--border-radius-md); font-size: 0.8rem; color: #a5f3fc; text-align: center; line-height: 1.4; display: flex; align-items: center; gap: 8px; justify-content: center;">
+        <i class="fa-solid fa-circle-info" style="color: #2e94a8; font-size: 0.9rem;"></i>
+        <span id="authHelperText">Se você já criou sua senha, faça login abaixo.</span>
       </div>
       
       <div class="login-error hidden" id="loginError">E-mail ou senha incorretos.</div>
@@ -57,7 +63,12 @@
         </div>
         <div class="input-group">
           <label for="loginPassword">Senha</label>
-          <input type="password" id="loginPassword" placeholder="Digite sua senha..." required autocomplete="current-password">
+          <div style="position: relative; width: 100%;">
+            <input type="password" id="loginPassword" placeholder="Digite sua senha..." required autocomplete="current-password" style="width: 100%; box-sizing: border-box; padding-right: 44px;">
+            <button type="button" id="togglePasswordVisibilityBtn" style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 4px; display: flex; align-items: center; justify-content: center; outline: none;">
+              <i class="fa-solid fa-eye" id="passwordEyeIcon" style="font-size: 1.05rem;"></i>
+            </button>
+          </div>
         </div>
         
         <button type="submit" class="btn btn-primary" id="loginSubmitBtn" style="width: 100%; margin-top: 10px; padding: 12px;">
@@ -245,6 +256,9 @@
           <span class="badge badge-primary"><i class="fa-solid fa-plane-departure"></i> Logística</span>
           <h2 class="section-title">Voos e Documentos de Viagem</h2>
           <p class="section-subtitle">Gerencie suas passagens aéreas e guarde passaportes, comprovantes e ingressos importantes em um só lugar.</p>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="openTutorialAtSlide(6)" style="margin-top: 8px; font-size: 0.72rem; padding: 4px 10px; display: inline-flex; align-items: center; gap: 4px; border-radius: 6px; cursor: pointer;">
+            <i class="fa-solid fa-circle-question"></i> Como usar
+          </button>
         </div>
 
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; align-items: start;">
@@ -256,18 +270,29 @@
                 <i class="fa-solid fa-plane" style="color: var(--primary);"></i> Seus Voos
               </h3>
               <div style="display: flex; gap: 8px; flex-wrap: wrap; flex: 1; justify-content: flex-end; min-width: 0;">
-                <button class="btn btn-secondary btn-sm" id="magicImportPdfBtn" style="padding: 6px 12px; font-size: 0.76rem; background: rgba(59, 130, 246, 0.1); border: 1px dashed var(--primary); display: flex; align-items: center; gap: 6px; cursor: pointer; color: white; white-space: nowrap;">
-                  <i class="fa-solid fa-wand-magic-sparkles" style="color: var(--primary);"></i> Importar PDF
-                </button>
+                <!-- Original buttons kept hidden for programmatic trigger from dropdown -->
+                <button class="btn btn-secondary btn-sm" id="magicImportPdfBtn" style="display: none !important;"></button>
                 <input type="file" id="magicImportPdfFileInput" accept="application/pdf" style="display: none;">
-                
-                <button class="btn btn-secondary btn-sm" id="openTextImportModalBtn" style="padding: 6px 12px; font-size: 0.76rem; background: rgba(16, 185, 129, 0.1); border: 1px dashed #10b981; display: flex; align-items: center; gap: 6px; cursor: pointer; color: white; white-space: nowrap;">
-                  <i class="fa-solid fa-paste" style="color: #10b981;"></i> Colar Texto 📝
-                </button>
+                <button class="btn btn-secondary btn-sm" id="openTextImportModalBtn" style="display: none !important;"></button>
+                <button class="btn btn-primary btn-sm" id="openAddFlightModalBtn" style="display: none !important;"></button>
 
-                <button class="btn btn-primary btn-sm" id="openAddFlightModalBtn" style="padding: 6px 12px; font-size: 0.76rem; background: linear-gradient(135deg, var(--primary) 0%, #1d4ed8 100%); border: none; white-space: nowrap;">
-                  <i class="fa-solid fa-plus"></i> Adicionar Voo
-                </button>
+                <!-- New Consolidated Dropdown Button -->
+                <div class="dropdown" style="position: relative; display: inline-block;">
+                  <button class="btn btn-primary btn-sm" id="attachFlightDropdownBtn" style="padding: 6px 14px; font-size: 0.76rem; background: linear-gradient(135deg, var(--primary) 0%, #1d4ed8 100%); border: none; font-weight: 700; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; border-radius: 50px; color: white; white-space: nowrap;">
+                    <i class="fa-solid fa-paperclip"></i> Anexar Voo <i class="fa-solid fa-chevron-down" style="font-size: 0.65rem;"></i>
+                  </button>
+                  <div class="dropdown-menu hidden" id="attachFlightDropdownMenu" style="position: absolute; right: 0; top: calc(100% + 6px); background: #1e293b; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.4); z-index: 1000; min-width: 170px; overflow: hidden; padding: 4px 0; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);">
+                    <button class="dropdown-item" id="magicImportPdfBtnDropdown" style="width: 100%; border: none; background: transparent; color: white; padding: 10px 14px; font-size: 0.8rem; text-align: left; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: background 0.2s;">
+                      <i class="fa-solid fa-wand-magic-sparkles" style="color: var(--primary); width: 14px;"></i> Importar PDF
+                    </button>
+                    <button class="dropdown-item" id="openTextImportModalBtnDropdown" style="width: 100%; border: none; background: transparent; color: white; padding: 10px 14px; font-size: 0.8rem; text-align: left; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: background 0.2s;">
+                      <i class="fa-solid fa-paste" style="color: #10b981; width: 14px;"></i> Colar Texto
+                    </button>
+                    <button class="dropdown-item" id="openAddFlightModalBtnDropdown" style="width: 100%; border: none; background: transparent; color: white; padding: 10px 14px; font-size: 0.8rem; text-align: left; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: background 0.2s;">
+                      <i class="fa-solid fa-plus" style="color: #f97316; width: 14px;"></i> Adicionar Manual
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -346,7 +371,7 @@
               </div>
               
               <button class="btn btn-primary btn-sm" id="saveHotelBtn" style="width: 100%; margin-top: 8px; justify-content: center; background: linear-gradient(135deg, var(--primary) 0%, #1d4ed8 100%); border: none; font-weight: 700;">
-                <i class="fa-solid fa-floppy-disk"></i> Salvar e Atualizar com IA 🤖
+                <i class="fa-solid fa-floppy-disk"></i> Salvar e Atualizar
               </button>
             </div>
           </div>
@@ -360,20 +385,24 @@
           <span class="badge badge-primary"><i class="fa-solid fa-route"></i> O Cronograma</span>
           <h2 class="section-title">Programação Dia a Dia</h2>
           <p class="section-subtitle">O roteiro gerado aparecerá organizado aqui. Clique nos dias para ver detalhes.</p>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="openTutorialAtSlide(3)" style="margin-top: 8px; font-size: 0.72rem; padding: 4px 10px; display: inline-flex; align-items: center; gap: 4px; border-radius: 6px; cursor: pointer;">
+            <i class="fa-solid fa-circle-question"></i> Como usar
+          </button>
         </div>
 
         <!-- Banner incentivando o preenchimento de voos e hospedagem -->
-        <div id="itineraryOptimizationBanner" class="hidden itinerary-opt-banner" style="margin-bottom: 24px; padding: 12px 16px; background: rgba(59, 130, 246, 0.06); border: 1px solid rgba(59, 130, 246, 0.15); border-radius: var(--border-radius-md, 12px); display: flex; align-items: center; justify-content: space-between; gap: 12px; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); flex-wrap: wrap;">
-          <div style="display: flex; align-items: center; gap: 10px; text-align: left; min-width: 0;">
+        <div id="itineraryOptimizationBanner" class="hidden itinerary-opt-banner" style="margin-bottom: 24px; padding: 12px 16px; background: rgba(59, 130, 246, 0.06); border: 1px solid rgba(59, 130, 246, 0.15); border-radius: var(--border-radius-md, 12px); display: flex; align-items: center; justify-content: space-between; gap: 12px; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); flex-wrap: wrap; position: relative;">
+          <div style="display: flex; align-items: center; gap: 10px; text-align: left; min-width: 0; padding-right: 24px;">
             <div style="font-size: 1.2rem; color: var(--primary); flex-shrink: 0;"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
             <p style="margin: 0; font-size: 0.78rem; color: var(--text-light); line-height: 1.4;">
               <strong style="color: white;">Rotas mais certeiras!</strong> Cadastre seus voos e hospedagem na aba <strong>Logística</strong> para sincronizar tudo.
             </p>
           </div>
-          <div style="flex-shrink: 0;">
+          <div style="display: flex; align-items: center; gap: 12px; flex-shrink: 0;">
             <button class="btn btn-primary btn-sm" onclick="switchTab('logistica')" style="padding: 6px 12px; font-size: 0.74rem; background: linear-gradient(135deg, var(--primary) 0%, #1d4ed8 100%); border: none; white-space: nowrap;">
               <i class="fa-solid fa-plane-departure"></i> Preencher Logística
             </button>
+            <button type="button" id="closeItineraryOptimizationBanner" style="background: transparent; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.1rem; padding: 4px; line-height: 1; display: flex; align-items: center; justify-content: center; transition: color 0.2s;"><i class="fa-solid fa-xmark"></i></button>
           </div>
         </div>
 
@@ -434,6 +463,9 @@
             <span class="badge badge-primary"><i class="fa-solid fa-wallet"></i> Finanças</span>
             <h2 class="section-title">Orçamento Inteligente</h2>
             <p class="section-subtitle">Gerencie suas finanças pessoais ou divida as despesas da viagem com amigos.</p>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="openTutorialAtSlide(4)" style="margin-top: 8px; font-size: 0.72rem; padding: 4px 10px; display: inline-flex; align-items: center; gap: 4px; border-radius: 6px; cursor: pointer;">
+              <i class="fa-solid fa-circle-question"></i> Como usar
+            </button>
           </div>
 
           <!-- Sub-abas Finanças -->
@@ -448,41 +480,43 @@
 
           <div class="glass-panel budget-grid" id="myBudgetPanel">
             
-            <!-- Sliders -->
-            <div class="budget-controls">
-              <div class="budget-input-group">
-                <div class="budget-label-wrapper">
-                  <span>Hospedagem &amp; Voos</span>
-                  <span id="labelHospedagem">R$ 0</span>
+            <!-- Interactive Budget Analysis Card (Appears only after itinerary is built) -->
+            <div id="budgetAnalysisCard" class="budget-analysis-card hidden" style="margin-bottom: 24px; padding-bottom: 20px; border-bottom: 1px dashed var(--border-color); display: flex; flex-direction: column; gap: 12px; text-align: left; width: 100%;">
+              <h4 style="font-size: 0.9rem; font-weight: 700; color: white; display: flex; align-items: center; gap: 8px; margin: 0;">
+                <i class="fa-solid fa-calculator" style="color: var(--primary);"></i>
+                Análise do Custo Médio da Viagem
+              </h4>
+              <div class="analysis-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-top: 6px;">
+                <div class="analysis-item" style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); padding: 12px;">
+                  <span style="font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700; display: block; letter-spacing: 0.05em;">Custo Médio Diário</span>
+                  <strong id="budgetDailyAvg" style="font-size: 1.25rem; font-weight: 800; color: var(--accent); display: block; margin-top: 4px;">R$ 0 / dia</strong>
+                  <span style="font-size: 0.68rem; color: var(--text-muted); display: block; margin-top: 2px;">Com base em <span id="budgetDaysCount">0</span> dias de roteiro</span>
                 </div>
-                <input type="range" class="budget-slider" id="slideHospedagem" min="0" max="10000" step="100" value="0" oninput="updateBudget()">
+                <div class="analysis-item" style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); padding: 12px;">
+                  <span style="font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700; display: block; letter-spacing: 0.05em;">Total para o Grupo</span>
+                  <strong id="budgetGroupTotal" style="font-size: 1.25rem; font-weight: 800; color: #10b981; display: block; margin-top: 4px;">R$ 0</strong>
+                  <span style="font-size: 0.68rem; color: var(--text-muted); display: block; margin-top: 2px;">Para <span id="budgetGroupCount">1</span> viajante(s)</span>
+                </div>
               </div>
-              
-              <div class="budget-input-group">
-                <div class="budget-label-wrapper">
-                  <span>Alimentação</span>
-                  <span id="labelAlimentacao">R$ 0</span>
+              <!-- AI Feedback message based on the budget proposal -->
+              <div class="analysis-feedback-box" style="background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.2); border-radius: var(--border-radius-sm); padding: 12px 16px; display: flex; flex-direction: column; gap: 12px; margin-top: 8px;">
+                <div id="aiBudgetAnalysisBlock" style="display: none; flex-direction: column; gap: 4px; text-align: left; padding-bottom: 10px; border-bottom: 1px dashed rgba(255, 255, 255, 0.08);">
+                  <strong style="font-size: 0.78rem; font-weight: 700; color: #60a5fa; display: flex; align-items: center; gap: 6px;">
+                    <i class="fa-solid fa-earth-americas"></i> Custos do Destino (Análise da IA)
+                  </strong>
+                  <p id="budgetAiAnalysisText" style="font-size: 0.74rem; color: var(--text-light); line-height: 1.45; margin: 0; text-align: left;"></p>
                 </div>
-                <input type="range" class="budget-slider" id="slideAlimentacao" min="0" max="5000" step="50" value="0" oninput="updateBudget()">
-              </div>
-              
-              <div class="budget-input-group">
-                <div class="budget-label-wrapper">
-                  <span>Passeios &amp; Atrações</span>
-                  <span id="labelPasseios">R$ 0</span>
+                
+                <div style="display: flex; gap: 10px; align-items: flex-start; text-align: left;">
+                  <div style="font-size: 1rem; color: #10b981; padding-top: 2px; flex-shrink: 0;"><i class="fa-solid fa-sliders"></i></div>
+                  <div style="display: flex; flex-direction: column; gap: 4px;">
+                    <strong style="font-size: 0.78rem; font-weight: 700; color: white;">Perfil do Seu Ajuste</strong>
+                    <p id="budgetFeedbackText" style="font-size: 0.74rem; color: var(--text-light); line-height: 1.4; margin: 0; text-align: left;">Mova os sliders abaixo para ajustar sua estimativa de gastos.</p>
+                  </div>
                 </div>
-                <input type="range" class="budget-slider" id="slidePasseios" min="0" max="5000" step="50" value="0" oninput="updateBudget()">
-              </div>
-              
-              <div class="budget-input-group">
-                <div class="budget-label-wrapper">
-                  <span>Compras &amp; Emergências</span>
-                  <span id="labelCompras">R$ 0</span>
-                </div>
-                <input type="range" class="budget-slider" id="slideCompras" min="0" max="5000" step="50" value="0" oninput="updateBudget()">
               </div>
             </div>
-            
+
             <!-- Result Donut Ring -->
             <div class="budget-chart-container">
               <div class="budget-chart-donut" id="budgetDonut">
@@ -513,40 +547,38 @@
               </div>
             </div>
 
-            <!-- Interactive Budget Analysis Card (Appears only after itinerary is built) -->
-            <div id="budgetAnalysisCard" class="budget-analysis-card hidden" style="grid-column: span 2; margin-top: 24px; padding-top: 20px; border-top: 1px dashed var(--border-color); display: flex; flex-direction: column; gap: 12px; text-align: left; width: 100%;">
-              <h4 style="font-size: 0.9rem; font-weight: 700; color: white; display: flex; align-items: center; gap: 8px; margin: 0;">
-                <i class="fa-solid fa-calculator" style="color: var(--primary);"></i>
-                Análise do Custo Médio da Viagem
-              </h4>
-              <div class="analysis-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-top: 6px;">
-                <div class="analysis-item" style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); padding: 12px;">
-                  <span style="font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700; display: block; letter-spacing: 0.05em;">Custo Médio Diário</span>
-                  <strong id="budgetDailyAvg" style="font-size: 1.25rem; font-weight: 800; color: var(--accent); display: block; margin-top: 4px;">R$ 0 / dia</strong>
-                  <span style="font-size: 0.68rem; color: var(--text-muted); display: block; margin-top: 2px;">Com base em <span id="budgetDaysCount">0</span> dias de roteiro</span>
+            <!-- Sliders -->
+            <div class="budget-controls" style="margin-top: 24px; padding-top: 24px; border-top: 1px dashed var(--border-color); width: 100%;">
+              <div class="budget-input-group">
+                <div class="budget-label-wrapper">
+                  <span>Hospedagem &amp; Voos</span>
+                  <span id="labelHospedagem">R$ 0</span>
                 </div>
-                <div class="analysis-item" style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); padding: 12px;">
-                  <span style="font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700; display: block; letter-spacing: 0.05em;">Total para o Grupo</span>
-                  <strong id="budgetGroupTotal" style="font-size: 1.25rem; font-weight: 800; color: #10b981; display: block; margin-top: 4px;">R$ 0</strong>
-                  <span style="font-size: 0.68rem; color: var(--text-muted); display: block; margin-top: 2px;">Para <span id="budgetGroupCount">1</span> viajante(s)</span>
-                </div>
+                <input type="range" class="budget-slider" id="slideHospedagem" min="0" max="10000" step="100" value="0" oninput="updateBudget()">
               </div>
-              <!-- AI Feedback message based on the budget proposal -->
-              <div class="analysis-feedback-box" style="background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.2); border-radius: var(--border-radius-sm); padding: 12px 16px; display: flex; flex-direction: column; gap: 12px; margin-top: 8px;">
-                <div id="aiBudgetAnalysisBlock" style="display: none; flex-direction: column; gap: 4px; text-align: left; padding-bottom: 10px; border-bottom: 1px dashed rgba(255, 255, 255, 0.08);">
-                  <strong style="font-size: 0.78rem; font-weight: 700; color: #60a5fa; display: flex; align-items: center; gap: 6px;">
-                    <i class="fa-solid fa-earth-americas"></i> Custos do Destino (Análise da IA)
-                  </strong>
-                  <p id="budgetAiAnalysisText" style="font-size: 0.74rem; color: var(--text-light); line-height: 1.45; margin: 0; text-align: left;"></p>
+              
+              <div class="budget-input-group">
+                <div class="budget-label-wrapper">
+                  <span>Alimentação</span>
+                  <span id="labelAlimentacao">R$ 0</span>
                 </div>
-                
-                <div style="display: flex; gap: 10px; align-items: flex-start; text-align: left;">
-                  <div style="font-size: 1rem; color: #10b981; padding-top: 2px; flex-shrink: 0;"><i class="fa-solid fa-sliders"></i></div>
-                  <div style="display: flex; flex-direction: column; gap: 4px;">
-                    <strong style="font-size: 0.78rem; font-weight: 700; color: white;">Perfil do Seu Ajuste</strong>
-                    <p id="budgetFeedbackText" style="font-size: 0.74rem; color: var(--text-light); line-height: 1.4; margin: 0; text-align: left;">Mova os sliders acima para ajustar sua estimativa de gastos.</p>
-                  </div>
+                <input type="range" class="budget-slider" id="slideAlimentacao" min="0" max="5000" step="50" value="0" oninput="updateBudget()">
+              </div>
+              
+              <div class="budget-input-group">
+                <div class="budget-label-wrapper">
+                  <span>Passeios &amp; Atrações</span>
+                  <span id="labelPasseios">R$ 0</span>
                 </div>
+                <input type="range" class="budget-slider" id="slidePasseios" min="0" max="5000" step="50" value="0" oninput="updateBudget()">
+              </div>
+              
+              <div class="budget-input-group">
+                <div class="budget-label-wrapper">
+                  <span>Compras &amp; Emergências</span>
+                  <span id="labelCompras">R$ 0</span>
+                </div>
+                <input type="range" class="budget-slider" id="slideCompras" min="0" max="5000" step="50" value="0" oninput="updateBudget()">
               </div>
             </div>
           </div>
@@ -618,6 +650,9 @@
           <span class="badge badge-primary"><i class="fa-solid fa-suitcase"></i> Bagagem</span>
           <h2 class="section-title">Lista de Mala Inteligente</h2>
           <p class="section-subtitle">Itens recomendados com base no destino e clima. Guardou na mala? É só marcar.</p>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="openTutorialAtSlide(5)" style="margin-top: 8px; font-size: 0.72rem; padding: 4px 10px; display: inline-flex; align-items: center; gap: 4px; border-radius: 6px; cursor: pointer;">
+            <i class="fa-solid fa-circle-question"></i> Como usar
+          </button>
         </div>
 
         <div class="timeline-empty" id="packingEmpty">

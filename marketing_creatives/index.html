@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CoPiloto de Viagem - Creative Studio</title>
+  <!-- Google Fonts: Outfit (Titles) & Inter (Body) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@400;500;600;700;800&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+  <!-- Lucide Icons for premium feel -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Sidebar Control Panel -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo-icon"><i data-lucide="compass"></i></div>
+      <div class="brand-text">
+        <h2>CoPiloto</h2>
+        <span>Creative Studio</span>
+      </div>
+    </div>
+
+    <nav class="nav-menu">
+      <span class="menu-label">Escolha o Tema</span>
+      <button class="nav-btn active" onclick="switchCarousel(1)">
+        <i data-lucide="shield-alert"></i>
+        <div class="btn-text">
+          <strong>1. Fim do Estresse</strong>
+          <span>Dor vs. Solução (Dark)</span>
+        </div>
+      </button>
+
+      <button class="nav-btn" onclick="switchCarousel(2)">
+        <i data-lucide="wallet"></i>
+        <div class="btn-text">
+          <strong>2. Controle Financeiro</strong>
+          <span>Orçamento (Teal Glass)</span>
+        </div>
+      </button>
+
+      <button class="nav-btn" onclick="switchCarousel(3)">
+        <i data-lucide="printer"></i>
+        <div class="btn-text">
+          <strong>3. Roteiro Impresso</strong>
+          <span>PDF / Editorial (Light)</span>
+        </div>
+      </button>
+    </nav>
+
+    <div class="size-controls">
+      <span class="menu-label">Formato do Card</span>
+      <div class="radio-group">
+        <label class="radio-label">
+          <input type="radio" name="format" value="portrait" checked onchange="updateSize()">
+          <span class="custom-radio">Retrato (1080x1350)</span>
+        </label>
+        <label class="radio-label">
+          <input type="radio" name="format" value="square" onchange="updateSize()">
+          <span class="custom-radio">Quadrado (1080x1080)</span>
+        </label>
+      </div>
+    </div>
+
+    <div class="export-helper">
+      <h3><i data-lucide="help-circle"></i> Como Exportar?</h3>
+      <ol>
+        <li>Dê dois cliques em qualquer texto para editar e personalizar.</li>
+        <li>Abra o DevTools no Chrome (F12 ou Option+Cmd+I).</li>
+        <li>Inspecione o slide desejado (clique na tag <code>.slide</code>).</li>
+        <li>Abra o menu de comandos (Cmd+Shift+P / Ctrl+Shift+P).</li>
+        <li>Escreva <code>Capture node screenshot</code> e aperte Enter.</li>
+        <li>O arquivo PNG perfeito em alta resolução será baixado!</li>
+      </ol>
+    </div>
+  </aside>
+
+  <!-- Main Canvas -->
+  <main class="main-content">
+    <header class="top-header">
+      <div class="title-area">
+        <h1 id="carousel-title">Fim do Estresse ao Planejar Viagens</h1>
+        <p id="carousel-desc">Foco na dor de organizar o roteiro manualmente vs a facilidade de gerar em segundos com IA.</p>
+      </div>
+      <div class="actions">
+        <span class="badge size-badge">1080 x 1350 px</span>
+      </div>
+    </header>
+
+    <!-- Slides Container -->
+    <section class="slides-grid format-portrait" id="slides-container">
+      
+      <!-- CAROUSEL 1 (Dor vs Solução) -->
+      <div class="carousel-group" id="carousel-1">
+        
+        <!-- Slide 1: Hook -->
+        <div class="slide theme-dark hover-effect" id="c1-s1">
+          <div class="slide-header">
+            <span class="slide-brand">CoPiloto de Viagem</span>
+            <span class="slide-index">01 / 06</span>
+          </div>
+          <div class="slide-body">
+            <h2 class="hook-title font-syne" contenteditable="true">Planejar uma viagem inteira cansa só de pensar?</h2>
+            <p class="hook-sub" contenteditable="true">Passar horas abrindo 15 abas, comparando preços e tentando organizar o cronograma ideal no Excel ficou no passado.</p>
+            <div class="mock-widget glow-blue">
+              <div class="widget-head">
+                <span class="dot red"></span>
+                <span class="dot yellow"></span>
+                <span class="dot green"></span>
+                <span class="widget-title">Roteiro Personalizado</span>
+              </div>
+              <div class="widget-content">
+                <div class="status-bar">
+                  <div class="loading-label">Processando com Inteligência Artificial...</div>
+                  <div class="progress"><div class="progress-bar" style="width: 100%"></div></div>
+                </div>
+                <div class="success-message">
+                  <i data-lucide="check-circle" class="success-icon"></i>
+                  <span>Roteiro de 7 dias criado com sucesso!</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="slide-footer">
+            <span class="action-hint" contenteditable="true">Arraste para o lado ➔</span>
+          </div>
+        </div>
+
+        <!-- Slide 2: Problem -->
+        <div class="slide theme-dark hover-effect" id="c1-s2">
+          <div class="slide-header">
+            <span class="slide-brand">CoPiloto de Viagem</span>
+            <span class="slide-index">02 / 06</span>
+          </div>
+          <div class="slide-body">
+            <h2 class="section-title" contenteditable="true">O ciclo infinito do planejamento frustrante:</h2>
+            <ul class="pain-list">
+              <li contenteditable="true">
+                <span class="num">1</span>
+                <div>
+                  <strong>Achar hotéis bons e baratos</strong>
+                  <p>Que depois de 2 horas de busca já estão lotados ou são longe de tudo.</p>
+                </div>
+              </li>
+              <li contenteditable="true">
+                <span class="num">2</span>
+                <div>
+                  <strong>Estimar deslocamento entre atrações</strong>
+                  <p>Perder tempo precioso cruzando a cidade de ponta a ponta sem necessidade.</p>
+                </div>
+              </li>
+              <li contenteditable="true">
+                <span class="num">3</span>
+                <div>
+                  <strong>Calcular o orçamento total</strong>
+                  <p>Fazer contas manuais chatas e torcer para o cartão não estourar no meio da viagem.</p>
+                </div>
+              </li>
+            </ul>
+          </div>
+          <div class="slide-footer">
+            <span class="action-hint" contenteditable="true">A solução definitiva está no próximo card ➔</span>
+          </div>
+        </div>
+
+        <!-- Slide 3: Solution -->
+        <div class="slide theme-dark hover-effect" id="c1-s3">
+          <div class="slide-header">
+            <span class="slide-brand">CoPiloto de Viagem</span>
+            <span class="slide-index">03 / 06</span>
+          </div>
+          <div class="slide-body">
+            <h2 class="section-title font-syne" contenteditable="true">Deixe o CoPiloto cuidar do trabalho duro.</h2>
+            <p class="section-sub" contenteditable="true">Um assistente de IA que cria seu roteiro personalizado, otimiza rotas de transporte e estima todos os custos da sua viagem.</p>
+            <div class="app-mockup">
+              <div class="mock-sidebar">
+                <div class="mock-nav-item active"><i data-lucide="map"></i></div>
+                <div class="mock-nav-item"><i data-lucide="dollar-sign"></i></div>
+                <div class="mock-nav-item"><i data-lucide="printer"></i></div>
+              </div>
+              <div class="mock-timeline">
+                <div class="timeline-day">Dia 1 — Roma Imperial</div>
+                <div class="timeline-card">
+                  <div class="time">09:00</div>
+                  <div class="title">Visita guiada ao Coliseu</div>
+                </div>
+                <div class="timeline-card">
+                  <div class="time">13:00</div>
+                  <div class="title">Almoço no Trastevere</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="slide-footer">
+            <span class="action-hint" contenteditable="true">Veja como funciona na prática ➔</span>
+          </div>
+        </div>
+
+        <!-- Slide 4: Steps -->
+        <div class="slide theme-dark hover-effect" id="c1-s4">
+          <div class="slide-header">
+            <span class="slide-brand">CoPiloto de Viagem</span>
+            <span class="slide-index">04 / 06</span>
+          </div>
+          <div class="slide-body">
+            <h2 class="section-title" contenteditable="true">Planeje em 3 passos rápidos:</h2>
+            <div class="steps-container">
+              <div class="step-card" contenteditable="true">
+                <div class="step-badge">1</div>
+                <strong>Escolha destino e datas</strong>
+                <p>Insira para onde quer ir e quantos dias vai durar a viagem.</p>
+              </div>
+              <div class="step-card" contenteditable="true">
+                <div class="step-badge">2</div>
+                <strong>Defina seu estilo</strong>
+                <p>Selecione seu ritmo (lento ou acelerado) e o orçamento disponível.</p>
+              </div>
+              <div class="step-card" contenteditable="true">
+                <div class="step-badge">3</div>
+                <strong>Pronto!</strong>
+                <p>A IA gera a linha do tempo com hotéis, voos, atrações e custos.</p>
+              </div>
+            </div>
+          </div>
+          <div class="slide-footer">
+            <span class="action-hint" contenteditable="true">Veja o comparativo de tempo economizado ➔</span>
+          </div>
+        </div>
+
+        <!-- Slide 5: Comparison -->
+        <div class="slide theme-dark hover-effect" id="c1-s5">
+          <div class="slide-header">
+            <span class="slide-brand">CoPiloto de Viagem</span>
+            <span class="slide-index">05 / 06</span>
+          </div>
+          <div class="slide-body">
+            <h2 class="section-title" contenteditable="true">Onde você prefere gastar o seu tempo?</h2>
+            <div class="compare-table">
+              <div class="table-row header">
+                <div>Tarefa</div>
+                <div>Método Tradicional</div>
+                <div class="highlight">Com o CoPiloto</div>
+              </div>
+              <div class="table-row">
+                <div>Montar Roteiro</div>
+                <div>12 a 15 horas</div>
+                <div class="highlight">30 segundos</div>
+              </div>
+              <div class="table-row">
+                <div>Cálculo de Custos</div>
+                <div>Planilha manual chata</div>
+                <div class="highlight">Automático em tempo real</div>
+              </div>
+              <div class="table-row">
+                <div>Otimizar Rotas</div>
+                <div>Erros de cálculo no mapa</div>
+                <div class="highlight">IA organiza os dias de forma lógica</div>
+              </div>
+            </div>
+          </div>
+          <div class="slide-footer">
+            <span class="action-hint" contenteditable="true">Comece agora no último card ➔</span>
+          </div>
+        </div>
+
+        <!-- Slide 6: CTA -->
+        <div class="slide theme-dark hover-effect" id="c1-s6">
+          <div class="slide-header">
+            <span class="slide-brand">CoPiloto de Viagem</span>
+            <span class="slide-index">06 / 06</span>
+          </div>
+          <div class="slide-body center-content">
+            <div class="cta-circle"><i data-lucide="sparkles"></i></div>
+            <h2 class="cta-title font-syne" contenteditable="true">Chega de perder tempo planejando.</h2>
+            <p class="cta-desc" contenteditable="true">Crie roteiros e orçamentos perfeitos para a sua próxima viagem sem complicações. É de graça.</p>
+            <div class="cta-button" contenteditable="true">Planejar Minha Viagem</div>
+            <p class="cta-subtext" contenteditable="true">Toque no link da bio ou comente "VIAJAR" para receber o acesso!</p>
+          </div>
+          <div class="slide-footer">
+            <span class="slide-brand">copilotodeviagem.app</span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- CAROUSEL 2 (Controle Financeiro / Orçamento) -->
+      <div class="carousel-group" id="carousel-2" style="display: none;">
+        
+        <!-- Slide 1: Hook -->
+        <div class="slide theme-teal hover-effect" id="c2-s1">
+          <div class="slide-header">
+            <span class="slide-brand">CoPiloto de Viagem</span>
+            <span class="slide-index">01 / 05</span>
+          </div>
+          <div class="slide-body">
+            <h2 class="hook-title font-syne" contenteditable="true">Como saber o custo exato da sua viagem antes de sair de casa</h2>
+            <p class="hook-sub" contenteditable="true">Chega de planilhas confusas. Estime hospedagem, alimentação, passeios e transportes de forma inteligente.</p>
+            
+            <div class="glass-donut">
+              <div class="chart-container">
+                <svg width="200" height="200" viewBox="0 0 42 42" class="donut-svg">
+                  <circle class="donut-hole" cx="21" cy="21" r="15.91549430918954" fill="transparent"></circle>
+                  <circle class="donut-ring" cx="21" cy="21" r="15.91549430918954" fill="transparent" stroke="rgba(255,255,255,0.1)" stroke-width="4"></circle>
+                  <circle class="donut-segment segment-1" cx="21" cy="21" r="15.91549430918954" fill="transparent" stroke="#10b981" stroke-width="4" stroke-dasharray="40 60" stroke-dashoffset="25"></circle>
+                  <circle class="donut-segment segment-2" cx="21" cy="21" r="15.91549430918954" fill="transparent" stroke="#3b82f6" stroke-width="4" stroke-dasharray="25 75" stroke-dashoffset="85"></circle>
+                  <circle class="donut-segment segment-3" cx="21" cy="21" r="15.91549430918954" fill="transparent" stroke="#a855f7" stroke-width="4" stroke-dasharray="35 65" stroke-dashoffset="60"></circle>
+                </svg>
+                <div class="donut-center">
+                  <span class="center-label">Total Estimado</span>
+                  <span class="center-value">R$ 8.450</span>
+                </div>
+              </div>
+              <div class="chart-legend">
+                <div class="legend-item"><span class="legend-color green"></span> Hospedagem (40%)</div>
+                <div class="legend-item"><span class="legend-color blue"></span> Alimentação (25%)</div>
+                <div class="legend-item"><span class="legend-color purple"></span> Passeios (35%)</div>
+              </div>
+            </div>
+          </div>
+          <div class="slide-footer">
+            <span class="action-hint" contenteditable="true">Arraste e saiba como evitar surpresas ➔</span>
+          </div>
+        </div>
+
+        <!-- Slide 2: The Trap -->
+        <div class="slide theme-teal hover-effect" id="c2-s2">
+          <div class="slide-header">
+            <span class="slide-brand">CoPiloto de Viagem</span>
+            <span class="slide-index">02 / 05</span>
+          </div>
+          <div class="slide-body">
+            <h2 class="section-title" contenteditable="true">A armadilha financeira da viagem "barata":</h2>
+            <div class="trap-box" contenteditable="true">
+              <i data-lucide="alert-triangle" class="trap-icon"></i>
+              <div>
+                <strong>Achar que os únicos custos são passagem e hospedagem.</strong>
+                <p>Alimentação, atrativos locais, táxis/Uber e compras de última hora costumam representar até <strong>60% dos gastos totais</strong>, pegando a maioria de surpresa.</p>
+              </div>
+            </div>
+            <p class="section-sub-bottom" contenteditable="true">Sem um controle centralizado, é muito fácil estourar o limite do cartão logo nos primeiros dias.</p>
+          </div>
+          <div class="slide-footer">
+            <span class="action-hint" contenteditable="true">Como o CoPiloto resolve isso? ➔</span>
+          </div>
+        </div>
+
+        <!-- Slide 3: Smart Sliders -->
+        <div class="slide theme-teal hover-effect" id="c2-s3">
+          <div class="slide-header">
+            <span class="slide-brand">CoPiloto de Viagem</span>
+            <span class="slide-index">03 / 05</span>
+          </div>
+          <div class="slide-body">
+            <h2 class="section-title" contenteditable="true">Tudo sob controle com Sliders Inteligentes</h2>
+            <p class="section-sub" contenteditable="true">Personalize a estimativa da inteligência artificial arrastando as barras para cima ou para baixo de acordo com o seu perfil.</p>
+            
+            <div class="mock-sliders-card">
+              <div class="slider-row">
+                <div class="slider-info">
+                  <span>Alimentação (Dia/Pessoa)</span>
+                  <strong>R$ 150</strong>
+                </div>
+                <div class="slider-track"><div class="slider-fill" style="width: 60%"></div><div class="slider-thumb" style="left: 60%"></div></div>
+              </div>
+              <div class="slider-row">
+                <div class="slider-info">
+                  <span>Passeios (Total)</span>
+                  <strong>R$ 800</strong>
+                </div>
+                <div class="slider-track"><div class="slider-fill" style="width: 45%"></div><div class="slider-thumb" style="left: 45%"></div></div>
+              </div>
+              <div class="slider-row">
+                <div class="slider-info">
+                  <span>Nº de Viajantes</span>
+                  <strong>3 pessoas</strong>
+                </div>
+                <div class="slider-track"><div class="slider-fill" style="width: 30%"></div><div class="slider-thumb" style="left: 30%"></div></div>
+              </div>
+            </div>
+          </div>
+          <div class="slide-footer">
+            <span class="action-hint" contenteditable="true">Os benefícios em tempo real ➔</span>
+          </div>
+        </div>
+
+        <!-- Slide 4: Benefits -->
+        <div class="slide theme-teal hover-effect" id="c2-s4">
+          <div class="slide-header">
+            <span class="slide-brand">CoPiloto de Viagem</span>
+            <span class="slide-index">04 / 05</span>
+          </div>
+          <div class="slide-body">
+            <h2 class="section-title" contenteditable="true">Por que usar o nosso dashboard de finanças?</h2>
+            <ul class="benefits-list">
+              <li contenteditable="true">
+                <i data-lucide="check-circle-2"></i>
+                <div>
+                  <strong>Previsão de Custo Médio Diário:</strong> Saiba exatamente quanto deve gastar por dia para manter a meta.
+                </div>
+              </li>
+              <li contenteditable="true">
+                <i data-lucide="check-circle-2"></i>
+                <div>
+                  <strong>Detalhamento por Categorias:</strong> Identifique imediatamente qual setor está consumindo a maior fatia do dinheiro.
+                </div>
+              </li>
+              <li contenteditable="true">
+                <i data-lucide="check-circle-2"></i>
+                <div>
+                  <strong>Cálculo do Grupo Automático:</strong> Divida o valor geral do orçamento entre o número de viajantes com um clique.
+                </div>
+              </li>
+            </ul>
+          </div>
+          <div class="slide-footer">
+            <span class="action-hint" contenteditable="true">Acesse gratuitamente no próximo card ➔</span>
+          </div>
+        </div>
+
+        <!-- Slide 5: CTA -->
+        <div class="slide theme-teal hover-effect" id="c2-s5">
+          <div class="slide-header">
+            <span class="slide-brand">CoPiloto de Viagem</span>
+            <span class="slide-index">05 / 05</span>
+          </div>
+          <div class="slide-body center-content">
+            <div class="cta-circle green-glow"><i data-lucide="dollar-sign"></i></div>
+            <h2 class="cta-title font-syne" contenteditable="true">Planeje sua viagem dentro do orçamento.</h2>
+            <p class="cta-desc" contenteditable="true">Descubra quanto sua próxima aventura vai custar de verdade e evite surpresas no cartão pós-viagem.</p>
+            <div class="cta-button green-btn" contenteditable="true">Simular Orçamento Grátis</div>
+            <p class="cta-subtext" contenteditable="true">Clique no link da bio ou comente "ORÇAMENTO" para receber o link!</p>
+          </div>
+          <div class="slide-footer">
+            <span class="slide-brand">copilotodeviagem.app</span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- CAROUSEL 3 (Roteiro PDF / Light Mode Editorial) -->
+      <div class="carousel-group" id="carousel-3" style="display: none;">
+        
+        <!-- Slide 1: Hook -->
+        <div class="slide theme-light hover-effect" id="c3-s1">
+          <div class="slide-header">
+            <span class="slide-brand text-slate">CoPiloto de Viagem</span>
+            <span class="slide-index text-slate">01 / 05</span>
+          </div>
+          <div class="slide-body">
+            <h2 class="hook-title text-slate font-syne" contenteditable="true">Seu roteiro perfeito de viagem pronto para imprimir</h2>
+            <p class="hook-sub text-slate" contenteditable="true">Gere um guia completo, diagramado automaticamente como um livro físico. Sem anúncios chatos ou links desorganizados.</p>
+            
+            <div class="pdf-mock-page">
+              <div class="pdf-header">
+                <span>Roteiro de Viagem — Paris</span>
+                <span>Pág. 1</span>
+              </div>
+              <div class="pdf-content">
+                <div class="pdf-destination-banner"></div>
+                <div class="pdf-info-grid">
+                  <div class="pdf-info-box"><strong>Período</strong><span>7 Dias</span></div>
+                  <div class="pdf-info-box"><strong>Clima</strong><span>18ºC - Primavera</span></div>
+                  <div class="pdf-info-box"><strong>Grupo</strong><span>3 Pessoas</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="slide-footer">
+            <span class="action-hint text-slate" contenteditable="true">Arraste para ver a diagramação ➔</span>
+          </div>
+        </div>
+
+        <!-- Slide 2: The Print Issue -->
+        <div class="slide theme-light hover-effect" id="c3-s2">
+          <div class="slide-header">
+            <span class="slide-brand text-slate">CoPiloto de Viagem</span>
+            <span class="slide-index text-slate">02 / 05</span>
+          </div>
+          <div class="slide-body">
+            <h2 class="section-title text-slate" contenteditable="true">Por que imprimir sites comuns não funciona?</h2>
+            <div class="error-list">
+              <div class="error-item" contenteditable="true">
+                <i data-lucide="x" class="red-x"></i>
+                <span>Quebra de páginas cortando parágrafos e horários pela metade.</span>
+              </div>
+              <div class="error-item" contenteditable="true">
+                <i data-lucide="x" class="red-x"></i>
+                <span>Banners, widgets promocionais e anúncios poluindo a folha de papel.</span>
+              </div>
+              <div class="error-item" contenteditable="true">
+                <i data-lucide="x" class="red-x"></i>
+                <span>Links de mapas imensos e desnecessários na hora da leitura física.</span>
+              </div>
+            </div>
+            <div class="editorial-divider"></div>
+          </div>
+          <div class="slide-footer">
+            <span class="action-hint text-slate" contenteditable="true">Como o CoPiloto resolve isso ➔</span>
+          </div>
+        </div>
+
+        <!-- Slide 3: Page Breaks -->
+        <div class="slide theme-light hover-effect" id="c3-s3">
+          <div class="slide-header">
+            <span class="slide-brand text-slate">CoPiloto de Viagem</span>
+            <span class="slide-index text-slate">03 / 05</span>
+          </div>
+          <div class="slide-body">
+            <h2 class="section-title text-slate" contenteditable="true">Quebra de página inteligente por dia</h2>
+            <p class="section-sub text-slate" contenteditable="true">Nossa tecnologia de impressão garante que cada dia do seu roteiro comece exatamente no topo de uma nova página.</p>
+            
+            <div class="mini-pages-preview">
+              <div class="mini-page">
+                <div class="mini-page-title">Capa & Geral</div>
+                <div class="mini-page-line h3"></div>
+                <div class="mini-page-blocks-3"><div></div><div></div><div></div></div>
+              </div>
+              <div class="mini-page">
+                <div class="mini-page-title">Dia 1 — Roteiro</div>
+                <div class="mini-page-line h2"></div>
+                <div class="mini-page-card"></div>
+                <div class="mini-page-card"></div>
+              </div>
+              <div class="mini-page">
+                <div class="mini-page-title">Dia 2 — Roteiro</div>
+                <div class="mini-page-line h2"></div>
+                <div class="mini-page-card"></div>
+                <div class="mini-page-card"></div>
+              </div>
+            </div>
+          </div>
+          <div class="slide-footer">
+            <span class="action-hint text-slate" contenteditable="true">O que sobra na impressão? ➔</span>
+          </div>
+        </div>
+
+        <!-- Slide 4: Clean Layout -->
+        <div class="slide theme-light hover-effect" id="c3-s4">
+          <div class="slide-header">
+            <span class="slide-brand text-slate">CoPiloto de Viagem</span>
+            <span class="slide-index text-slate">04 / 05</span>
+          </div>
+          <div class="slide-body">
+            <h2 class="section-title text-slate" contenteditable="true">Apenas o que importa no papel:</h2>
+            <div class="clean-features">
+              <div class="clean-feature-item" contenteditable="true">
+                <i data-lucide="check" class="blue-check"></i>
+                <div>
+                  <strong>Sem anúncios ou links feios:</strong> Widgets promocionais e links de mapa são removidos automaticamente.
+                </div>
+              </div>
+              <div class="clean-feature-item" contenteditable="true">
+                <i data-lucide="check" class="blue-check"></i>
+                <div>
+                  <strong>Linha do tempo visual integrada:</strong> Traçado limpo da linha do tempo acompanhando o fluxo das suas atrações.
+                </div>
+              </div>
+              <div class="clean-feature-item" contenteditable="true">
+                <i data-lucide="check" class="blue-check"></i>
+                <div>
+                  <strong>Hospedagem e voos em destaque:</strong> Suas informações cruciais de logística no cabeçalho do roteiro.
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="slide-footer">
+            <span class="action-hint text-slate" contenteditable="true">Gere seu roteiro impresso ➔</span>
+          </div>
+        </div>
+
+        <!-- Slide 5: CTA -->
+        <div class="slide theme-light hover-effect" id="c3-s5">
+          <div class="slide-header">
+            <span class="slide-brand text-slate">CoPiloto de Viagem</span>
+            <span class="slide-index text-slate">05 / 05</span>
+          </div>
+          <div class="slide-body center-content">
+            <div class="cta-circle blue-glow"><i data-lucide="book-open"></i></div>
+            <h2 class="cta-title text-slate font-syne" contenteditable="true">Tenha seu próprio guia de viagem impresso.</h2>
+            <p class="cta-desc text-slate" contenteditable="true">Planeje em segundos e gere um roteiro limpo em PDF pronto para levar no papel ou no celular.</p>
+            <div class="cta-button blue-btn" contenteditable="true">Gerar Roteiro PDF</div>
+            <p class="cta-subtext text-slate" contenteditable="true">Clique no link da bio ou comente "ROTEIRO" para testar agora!</p>
+          </div>
+          <div class="slide-footer">
+            <span class="slide-brand text-slate">copilotodeviagem.app</span>
+          </div>
+        </div>
+
+      </div>
+
+    </section>
+  </main>
+
+  <script>
+    // Initialize Lucide Icons
+    lucide.createIcons();
+
+    // Switch active carousel group
+    function switchCarousel(index) {
+      // Hide all groups
+      document.querySelectorAll('.carousel-group').forEach(group => {
+        group.style.display = 'none';
+      });
+      // Deactivate all buttons
+      document.querySelectorAll('.nav-btn').forEach(btn => {
+        btn.classList.remove('active');
+      });
+
+      // Show selected group
+      const selectedGroup = document.getElementById(`carousel-${index}`);
+      if (selectedGroup) {
+        selectedGroup.style.display = 'block';
+      }
+      
+      // Activate button
+      const buttons = document.querySelectorAll('.nav-menu .nav-btn');
+      if (buttons[index - 1]) {
+        buttons[index - 1].classList.add('active');
+      }
+
+      // Update titles
+      const titles = [
+        "Fim do Estresse ao Planejar Viagens",
+        "Controle Financeiro de Viagem Inteligente",
+        "Roteiro PDF Pronto Para Imprimir"
+      ];
+      const descs = [
+        "Foco na dor de organizar o roteiro manualmente vs a facilidade de gerar em segundos com IA.",
+        "Simule e otimize os custos de viagem por categorias de forma dinâmica e visual.",
+        "Gere livretos e PDFs perfeitos e limpos para impressão ou leitura off-line."
+      ];
+
+      document.getElementById('carousel-title').innerText = titles[index - 1];
+      document.getElementById('carousel-desc').innerText = descs[index - 1];
+    }
+
+    // Switch between portrait (1080x1350) and square (1080x1080) dimensions
+    function updateSize() {
+      const format = document.querySelector('input[name="format"]:checked').value;
+      const container = document.getElementById('slides-container');
+      const badge = document.querySelector('.size-badge');
+
+      if (format === 'portrait') {
+        container.classList.remove('format-square');
+        container.classList.add('format-portrait');
+        badge.innerText = '1080 x 1350 px (Instagram Portrait)';
+      } else {
+        container.classList.remove('format-portrait');
+        container.classList.add('format-square');
+        badge.innerText = '1080 x 1080 px (Instagram Square)';
+      }
+    }
+  </script>
+</body>
+</html>
