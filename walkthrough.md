@@ -60,3 +60,16 @@ Este documento resume as melhorias aplicadas na barra de navegação, na exporta
 4. **Placeholder de Sugestão do Chat "Na Viagem":**
    * Alteramos o exemplo de prompt no chat para uma opção mais imersiva e geral: `Ex: Estou na Plaza de Mayo em Buenos Aires, me leve em um tour imersivo...`.
 
+### 4. Melhorias Visuais de Contraste, Barra de Navegação Fixa e Busca de Voos
+1. **Barra de Navegação Fique Fixa e Compacta (Mobile):**
+   * Removemos o comportamento de ocultação da barra inferior (`.bottom-nav`) ao fazer scroll na tela e ao focar nas caixas de texto (teclado ativo). A barra agora fica 100% fixa e visível.
+   * Reduzimos a altura útil da barra de navegação de `68px` para `58px` no celular para economizar espaço de tela útil, reduzindo também o padding interno dos botões, tamanhos de ícone e espaçamento de textos no [style.css](file:///Users/iancapo/antigravity/gpt%20do%20viajante/style.css).
+2. **Sub-aba Google Flights em Logística:**
+   * Criamos uma estrutura de sub-abas dentro da aba **Logística** em [app.html](file:///Users/iancapo/antigravity/gpt%20do%20viajante/app.html) para alternar entre "Meus Voos & Docs" e "Buscar Voos (Google Flights)".
+   * O painel do Google Flights pré-preenche automaticamente o Destino da viagem e as Datas de Ida e Volta baseado no `tripData` carregado. A busca é acionada por um clique abrindo a pesquisa oficial do Google Flights parametrizada em nova aba.
+3. **Links de Afiliados Simplificados ("Limpos"):**
+   * Redesenhamos a seção de ingressos (`getBookingHtml`) para remover o widget pesado de afiliados e substituí-lo por um botão minimalista, discreto e de alta integração visual ("ticket badge") indicando claramente o parceiro (Civitatis ou GetYourGuide) no [app.js](file:///Users/iancapo/antigravity/gpt%20do%20viajante/app.js).
+4. **Legibilidade da Caixa "Chegou a hora!":**
+   * A caixa de contagem regressiva concluída no topo do painel (`#countdown` em `app.js`) agora usa um design de vidro escuro fixo, borda fina e texto branco/laranja vibrante. Isso evita que ela se torne ilegível no tema claro devido ao fundo translúcido padrão do painel.
+5. **Legibilidade do Total de Orçamento no Tema Claro:**
+   * Adicionamos a regra de cor no [style.css](file:///Users/iancapo/antigravity/gpt%20do%20viajante/style.css) para que o valor numérico central do donut de orçamento (`.budget-total-val`) use a cor escura do tema claro (`var(--text-main)`), eliminando o contraste invisível de texto branco sobre fundo branco.
