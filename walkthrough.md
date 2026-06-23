@@ -47,3 +47,16 @@ Este documento resume as melhorias aplicadas na barra de navegação, na exporta
    * Não aparecem os widgets cinzas do Civitatis/GetYourGuide com botões, nem o link do Maps, nem o rodapé do app.
    * A linha azul e os círculos estão perfeitamente alinhados na lateral das caixas de atrações.
    * A quantidade de páginas do documento foi reduzida de forma drástica e funcional (ex: de 17 páginas para cerca de 4 ou 5 páginas legíveis e bem diagramadas).
+
+### 3. Invalidamento de Cache e Atualização de Componentes (Mobile / PWA)
+1. **Configuração de Cache-Busting no HTML:**
+   * Atualizamos os imports em [app.html](file:///Users/iancapo/antigravity/gpt%20do%20viajante/app.html) do script principal (`/app.js?v=1.1.2`) e folha de estilo (`/style.css?v=1.1.2`) com parâmetros de versão para forçar os navegadores a buscarem os arquivos mais recentes.
+2. **Atualização do Service Worker (`sw.js`):**
+   * Elevamos a versão do cache para `copiloto-viagem-v1.4`.
+   * Implementamos a injeção dinâmica de um parâmetro de cache-buster (`cb=Date.now()`) no momento do download inicial dos arquivos no evento `install`, garantindo que o Service Worker obtenha as versões atualizadas diretamente do servidor e não de caches intermediários (HTTP ou Vercel CDN).
+   * Adicionamos a flag `{ ignoreSearch: true }` no método `caches.match` para fazer o roteamento correto das requisições parametrizadas (ex: `/app.js?v=1.1.2`) aos arquivos limpos armazenados no cache.
+3. **Cabeçalhos do Vercel (`vercel.json`):**
+   * Adicionamos a regra de Cache-Control para o arquivo `/sw.js` definindo `public, max-age=0, must-revalidate`. Isso garante que o navegador sempre verifique com a Vercel se há atualizações no Service Worker antes de decidir usá-lo.
+4. **Placeholder de Sugestão do Chat "Na Viagem":**
+   * Alteramos o exemplo de prompt no chat para uma opção mais imersiva e geral: `Ex: Estou na Plaza de Mayo em Buenos Aires, me leve em um tour imersivo...`.
+
