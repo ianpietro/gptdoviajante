@@ -5445,38 +5445,45 @@ window.triggerAiLogisticsSync = triggerAiLogisticsSync;
 // ==========================================================================
 
 // Visual Viewport Keyboard Adjustment
+// Fixes iOS Safari: when keyboard opens, iOS scrolls the page to center the focused
+// input, pushing the app-container off-screen. The CSS fix (position:fixed on mobile)
+// prevents that scroll. This JS listener also adjusts the chat-sidebar height so it
+// fits perfectly in the space above the keyboard and bottom nav.
 function setupVisualViewportListener() {
   if (!window.visualViewport) return;
 
   const chatSidebar = document.querySelector(".chat-sidebar");
   if (!chatSidebar) return;
 
+  const NAV_H = 58; // bottom nav height in px (must match CSS)
+
   const handleResize = () => {
     if (window.innerWidth > 768) {
+      // Desktop: clear any inline heights set by this listener
       chatSidebar.style.height = "";
       return;
     }
 
     const appContainer = document.querySelector(".app-container");
     const isNavHidden = appContainer && appContainer.classList.contains("nav-hidden");
-    const viewportHeight = window.visualViewport.height;
+    const vvHeight = window.visualViewport.height;
 
     if (isNavHidden) {
-      chatSidebar.style.height = `${viewportHeight}px`;
+      // Nav is hidden — fill the full visual viewport
+      chatSidebar.style.height = `${vvHeight}px`;
     } else {
-      chatSidebar.style.height = `calc(${viewportHeight}px - 68px - env(safe-area-inset-bottom, 0px))`;
+      // Nav is visible — leave space for it above the keyboard
+      chatSidebar.style.height = `${vvHeight - NAV_H}px`;
     }
-    
-    // Auto-scroll messages to the bottom
-    const activeMessagesContainer = document.querySelector(".chat-messages");
-    if (activeMessagesContainer) {
-      activeMessagesContainer.scrollTop = activeMessagesContainer.scrollHeight;
-    }
+
+    // Auto-scroll messages to the bottom so the latest message stays visible
+    const msgs = chatSidebar.querySelector(".chat-messages");
+    if (msgs) msgs.scrollTop = msgs.scrollHeight;
   };
 
   window.visualViewport.addEventListener("resize", handleResize);
   window.visualViewport.addEventListener("scroll", handleResize);
-  
+
   const appContainer = document.querySelector(".app-container");
   if (appContainer) {
     const observer = new MutationObserver((mutations) => {
