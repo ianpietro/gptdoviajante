@@ -5463,59 +5463,67 @@ window.triggerAiLogisticsSync = triggerAiLogisticsSync;
 
 // Visual Viewport Keyboard Adjustment
 function setupVisualViewportListener() {
-  if (!window.visualViewport) return;
-
   const chatSidebar = document.querySelector(".chat-sidebar");
   const bottomNav = document.querySelector(".bottom-nav");
   if (!chatSidebar || !bottomNav) return;
 
   const handleResize = () => {
-    const vvHeight = window.visualViewport.height;
-    const vvOffsetTop = window.visualViewport.offsetTop;
-
-    const appContainer = document.querySelector(".app-container");
-    if (!appContainer) return;
-
     if (window.innerWidth > 768) {
       document.documentElement.style.height = "";
       document.body.style.height = "";
-      appContainer.style.position = "";
-      appContainer.style.top = "";
-      appContainer.style.height = "";
-      appContainer.style.bottom = "";
-      chatSidebar.style.setProperty("padding-bottom", "", "");
+      const appContainer = document.querySelector(".app-container");
+      if (appContainer) {
+        appContainer.style.position = "";
+        appContainer.style.top = "";
+        appContainer.style.height = "";
+        appContainer.style.bottom = "";
+      }
+      document.querySelectorAll(".chat-input-area").forEach(area => {
+        area.style.bottom = "";
+        area.style.position = "";
+      });
       bottomNav.style.display = "";
       return;
     }
 
-    // Set html & body height to visual viewport height to lock keyboard resizing
+    const vvHeight = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+    const vvOffsetTop = window.visualViewport ? window.visualViewport.offsetTop : 0;
+    const scrollY = window.scrollY || window.pageYOffset || 0;
+
+    // Set html & body height to visual viewport height to lock keyboard resizing scroll
     document.documentElement.style.height = `${vvHeight}px`;
     document.body.style.height = `${vvHeight}px`;
 
-    // Position and size app-container to visual viewport exactly to offset any WebKit focus scroll shifts
-    const scrollY = window.scrollY || window.pageYOffset || 0;
-    appContainer.style.position = "absolute";
-    appContainer.style.top = `${scrollY + vvOffsetTop}px`;
-    appContainer.style.height = `${vvHeight}px`;
-    appContainer.style.bottom = "auto";
+    const appContainer = document.querySelector(".app-container");
+    if (appContainer) {
+      // Position and size app-container to visual viewport exactly to offset any WebKit focus scroll shifts
+      appContainer.style.position = "absolute";
+      appContainer.style.top = `${scrollY + vvOffsetTop}px`;
+      appContainer.style.height = `${vvHeight}px`;
+      appContainer.style.bottom = "auto";
+    }
 
     const activeBtn = document.querySelector(".bottom-nav-btn.active");
     const activeTab = activeBtn ? activeBtn.dataset.tab : "chat";
     const isChatTab = activeTab === "chat" || activeTab === "naviagem";
 
-    // Detect if virtual keyboard is active (if any input or textarea is currently focused)
+    // Detect if keyboard is open based on active text input focus
     const activeEl = document.activeElement;
     const isKeyboardActive = activeEl && (activeEl.tagName === "INPUT" || activeEl.tagName === "TEXTAREA");
 
     if (isChatTab) {
       if (isKeyboardActive) {
-        // Keyboard is open: hide bottom nav, set padding to 0 so chat input sits on the keyboard
+        // Keyboard open: hide bottom nav, dock inputs exactly to the visual viewport bottom (0px)
         bottomNav.style.display = "none";
-        chatSidebar.style.setProperty("padding-bottom", "0px", "important");
+        document.querySelectorAll(".chat-input-area").forEach(area => {
+          area.style.setProperty("bottom", "0px", "important");
+        });
       } else {
-        // Keyboard is closed: show bottom nav, set padding to 58px for bottom nav space
+        // Keyboard closed: show bottom nav, dock inputs directly above the bottom nav (58px)
         bottomNav.style.display = "flex";
-        chatSidebar.style.setProperty("padding-bottom", "58px", "important");
+        document.querySelectorAll(".chat-input-area").forEach(area => {
+          area.style.setProperty("bottom", "58px", "important");
+        });
       }
 
       // Auto-scroll messages to the bottom
@@ -5525,21 +5533,22 @@ function setupVisualViewportListener() {
         if (msgs) msgs.scrollTop = msgs.scrollHeight;
       }
     } else {
-      // Non-chat tabs: hide bottom nav only if typing to give full screen height to form/details
+      // Non-chat tabs: hide bottom nav if typing to give full screen height to form/details
       bottomNav.style.display = isKeyboardActive ? "none" : "flex";
-      chatSidebar.style.setProperty("padding-bottom", "", "");
+      document.querySelectorAll(".chat-input-area").forEach(area => {
+        area.style.bottom = "";
+        area.style.position = "";
+      });
     }
   };
 
-  window.visualViewport.addEventListener("resize", handleResize);
-  window.visualViewport.addEventListener("scroll", handleResize);
-
-  // Force layout scroll lock globally on mobile to override browser default auto-scroll offsets
+  // Lock scroll globally on mobile to prevent browser default auto-scroll offsets
   window.addEventListener("scroll", () => {
     if (window.innerWidth <= 768) {
       if (window.scrollY !== 0 || window.scrollX !== 0) {
         window.scrollTo(0, 0);
       }
+      handleResize();
     }
   });
 
@@ -5557,7 +5566,11 @@ function setupVisualViewportListener() {
     }
   });
 
-  const appContainer = document.querySelector(".app-container");
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener("resize", handleResize);
+    window.visualViewport.addEventListener("scroll", handleResize);
+  }
+
   if (appContainer) {
     const observer = new MutationObserver((mutations) => {
       mutations.forEach((mutation) => {
@@ -5568,6 +5581,16 @@ function setupVisualViewportListener() {
     });
     observer.observe(appContainer, { attributes: true });
   }
+
+  // Monitor bottom nav clicks to trigger resize updates immediately on tab switch
+  document.querySelectorAll('.bottom-nav-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      setTimeout(handleResize, 10);
+    });
+  });
+
+  // Run handleResize once to initialize positions
+  handleResize();
 }
 
 // Consolidated Attach Flights Dropdown setup
