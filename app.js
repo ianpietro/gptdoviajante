@@ -5493,8 +5493,9 @@ function setupVisualViewportListener() {
     document.body.style.height = `${vvHeight}px`;
 
     // Position and size app-container to visual viewport exactly to offset any WebKit focus scroll shifts
+    const scrollY = window.scrollY || window.pageYOffset || 0;
     appContainer.style.position = "absolute";
-    appContainer.style.top = `${vvOffsetTop}px`;
+    appContainer.style.top = `${scrollY + vvOffsetTop}px`;
     appContainer.style.height = `${vvHeight}px`;
     appContainer.style.bottom = "auto";
 
