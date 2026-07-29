@@ -5491,8 +5491,9 @@ function setupVisualViewportListener() {
     const activeTab = activeBtn ? activeBtn.dataset.tab : "chat";
     const isChatTab = activeTab === "chat" || activeTab === "naviagem";
 
-    // Detect if virtual keyboard is active (viewport height is significantly smaller than innerHeight)
-    const isKeyboardActive = vvHeight < window.innerHeight - 100;
+    // Detect if virtual keyboard is active (if any input or textarea is currently focused)
+    const activeEl = document.activeElement;
+    const isKeyboardActive = activeEl && (activeEl.tagName === "INPUT" || activeEl.tagName === "TEXTAREA");
 
     if (isChatTab) {
       if (isKeyboardActive) {
@@ -5521,12 +5522,26 @@ function setupVisualViewportListener() {
   window.visualViewport.addEventListener("resize", handleResize);
   window.visualViewport.addEventListener("scroll", handleResize);
 
-  // Force scroll lock globally on mobile to override browser default auto-scroll offsets
+  // Force layout scroll lock globally on mobile to override browser default auto-scroll offsets
   window.addEventListener("scroll", () => {
     if (window.innerWidth <= 768) {
       if (window.scrollY !== 0 || window.scrollX !== 0) {
         window.scrollTo(0, 0);
       }
+    }
+  });
+
+  // Listen to focus changes to update layout immediately
+  document.addEventListener("focusin", (e) => {
+    if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") {
+      handleResize();
+    }
+  });
+
+  document.addEventListener("focusout", (e) => {
+    if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") {
+      // Tiny delay to let activeElement shift before checking
+      setTimeout(handleResize, 50);
     }
   });
 
