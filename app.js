@@ -5471,13 +5471,17 @@ function setupVisualViewportListener() {
 
   const handleResize = () => {
     const vvHeight = window.visualViewport.height;
+    const vvOffsetTop = window.visualViewport.offsetTop;
 
-    // Reset layout viewport scroll position to (0,0)
-    window.scrollTo(0, 0);
+    const appContainer = document.querySelector(".app-container");
+    if (!appContainer) return;
 
     if (window.innerWidth > 768) {
       document.documentElement.style.height = "";
       document.body.style.height = "";
+      appContainer.style.position = "";
+      appContainer.style.top = "";
+      appContainer.style.height = "";
       chatSidebar.style.setProperty("padding-bottom", "", "");
       bottomNav.style.display = "";
       return;
@@ -5486,6 +5490,11 @@ function setupVisualViewportListener() {
     // Set html & body height to visual viewport height to lock keyboard resizing
     document.documentElement.style.height = `${vvHeight}px`;
     document.body.style.height = `${vvHeight}px`;
+
+    // Position and size app-container to visual viewport exactly to offset any WebKit focus scroll shifts
+    appContainer.style.position = "absolute";
+    appContainer.style.top = `${vvOffsetTop}px`;
+    appContainer.style.height = `${vvHeight}px`;
 
     const activeBtn = document.querySelector(".bottom-nav-btn.active");
     const activeTab = activeBtn ? activeBtn.dataset.tab : "chat";
