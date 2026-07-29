@@ -2330,38 +2330,47 @@ body.light-theme .btn-affiliate-link:hover {
   .bottom-nav { display: flex; }
   .mobile-tabs { display: none !important; }
 
-  /* iOS keyboard fix: position:fixed prevents iOS from scrolling the container
-     off-screen when an input is focused and the keyboard opens */
-  .app-container {
-    position: fixed;
-    inset: 0;
-    height: 100%;  /* top:0 + bottom:0 already define height */
+  /* Lock html and body so page cannot scroll — prevents iOS from shifting layout when keyboard opens */
+  html, body {
+    position: fixed !important;
+    inset: 0 !important;
+    overflow: hidden !important;
+    width: 100% !important;
+    height: 100% !important;
   }
 
-  /* Chat sidebar: fits exactly above the bottom nav bar on mobile */
+  /* App container fills the full fixed viewport */
+  .app-container {
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    overflow: hidden !important;
+  }
+
+  /* Chat sidebar fills the full app container, padded below for bottom nav */
   .chat-sidebar {
     position: absolute !important;
     top: 0 !important;
     left: 0 !important;
     right: 0 !important;
+    bottom: 0 !important;
     z-index: 999 !important;
-    width: 100%;
-    max-width: 100vw;
-    height: 100%;
-    min-height: unset;
-    max-height: unset;
+    width: 100% !important;
+    height: auto !important;
+    min-height: unset !important;
+    max-height: unset !important;
     border-top: none;
-    order: 0;
     padding-bottom: calc(58px + env(safe-area-inset-bottom, 0px)) !important;
-    box-sizing: border-box;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
     transition: none !important;
   }
 
-  /* When bottom nav is hidden, expand to full viewport height */
-  .app-container.nav-hidden .chat-sidebar {
-    height: 100%;
+  /* When bottom nav is hidden (keyboard active), remove bottom padding */
+  .app-container.nav-hidden .chat-sidebar,
+  .chat-sidebar.keyboard-open {
     padding-bottom: 0 !important;
-    transition: none !important;
   }
 
   /* Dashboard: full height */
@@ -5061,12 +5070,18 @@ body.light-theme .global-loader-card p {
 /* Custom mobile floating chat input area overrides (Claude & Gemini-like) */
 @media (max-width: 768px) {
   .chat-input-area {
+    /* Stick to the bottom of the visual viewport — iOS natively floats this above the keyboard */
+    position: fixed !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: calc(58px + env(safe-area-inset-bottom, 0px)) !important;
+    z-index: 1001 !important;
     background: var(--bg-card) !important;
     backdrop-filter: blur(20px) !important;
     -webkit-backdrop-filter: blur(20px) !important;
     border: 1px solid var(--border-color) !important;
     border-radius: 20px !important;
-    margin: 8px 12px 10px !important;
+    margin: 0 12px 10px !important;
     width: calc(100% - 24px) !important;
     padding: 6px 10px 6px 14px !important;
     box-shadow: var(--shadow-md) !important;
@@ -5075,6 +5090,14 @@ body.light-theme .global-loader-card p {
     align-items: center !important;
     gap: 8px !important;
     border-top: 1px solid var(--border-color) !important;
+  }
+
+  /* When keyboard is open, dock input directly above the keyboard (bottom: 0) */
+  .chat-sidebar.keyboard-open .chat-input-area,
+  .app-container.nav-hidden .chat-input-area {
+    bottom: 0 !important;
+    margin-bottom: 8px !important;
+    border-radius: 20px !important;
   }
   
   .chat-input-area textarea {

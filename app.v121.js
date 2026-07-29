@@ -5467,130 +5467,52 @@ function setupVisualViewportListener() {
   const bottomNav = document.querySelector(".bottom-nav");
   if (!chatSidebar || !bottomNav) return;
 
-  const handleResize = () => {
-    if (window.innerWidth > 768) {
-      document.documentElement.style.height = "";
-      document.body.style.height = "";
-      const appContainer = document.querySelector(".app-container");
-      if (appContainer) {
-        appContainer.style.position = "";
-        appContainer.style.top = "";
-        appContainer.style.height = "";
-        appContainer.style.bottom = "";
-      }
-      document.querySelectorAll(".chat-input-area").forEach(area => {
-        area.style.bottom = "";
-        area.style.position = "";
-      });
-      bottomNav.style.display = "";
-      return;
-    }
-
-    const vvHeight = window.visualViewport ? window.visualViewport.height : window.innerHeight;
-    const vvOffsetTop = window.visualViewport ? window.visualViewport.offsetTop : 0;
-    const scrollY = window.scrollY || window.pageYOffset || 0;
-
-    // Set html & body height to visual viewport height to lock keyboard resizing scroll
-    document.documentElement.style.height = `${vvHeight}px`;
-    document.body.style.height = `${vvHeight}px`;
-
-    const appContainer = document.querySelector(".app-container");
-    if (appContainer) {
-      // Position and size app-container to visual viewport exactly to offset any WebKit focus scroll shifts
-      appContainer.style.position = "absolute";
-      appContainer.style.top = `${scrollY + vvOffsetTop}px`;
-      appContainer.style.height = `${vvHeight}px`;
-      appContainer.style.bottom = "auto";
-    }
-
+  function onKeyboardOpen() {
+    if (window.innerWidth > 768) return;
     const activeBtn = document.querySelector(".bottom-nav-btn.active");
     const activeTab = activeBtn ? activeBtn.dataset.tab : "chat";
     const isChatTab = activeTab === "chat" || activeTab === "naviagem";
-
-    // Detect if keyboard is open based on active text input focus
-    const activeEl = document.activeElement;
-    const isKeyboardActive = activeEl && (activeEl.tagName === "INPUT" || activeEl.tagName === "TEXTAREA");
-
     if (isChatTab) {
-      if (isKeyboardActive) {
-        // Keyboard open: hide bottom nav, dock inputs exactly to the visual viewport bottom (0px)
-        bottomNav.style.display = "none";
-        document.querySelectorAll(".chat-input-area").forEach(area => {
-          area.style.setProperty("bottom", "0px", "important");
-        });
-      } else {
-        // Keyboard closed: show bottom nav, dock inputs directly above the bottom nav (58px)
-        bottomNav.style.display = "flex";
-        document.querySelectorAll(".chat-input-area").forEach(area => {
-          area.style.setProperty("bottom", "58px", "important");
-        });
-      }
-
-      // Auto-scroll messages to the bottom
-      const activePanel = document.querySelector(".chat-panel:not(.hidden)");
-      if (activePanel) {
-        const msgs = activePanel.querySelector(".chat-messages");
-        if (msgs) msgs.scrollTop = msgs.scrollHeight;
-      }
-    } else {
-      // Non-chat tabs: hide bottom nav if typing to give full screen height to form/details
-      bottomNav.style.display = isKeyboardActive ? "none" : "flex";
-      document.querySelectorAll(".chat-input-area").forEach(area => {
-        area.style.bottom = "";
-        area.style.position = "";
-      });
+      chatSidebar.classList.add("keyboard-open");
+      bottomNav.style.display = "none";
+      document.querySelector(".app-container")?.classList.add("nav-hidden");
     }
-  };
+    // Scroll messages to bottom
+    const msgs = document.querySelector(".chat-panel:not(.hidden) .chat-messages");
+    if (msgs) msgs.scrollTop = msgs.scrollHeight;
+  }
 
-  // Lock scroll globally on mobile to prevent browser default auto-scroll offsets
-  window.addEventListener("scroll", () => {
-    if (window.innerWidth <= 768) {
-      if (window.scrollY !== 0 || window.scrollX !== 0) {
-        window.scrollTo(0, 0);
-      }
-      handleResize();
-    }
-  });
+  function onKeyboardClose() {
+    if (window.innerWidth > 768) return;
+    chatSidebar.classList.remove("keyboard-open");
+    bottomNav.style.display = "flex";
+    document.querySelector(".app-container")?.classList.remove("nav-hidden");
+  }
 
-  // Listen to focus changes to update layout immediately
   document.addEventListener("focusin", (e) => {
     if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") {
-      handleResize();
+      onKeyboardOpen();
     }
   });
 
   document.addEventListener("focusout", (e) => {
     if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") {
-      // Tiny delay to let activeElement shift before checking
-      setTimeout(handleResize, 50);
+      // Small delay to allow activeElement to update
+      setTimeout(() => {
+        const newFocus = document.activeElement;
+        if (!newFocus || (newFocus.tagName !== "INPUT" && newFocus.tagName !== "TEXTAREA")) {
+          onKeyboardClose();
+        }
+      }, 100);
     }
   });
 
-  if (window.visualViewport) {
-    window.visualViewport.addEventListener("resize", handleResize);
-    window.visualViewport.addEventListener("scroll", handleResize);
-  }
-
-  if (appContainer) {
-    const observer = new MutationObserver((mutations) => {
-      mutations.forEach((mutation) => {
-        if (mutation.type === "attributes" && mutation.attributeName === "class") {
-          handleResize();
-        }
-      });
-    });
-    observer.observe(appContainer, { attributes: true });
-  }
-
-  // Monitor bottom nav clicks to trigger resize updates immediately on tab switch
-  document.querySelectorAll('.bottom-nav-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      setTimeout(handleResize, 10);
-    });
+  // Lock page scroll on mobile
+  window.addEventListener("scroll", () => {
+    if (window.innerWidth <= 768) {
+      window.scrollTo(0, 0);
+    }
   });
-
-  // Run handleResize once to initialize positions
-  handleResize();
 }
 
 // Consolidated Attach Flights Dropdown setup
