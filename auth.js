@@ -1,5 +1,5 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
+import { SUPABASE_URL, SUPABASE_ANON_KEY, BYPASS_LOGIN } from './config.js';
 
 // Initialize Supabase client
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -19,8 +19,8 @@ export function isFirebaseConfigured() {
  * @param {Function} onUserInactive Callback called when user is logged out
  */
 export function setupAuthStateListener(onUserActive, onUserInactive) {
-  if (!isConfigured) {
-    console.info("Supabase not configured. Bypassing login.");
+  if (BYPASS_LOGIN || !isConfigured) {
+    console.info("Bypassing login.");
     onUserActive({
       id: "dummy-user-id",
       email: "teste@viajante.com",

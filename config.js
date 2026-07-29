@@ -46,3 +46,7 @@ export const AFFILIATE_CONFIG = {
   flightsPartnerUrl: "https://www.kiwi.com/deep?from={origin}&to={destination}&departure={departureDate}&return={returnDate}&affilid=copilotodeviagem"
 };
 
+// Flag temporária para pular a tela de login durante o desenvolvimento
+export const BYPASS_LOGIN = true;
+
+

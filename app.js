@@ -13,7 +13,7 @@ import {
   isFirebaseConfigured,
   supabase
 } from './auth.js';
-import { AFFILIATE_CONFIG } from './config.js';
+import { AFFILIATE_CONFIG, BYPASS_LOGIN } from './config.js';
 
 // App State
 let chatHistory = [];
@@ -3170,6 +3170,12 @@ async function handleUserLoggedIn(user, token) {
 
   const loginSubmitBtn = document.getElementById("loginSubmitBtn");
   const googleLoginBtn = document.getElementById("googleLoginBtn");
+
+  // Hide logout button if we are bypassing login
+  const logoutBtn = document.getElementById("logoutBtn");
+  if (logoutBtn) {
+    logoutBtn.style.display = BYPASS_LOGIN ? "none" : "";
+  }
 
   const cacheKey = `gptViajante_verified_${user.email}`;
   const isCachedVerified = localStorage.getItem(cacheKey) === "true";
