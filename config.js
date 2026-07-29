@@ -38,3 +38,11 @@ export const API_ENDPOINTS = {
   VERIFY: "/api/verify",
   FLIGHT: "/api/flight"
 };
+
+export const AFFILIATE_CONFIG = {
+  civitatisAid: "10433",
+  getYourGuidePartnerId: "copilotodeviagem",
+  // Template para o buscador de voos (Kiwi.com)
+  flightsPartnerUrl: "https://www.kiwi.com/deep?from={origin}&to={destination}&departure={departureDate}&return={returnDate}&affilid=copilotodeviagem"
+};
+

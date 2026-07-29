@@ -263,7 +263,7 @@
             <i class="fa-solid fa-plane-departure"></i> Meus Voos & Docs
           </button>
           <button class="btn btn-sm btn-sub-tab" id="subTabGoogleFlightsBtn" style="border-radius: var(--border-radius-md); padding: 8px 16px; font-weight: 600; display: flex; align-items: center; gap: 6px;">
-            <i class="fa-solid fa-magnifying-glass"></i> Buscar Voos (Google Flights)
+            <i class="fa-solid fa-magnifying-glass"></i> Buscar Voos
           </button>
         </div>
 
@@ -384,15 +384,15 @@
 
         </div>
 
-        <!-- Painel 2: Google Flights Search Widget -->
-        <div id="googleFlightsPanel" class="hidden" style="max-width: 600px; margin: 0 auto;">
+        <!-- Painel 2: Flight Search Panel -->
+        <div id="googleFlightsPanel" class="hidden" style="max-width: 650px; margin: 0 auto;">
           <div class="glass-panel" style="padding: 24px; display: flex; flex-direction: column; gap: 20px;">
             <div style="border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 12px; margin-bottom: 4px;">
-              <h3 style="font-size: 1rem; font-weight: 700; margin: 0; display: flex; align-items: center; gap: 8px; color: white;">
-                <i class="fa-solid fa-plane-up" style="color: #4285f4;"></i> Encontre as melhores tarifas no Google Flights
+              <h3 style="font-size: 1rem; font-weight: 700; margin: 0; display: flex; align-items: center; gap: 8px; color: var(--text-main);">
+                <i class="fa-solid fa-plane-up" style="color: var(--primary);"></i> Buscar Voos Promocionais
               </h3>
               <p style="margin: 6px 0 0; font-size: 0.78rem; color: var(--text-muted);">
-                Preenchemos os dados com base na sua viagem. Ajuste as informações abaixo e abra a busca oficial do Google Flights.
+                Preenchemos os dados com base na sua viagem. Ajuste as informações abaixo para encontrar as melhores tarifas aéreas.
               </p>
             </div>
             
@@ -418,15 +418,29 @@
               </div>
             </div>
 
-            <button class="btn btn-primary" id="searchGoogleFlightsBtn" style="padding: 12px; font-size: 0.88rem; font-weight: 700; width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; border: none; cursor: pointer; border-radius: var(--border-radius-md); background: linear-gradient(135deg, #4285f4 0%, #357ae8 100%); color: white; margin-top: 8px;">
-              <i class="fa-solid fa-arrow-up-right-from-square"></i> Abrir no Google Flights
+            <button class="btn btn-primary" id="searchGoogleFlightsBtn" style="padding: 12px; font-size: 0.88rem; font-weight: 700; width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; border: none; cursor: pointer; border-radius: var(--border-radius-md); background: var(--primary-gradient); color: white; margin-top: 8px;">
+              <i class="fa-solid fa-magnifying-glass"></i> Pesquisar Voos
             </button>
             
-            <div style="background: rgba(66, 133, 244, 0.05); border: 1px solid rgba(66, 133, 244, 0.15); border-radius: var(--border-radius-md); padding: 12px 14px; text-align: left; display: flex; gap: 10px; align-items: flex-start; box-sizing: border-box;">
-              <div style="color: #4285f4; font-size: 1.1rem; padding-top: 1px;"><i class="fa-solid fa-lightbulb"></i></div>
+            <div style="background: rgba(42, 117, 211, 0.05); border: 1px solid rgba(42, 117, 211, 0.15); border-radius: var(--border-radius-md); padding: 12px 14px; text-align: left; display: flex; gap: 10px; align-items: flex-start; box-sizing: border-box;">
+              <div style="color: var(--primary); font-size: 1.1rem; padding-top: 1px;"><i class="fa-solid fa-lightbulb"></i></div>
               <p style="margin: 0; font-size: 0.74rem; color: var(--text-light); line-height: 1.45;">
-                <strong>Dica de Economia:</strong> O Google Flights permite ativar o monitoramento de preços para receber alertas no seu e-mail quando as passagens para este destino estiverem mais baratas.
+                <strong>Dica de Economia:</strong> Pesquisando voos no meio da semana (terças e quartas-feiras) costuma render tarifas significativamente mais baixas.
               </p>
+            </div>
+
+            <!-- Spinner de carregamento -->
+            <div id="flightSearchSpinner" class="hidden" style="text-align: center; padding: 40px 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; background: rgba(255, 255, 255, 0.02); border-radius: var(--border-radius-md); border: 1px dashed var(--border-color); box-sizing: border-box;">
+              <i class="fa-solid fa-plane fa-spin" style="font-size: 2.2rem; color: var(--primary);"></i>
+              <div style="display: flex; flex-direction: column; gap: 4px;">
+                <p style="margin: 0; font-size: 0.88rem; font-weight: 600; color: var(--text-main);">Buscando as melhores tarifas aéreas...</p>
+                <p style="margin: 0; font-size: 0.72rem; color: var(--text-muted);">Isso pode levar alguns segundos enquanto consultamos nossas companhias parceiras.</p>
+              </div>
+            </div>
+
+            <!-- Área de Resultados de Voos -->
+            <div id="flightSearchResults" class="hidden" style="display: flex; flex-direction: column; gap: 20px; border-top: 1px solid var(--border-color); padding-top: 20px; margin-top: 10px;">
+              <!-- Conteúdo inserido dinamicamente pelo JS -->
             </div>
           </div>
         </div>
