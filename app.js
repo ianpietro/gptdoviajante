@@ -915,6 +915,11 @@ function switchTab(tab) {
   }
   // Update banner visibility based on the active tab
   checkItineraryStatus();
+
+  if (window.visualViewport) {
+    // Manually trigger visual viewport calculations to adjust sidebar heights and layout offsets
+    window.visualViewport.dispatchEvent(new Event('resize'));
+  }
 }
 
 function setTravelMode(active) {
@@ -5465,36 +5470,65 @@ function setupVisualViewportListener() {
   if (!window.visualViewport) return;
 
   const chatSidebar = document.querySelector(".chat-sidebar");
-  if (!chatSidebar) return;
+  const bottomNav = document.querySelector(".bottom-nav");
+  if (!chatSidebar || !bottomNav) return;
 
   const NAV_H = 58; // bottom nav height in px (must match CSS)
 
   const handleResize = () => {
     if (window.innerWidth > 768) {
-      // Desktop: clear any inline heights set by this listener
+      // Desktop: clear any inline styles set by this listener
       chatSidebar.style.height = "";
+      chatSidebar.style.top = "";
+      chatSidebar.style.position = "";
+      bottomNav.style.bottom = "";
       return;
     }
 
-    const appContainer = document.querySelector(".app-container");
-    const isNavHidden = appContainer && appContainer.classList.contains("nav-hidden");
-    const vvHeight = window.visualViewport.height;
+    const activeBtn = document.querySelector(".bottom-nav-btn.active");
+    const activeTab = activeBtn ? activeBtn.dataset.tab : "chat";
+    const isChatTab = activeTab === "chat" || activeTab === "naviagem";
 
-    if (isNavHidden) {
-      // Nav is hidden — fill the full visual viewport
-      chatSidebar.style.height = `${vvHeight}px`;
-    } else {
-      // Nav is visible — leave space for it above the keyboard
+    if (isChatTab) {
+      const vvHeight = window.visualViewport.height;
+      const vvOffsetTop = window.visualViewport.offsetTop;
+
+      // Lock layout viewport scroll to 0 to prevent browser auto-scroll offset
+      window.scrollTo(0, 0);
+
+      // Enforce absolute/fixed position to visual viewport
+      chatSidebar.style.position = "fixed";
+      chatSidebar.style.top = `${vvOffsetTop}px`;
       chatSidebar.style.height = `${vvHeight - NAV_H}px`;
-    }
+      
+      // Position bottom nav exactly at the bottom of the visual viewport
+      bottomNav.style.bottom = `${window.innerHeight - vvHeight - vvOffsetTop}px`;
 
-    // Auto-scroll messages to the bottom so the latest message stays visible
-    const msgs = chatSidebar.querySelector(".chat-messages");
-    if (msgs) msgs.scrollTop = msgs.scrollHeight;
+      // Auto-scroll messages to the bottom so the latest message stays visible
+      const activePanel = document.querySelector(".chat-panel:not(.hidden)");
+      if (activePanel) {
+        const msgs = activePanel.querySelector(".chat-messages");
+        if (msgs) msgs.scrollTop = msgs.scrollHeight;
+      }
+    } else {
+      // Non-chat tabs: clear custom layout overrides
+      chatSidebar.style.height = "";
+      chatSidebar.style.top = "";
+      chatSidebar.style.position = "";
+      bottomNav.style.bottom = "";
+    }
   };
 
   window.visualViewport.addEventListener("resize", handleResize);
   window.visualViewport.addEventListener("scroll", handleResize);
+
+  // Force scroll lock when typing in either chat input to override browser default auto-scroll
+  window.addEventListener("scroll", () => {
+    const activeEl = document.activeElement;
+    if (activeEl && (activeEl.id === "chatInput" || activeEl.id === "travelChatInput")) {
+      window.scrollTo(0, 0);
+    }
+  });
 
   const appContainer = document.querySelector(".app-container");
   if (appContainer) {
