@@ -5462,10 +5462,6 @@ window.triggerAiLogisticsSync = triggerAiLogisticsSync;
 // ==========================================================================
 
 // Visual Viewport Keyboard Adjustment
-// Fixes iOS Safari: when keyboard opens, iOS scrolls the page to center the focused
-// input, pushing the app-container off-screen. The CSS fix (position:fixed on mobile)
-// prevents that scroll. This JS listener also adjusts the chat-sidebar height so it
-// fits perfectly in the space above the keyboard and bottom nav.
 function setupVisualViewportListener() {
   if (!window.visualViewport) return;
 
@@ -5473,49 +5469,52 @@ function setupVisualViewportListener() {
   const bottomNav = document.querySelector(".bottom-nav");
   if (!chatSidebar || !bottomNav) return;
 
-  const NAV_H = 58; // bottom nav height in px (must match CSS)
-
   const handleResize = () => {
+    const vvHeight = window.visualViewport.height;
+
+    // Reset layout viewport scroll position to (0,0)
+    window.scrollTo(0, 0);
+
     if (window.innerWidth > 768) {
-      // Desktop: clear any inline styles set by this listener
-      chatSidebar.style.height = "";
-      chatSidebar.style.top = "";
-      chatSidebar.style.position = "";
-      bottomNav.style.bottom = "";
+      document.documentElement.style.height = "";
+      document.body.style.height = "";
+      chatSidebar.style.setProperty("padding-bottom", "", "");
+      bottomNav.style.display = "";
       return;
     }
+
+    // Set html & body height to visual viewport height to lock keyboard resizing
+    document.documentElement.style.height = `${vvHeight}px`;
+    document.body.style.height = `${vvHeight}px`;
 
     const activeBtn = document.querySelector(".bottom-nav-btn.active");
     const activeTab = activeBtn ? activeBtn.dataset.tab : "chat";
     const isChatTab = activeTab === "chat" || activeTab === "naviagem";
 
+    // Detect if virtual keyboard is active (viewport height is significantly smaller than innerHeight)
+    const isKeyboardActive = vvHeight < window.innerHeight - 100;
+
     if (isChatTab) {
-      const vvHeight = window.visualViewport.height;
-      const vvOffsetTop = window.visualViewport.offsetTop;
+      if (isKeyboardActive) {
+        // Keyboard is open: hide bottom nav, set padding to 0 so chat input sits on the keyboard
+        bottomNav.style.display = "none";
+        chatSidebar.style.setProperty("padding-bottom", "0px", "important");
+      } else {
+        // Keyboard is closed: show bottom nav, set padding to 58px for bottom nav space
+        bottomNav.style.display = "flex";
+        chatSidebar.style.setProperty("padding-bottom", "58px", "important");
+      }
 
-      // Lock layout viewport scroll to 0 to prevent browser auto-scroll offset
-      window.scrollTo(0, 0);
-
-      // Enforce absolute/fixed position to visual viewport
-      chatSidebar.style.position = "fixed";
-      chatSidebar.style.top = `${vvOffsetTop}px`;
-      chatSidebar.style.height = `${vvHeight - NAV_H}px`;
-      
-      // Position bottom nav exactly at the bottom of the visual viewport
-      bottomNav.style.bottom = `${window.innerHeight - vvHeight - vvOffsetTop}px`;
-
-      // Auto-scroll messages to the bottom so the latest message stays visible
+      // Auto-scroll messages to the bottom
       const activePanel = document.querySelector(".chat-panel:not(.hidden)");
       if (activePanel) {
         const msgs = activePanel.querySelector(".chat-messages");
         if (msgs) msgs.scrollTop = msgs.scrollHeight;
       }
     } else {
-      // Non-chat tabs: clear custom layout overrides
-      chatSidebar.style.height = "";
-      chatSidebar.style.top = "";
-      chatSidebar.style.position = "";
-      bottomNav.style.bottom = "";
+      // Non-chat tabs: hide bottom nav only if typing to give full screen height to form/details
+      bottomNav.style.display = isKeyboardActive ? "none" : "flex";
+      chatSidebar.style.setProperty("padding-bottom", "", "");
     }
   };
 
