@@ -5482,6 +5482,7 @@ function setupVisualViewportListener() {
       appContainer.style.position = "";
       appContainer.style.top = "";
       appContainer.style.height = "";
+      appContainer.style.bottom = "";
       chatSidebar.style.setProperty("padding-bottom", "", "");
       bottomNav.style.display = "";
       return;
@@ -5495,6 +5496,7 @@ function setupVisualViewportListener() {
     appContainer.style.position = "absolute";
     appContainer.style.top = `${vvOffsetTop}px`;
     appContainer.style.height = `${vvHeight}px`;
+    appContainer.style.bottom = "auto";
 
     const activeBtn = document.querySelector(".bottom-nav-btn.active");
     const activeTab = activeBtn ? activeBtn.dataset.tab : "chat";
