@@ -5521,11 +5521,12 @@ function setupVisualViewportListener() {
   window.visualViewport.addEventListener("resize", handleResize);
   window.visualViewport.addEventListener("scroll", handleResize);
 
-  // Force scroll lock when typing in either chat input to override browser default auto-scroll
+  // Force scroll lock globally on mobile to override browser default auto-scroll offsets
   window.addEventListener("scroll", () => {
-    const activeEl = document.activeElement;
-    if (activeEl && (activeEl.id === "chatInput" || activeEl.id === "travelChatInput")) {
-      window.scrollTo(0, 0);
+    if (window.innerWidth <= 768) {
+      if (window.scrollY !== 0 || window.scrollX !== 0) {
+        window.scrollTo(0, 0);
+      }
     }
   });
 
