@@ -5463,56 +5463,83 @@ window.triggerAiLogisticsSync = triggerAiLogisticsSync;
 
 // Visual Viewport Keyboard Adjustment
 function setupVisualViewportListener() {
-  const chatSidebar = document.querySelector(".chat-sidebar");
-  const bottomNav = document.querySelector(".bottom-nav");
-  if (!chatSidebar || !bottomNav) return;
+  if (window.innerWidth > 768) return;
 
-  function onKeyboardOpen() {
+  const bottomNav = document.querySelector(".bottom-nav");
+  const chatSidebar = document.querySelector(".chat-sidebar");
+  if (!bottomNav || !chatSidebar) return;
+
+  const BOTTOM_NAV_HEIGHT = 58;
+  const SAFE_AREA_BOTTOM = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--sab') || '0') || 0;
+
+  function updateLayout() {
     if (window.innerWidth > 768) return;
-    const activeBtn = document.querySelector(".bottom-nav-btn.active");
-    const activeTab = activeBtn ? activeBtn.dataset.tab : "chat";
-    const isChatTab = activeTab === "chat" || activeTab === "naviagem";
-    if (isChatTab) {
-      chatSidebar.classList.add("keyboard-open");
+
+    const vv = window.visualViewport;
+    const layoutH = window.innerHeight;
+    const visualH = vv ? vv.height : layoutH;
+
+    // Keyboard height = difference between layout viewport and visual viewport
+    const keyboardH = Math.max(0, layoutH - visualH);
+    const isKeyboardOpen = keyboardH > 100; // threshold to avoid false positives
+
+    // Get all chat input areas
+    const inputAreas = document.querySelectorAll(".chat-input-area");
+
+    if (isKeyboardOpen) {
+      // Hide bottom nav when keyboard is open
       bottomNav.style.display = "none";
-      document.querySelector(".app-container")?.classList.add("nav-hidden");
+      // Position input right above the keyboard
+      inputAreas.forEach(area => {
+        area.style.setProperty("bottom", `${keyboardH + 8}px`, "important");
+      });
+    } else {
+      // Show bottom nav when keyboard is closed
+      bottomNav.style.display = "flex";
+      // Position input above bottom nav
+      inputAreas.forEach(area => {
+        area.style.setProperty("bottom", `${BOTTOM_NAV_HEIGHT + 8}px`, "important");
+      });
     }
+
     // Scroll messages to bottom
     const msgs = document.querySelector(".chat-panel:not(.hidden) .chat-messages");
     if (msgs) msgs.scrollTop = msgs.scrollHeight;
   }
 
-  function onKeyboardClose() {
-    if (window.innerWidth > 768) return;
-    chatSidebar.classList.remove("keyboard-open");
-    bottomNav.style.display = "flex";
-    document.querySelector(".app-container")?.classList.remove("nav-hidden");
+  // Lock page scroll on mobile so iOS doesn't shift layout
+  window.addEventListener("scroll", () => {
+    if (window.innerWidth <= 768) window.scrollTo(0, 0);
+  }, { passive: true });
+
+  // Listen on visualViewport resize — this is the key event on iOS when keyboard opens/closes
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener("resize", updateLayout, { passive: true });
+    window.visualViewport.addEventListener("scroll", updateLayout, { passive: true });
   }
 
+  // Also listen to focus/blur for instant response
   document.addEventListener("focusin", (e) => {
     if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") {
-      onKeyboardOpen();
+      // Give iOS time to open keyboard before calculating
+      setTimeout(updateLayout, 100);
+      setTimeout(updateLayout, 300);
     }
   });
 
   document.addEventListener("focusout", (e) => {
     if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") {
-      // Small delay to allow activeElement to update
       setTimeout(() => {
-        const newFocus = document.activeElement;
-        if (!newFocus || (newFocus.tagName !== "INPUT" && newFocus.tagName !== "TEXTAREA")) {
-          onKeyboardClose();
+        const focus = document.activeElement;
+        if (!focus || (focus.tagName !== "INPUT" && focus.tagName !== "TEXTAREA")) {
+          updateLayout();
         }
-      }, 100);
+      }, 150);
     }
   });
 
-  // Lock page scroll on mobile
-  window.addEventListener("scroll", () => {
-    if (window.innerWidth <= 768) {
-      window.scrollTo(0, 0);
-    }
-  });
+  // Run once on init
+  updateLayout();
 }
 
 // Consolidated Attach Flights Dropdown setup

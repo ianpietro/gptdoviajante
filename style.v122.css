@@ -5067,13 +5067,13 @@ body.light-theme .global-loader-card p {
   100% { transform: rotate(360deg) scale(1); }
 }
 
-/* Custom mobile floating chat input area overrides (Claude & Gemini-like) */
+/* Custom mobile floating chat input area (Claude & Gemini-like) */
 @media (max-width: 768px) {
   .chat-input-area {
-    /* Stick to the bottom of the visual viewport — iOS natively floats this above the keyboard */
     position: fixed !important;
-    left: 0 !important;
-    right: 0 !important;
+    left: 12px !important;
+    right: 12px !important;
+    /* bottom is controlled dynamically by JS via visualViewport */
     bottom: calc(58px + env(safe-area-inset-bottom, 0px)) !important;
     z-index: 1001 !important;
     background: var(--bg-card) !important;
@@ -5081,23 +5081,16 @@ body.light-theme .global-loader-card p {
     -webkit-backdrop-filter: blur(20px) !important;
     border: 1px solid var(--border-color) !important;
     border-radius: 20px !important;
-    margin: 0 12px 10px !important;
-    width: calc(100% - 24px) !important;
+    margin: 0 !important;
     padding: 6px 10px 6px 14px !important;
     box-shadow: var(--shadow-md) !important;
     box-sizing: border-box !important;
     display: flex !important;
     align-items: center !important;
     gap: 8px !important;
+    width: calc(100% - 24px) !important;
     border-top: 1px solid var(--border-color) !important;
-  }
-
-  /* When keyboard is open, dock input directly above the keyboard (bottom: 0) */
-  .chat-sidebar.keyboard-open .chat-input-area,
-  .app-container.nav-hidden .chat-input-area {
-    bottom: 0 !important;
-    margin-bottom: 8px !important;
-    border-radius: 20px !important;
+    transition: bottom 0.05s linear !important;
   }
   
   .chat-input-area textarea {
