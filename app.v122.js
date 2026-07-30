@@ -3314,6 +3314,9 @@ async function handleUserLoggedIn(user, token) {
 }
 
 function handleUserLoggedOut() {
+  // When bypassing login, never show the login screen
+  if (BYPASS_LOGIN) return;
+
   currentUser = null;
   firebaseIdToken = null;
 
