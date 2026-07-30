@@ -1,5 +1,5 @@
 // Temporary No-Cache Service Worker for development/creation phase
-const CACHE_NAME = 'copiloto-viagem-dev-nocache';
+const CACHE_NAME = 'copiloto-viagem-dev-nocache-20260730-v2';
 
 // Install Event
 self.addEventListener('install', event => {
