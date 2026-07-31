@@ -5465,83 +5465,89 @@ window.triggerAiLogisticsSync = triggerAiLogisticsSync;
 // ==========================================================================
 
 // Visual Viewport Keyboard Adjustment
+// Strategy: resize .app-container to match visualViewport.height so all content
+// (including the chat-input at the bottom of the flex column) stays within the visible area.
 function setupVisualViewportListener() {
   if (window.innerWidth > 768) return;
 
   const bottomNav = document.querySelector(".bottom-nav");
   const chatSidebar = document.querySelector(".chat-sidebar");
-  if (!bottomNav || !chatSidebar) return;
+  const appContainer = document.querySelector(".app-container");
+  if (!bottomNav || !chatSidebar || !appContainer) return;
 
-  const BOTTOM_NAV_HEIGHT = 58;
-  const SAFE_AREA_BOTTOM = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--sab') || '0') || 0;
+  let isKeyboardOpen = false;
 
   function updateLayout() {
     if (window.innerWidth > 768) return;
 
     const vv = window.visualViewport;
-    const layoutH = window.innerHeight;
-    const visualH = vv ? vv.height : layoutH;
+    if (!vv) return;
 
-    // Keyboard height = difference between layout viewport and visual viewport
-    const keyboardH = Math.max(0, layoutH - visualH);
-    const isKeyboardOpen = keyboardH > 100; // threshold to avoid false positives
+    const screenH = window.screen.height;
+    const vvH = vv.height;
+    const vvTop = vv.offsetTop;
 
-    // Get all chat input areas
-    const inputAreas = document.querySelectorAll(".chat-input-area");
+    // Resize app-container to exactly the visual viewport (excludes keyboard)
+    appContainer.style.top = vvTop + "px";
+    appContainer.style.height = vvH + "px";
+    appContainer.style.bottom = "auto";
 
-    if (isKeyboardOpen) {
-      // Hide bottom nav when keyboard is open
+    // Detect keyboard: if visual viewport is significantly smaller than screen
+    const keyboardH = window.innerHeight - vvH;
+    const keyboardIsOpen = keyboardH > 80;
+
+    if (keyboardIsOpen && !isKeyboardOpen) {
+      isKeyboardOpen = true;
       bottomNav.style.display = "none";
-      // Position input right above the keyboard
-      inputAreas.forEach(area => {
-        area.style.setProperty("bottom", `${keyboardH + 8}px`, "important");
+      chatSidebar.classList.add("keyboard-open");
+      // Scroll messages to bottom after layout settles
+      requestAnimationFrame(() => {
+        const msgs = document.querySelector(".chat-panel:not(.hidden) .chat-messages");
+        if (msgs) msgs.scrollTop = msgs.scrollHeight;
       });
-    } else {
-      // Show bottom nav when keyboard is closed
+    } else if (!keyboardIsOpen && isKeyboardOpen) {
+      isKeyboardOpen = false;
       bottomNav.style.display = "flex";
-      // Position input above bottom nav
-      inputAreas.forEach(area => {
-        area.style.setProperty("bottom", `${BOTTOM_NAV_HEIGHT + 8}px`, "important");
-      });
+      chatSidebar.classList.remove("keyboard-open");
+      // Reset app-container to full screen
+      appContainer.style.top = "0";
+      appContainer.style.height = "100%";
+      appContainer.style.bottom = "0";
     }
-
-    // Scroll messages to bottom
-    const msgs = document.querySelector(".chat-panel:not(.hidden) .chat-messages");
-    if (msgs) msgs.scrollTop = msgs.scrollHeight;
   }
 
-  // Lock page scroll on mobile so iOS doesn't shift layout
-  window.addEventListener("scroll", () => {
-    if (window.innerWidth <= 768) window.scrollTo(0, 0);
-  }, { passive: true });
-
-  // Listen on visualViewport resize — this is the key event on iOS when keyboard opens/closes
+  // visualViewport resize is the key event — fires when keyboard opens/closes on iOS
   if (window.visualViewport) {
     window.visualViewport.addEventListener("resize", updateLayout, { passive: true });
     window.visualViewport.addEventListener("scroll", updateLayout, { passive: true });
   }
 
-  // Also listen to focus/blur for instant response
+  // focusin: give iOS time to animate keyboard open before measuring
   document.addEventListener("focusin", (e) => {
     if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") {
-      // Give iOS time to open keyboard before calculating
-      setTimeout(updateLayout, 100);
-      setTimeout(updateLayout, 300);
+      setTimeout(updateLayout, 50);
+      setTimeout(updateLayout, 250);
     }
-  });
+  }, { passive: true });
 
+  // focusout: give keyboard time to close before measuring
   document.addEventListener("focusout", (e) => {
     if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") {
       setTimeout(() => {
-        const focus = document.activeElement;
-        if (!focus || (focus.tagName !== "INPUT" && focus.tagName !== "TEXTAREA")) {
+        const focused = document.activeElement;
+        if (!focused || (focused.tagName !== "INPUT" && focused.tagName !== "TEXTAREA")) {
           updateLayout();
         }
-      }, 150);
+      }, 200);
     }
-  });
+  }, { passive: true });
 
-  // Run once on init
+  // Prevent page scroll (iOS sometimes scrolls even with overflow:hidden)
+  window.addEventListener("scroll", () => {
+    if (window.innerWidth <= 768) window.scrollTo(0, 0);
+  }, { passive: true });
+
+  // Initial layout
   updateLayout();
 }
 

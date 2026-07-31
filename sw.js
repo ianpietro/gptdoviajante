@@ -1,27 +1,31 @@
-// Temporary No-Cache Service Worker for development/creation phase
-const CACHE_NAME = 'copiloto-viagem-dev-nocache-20260730-v2';
+// No-Cache Service Worker — always fetches from network
+// Bump this version string to force update on all clients
+const CACHE_VERSION = '20260731-v3';
 
-// Install Event
+// Install: take control immediately
 self.addEventListener('install', event => {
   self.skipWaiting();
 });
 
-// Activate Event - Delete ALL caches to clean up the browser storage
+// Activate: clear all caches and force all open windows to reload
 self.addEventListener('activate', event => {
   event.waitUntil(
-    caches.keys().then(cacheKeys => {
-      return Promise.all(
-        cacheKeys.map(key => {
-          console.log('[Service Worker] Cleaning up cache:', key);
-          return caches.delete(key);
-        })
-      );
-    }).then(() => self.clients.claim())
+    caches.keys()
+      .then(keys => Promise.all(keys.map(k => caches.delete(k))))
+      .then(() => self.clients.claim())
+      .then(() => self.clients.matchAll({ type: 'window', includeUncontrolled: true }))
+      .then(clients => {
+        clients.forEach(client => {
+          // Force reload all open tabs so they pick up the new HTML
+          client.navigate(client.url);
+        });
+      })
   );
 });
 
-// Fetch Event - Bypass cache completely and fetch directly from network
+// Fetch: always go to network, never serve from cache
 self.addEventListener('fetch', event => {
-  // Always go directly to network
-  event.respondWith(fetch(event.request));
+  event.respondWith(
+    fetch(event.request, { cache: 'no-store' }).catch(() => fetch(event.request))
+  );
 });

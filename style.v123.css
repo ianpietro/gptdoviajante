@@ -2330,47 +2330,47 @@ body.light-theme .btn-affiliate-link:hover {
   .bottom-nav { display: flex; }
   .mobile-tabs { display: none !important; }
 
-  /* Lock html and body so page cannot scroll — prevents iOS from shifting layout when keyboard opens */
+  /* html/body: overflow hidden but NOT position:fixed — let visualViewport API handle keyboard */
   html, body {
-    position: fixed !important;
-    inset: 0 !important;
     overflow: hidden !important;
     width: 100% !important;
     height: 100% !important;
   }
 
-  /* App container fills the full fixed viewport */
+  /* App container: fixed to full viewport. JS will set height=visualViewport.height when keyboard opens */
   .app-container {
     position: fixed !important;
-    inset: 0 !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
     width: 100% !important;
-    height: 100% !important;
     overflow: hidden !important;
   }
 
-  /* Chat sidebar fills the full app container, padded below for bottom nav */
+  /* Chat sidebar fills app container, leaves room for bottom nav at bottom */
   .chat-sidebar {
     position: absolute !important;
     top: 0 !important;
     left: 0 !important;
     right: 0 !important;
-    bottom: 0 !important;
+    bottom: calc(58px + env(safe-area-inset-bottom, 0px)) !important;
     z-index: 999 !important;
     width: 100% !important;
     height: auto !important;
     min-height: unset !important;
     max-height: unset !important;
     border-top: none;
-    padding-bottom: calc(58px + env(safe-area-inset-bottom, 0px)) !important;
     box-sizing: border-box !important;
     overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
     transition: none !important;
   }
 
-  /* When bottom nav is hidden (keyboard active), remove bottom padding */
-  .app-container.nav-hidden .chat-sidebar,
+  /* When keyboard is open (JS adds .keyboard-open), sidebar goes full height (nav hidden) */
   .chat-sidebar.keyboard-open {
-    padding-bottom: 0 !important;
+    bottom: 0 !important;
   }
 
   /* Dashboard: full height */
@@ -5067,21 +5067,21 @@ body.light-theme .global-loader-card p {
   100% { transform: rotate(360deg) scale(1); }
 }
 
-/* Custom mobile floating chat input area (Claude & Gemini-like) */
+/* Custom mobile chat input area — normal document flow at bottom of flex sidebar */
 @media (max-width: 768px) {
   .chat-input-area {
-    position: fixed !important;
-    left: 12px !important;
-    right: 12px !important;
-    /* bottom is controlled dynamically by JS via visualViewport */
-    bottom: calc(58px + env(safe-area-inset-bottom, 0px)) !important;
-    z-index: 1001 !important;
+    /* NOT position:fixed — stays in normal flow at the bottom of .chat-sidebar flex column */
+    position: relative !important;
+    left: auto !important;
+    right: auto !important;
+    bottom: auto !important;
+    flex-shrink: 0 !important;
+    margin: 0 12px 10px !important;
     background: var(--bg-card) !important;
     backdrop-filter: blur(20px) !important;
     -webkit-backdrop-filter: blur(20px) !important;
     border: 1px solid var(--border-color) !important;
     border-radius: 20px !important;
-    margin: 0 !important;
     padding: 6px 10px 6px 14px !important;
     box-shadow: var(--shadow-md) !important;
     box-sizing: border-box !important;
@@ -5090,7 +5090,7 @@ body.light-theme .global-loader-card p {
     gap: 8px !important;
     width: calc(100% - 24px) !important;
     border-top: 1px solid var(--border-color) !important;
-    transition: bottom 0.05s linear !important;
+    z-index: 1001 !important;
   }
   
   .chat-input-area textarea {
