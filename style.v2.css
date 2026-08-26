@@ -911,6 +911,30 @@ body.light-theme .chat-input-area { background: rgba(255, 255, 255, 0.96) !impor
 .modal-overlay { backdrop-filter: blur(10px) !important; background: rgba(3, 7, 14, 0.76) !important; }
 .modal-card { border: 1px solid var(--border-color) !important; border-radius: 22px !important; background: var(--surface-1) !important; box-shadow: var(--shadow-lg) !important; }
 
+#undoToast {
+  position: fixed !important;
+  z-index: 100002 !important;
+  left: 50% !important;
+  bottom: 24px !important;
+  display: flex !important;
+  align-items: center;
+  gap: 14px;
+  width: min(520px, calc(100% - 32px));
+  padding: 13px 16px !important;
+  border: 1px solid rgba(124, 140, 255, 0.32);
+  border-radius: 16px !important;
+  background: rgba(15, 23, 40, 0.96) !important;
+  box-shadow: 0 18px 52px rgba(0, 0, 0, 0.42) !important;
+  color: var(--text-main) !important;
+  transform: translateX(-50%) !important;
+}
+#undoToast.hidden { display: none !important; }
+#undoToast span { flex: 1; }
+#undoBtn,
+#closeUndoBtn { border: 0; background: transparent; cursor: pointer; }
+#undoBtn { color: #9da8ff !important; }
+#closeUndoBtn { color: var(--text-muted) !important; }
+
 /* ── Entry motion and accessibility ─────────────────────────────────────── */
 
 .dashboard-content > section:not(.hidden),
@@ -949,6 +973,8 @@ body.light-theme .chat-input-area { background: rgba(255, 255, 255, 0.96) !impor
     margin: 0 auto !important;
     padding: 26px 22px !important;
   }
+
+  #undoToast { bottom: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom, 0px) + 12px) !important; }
 
   .app-container {
     grid-template-columns: minmax(0, 1fr) !important;

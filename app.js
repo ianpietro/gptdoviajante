@@ -22,6 +22,9 @@ import { track as trackEvent, trackFirstValue, EVENTS } from './modules/analytic
 import { initErrorHandler } from './modules/errorHandler.js';
 import { buildProactiveInsights, filterInactiveInsights } from './modules/proactiveEngine.js';
 
+const CHECKOUT_URL = 'https://pay.kirvano.com/8c50a730-069a-40e8-bed3-078c03089d1d';
+window.analytics = legacyAnalytics;
+
 // Expõe versão globalmente para logs, analytics e error handler
 window.APP_VERSION = APP_VERSION;
 
@@ -29,7 +32,6 @@ window.APP_VERSION = APP_VERSION;
 const APP_ENV = BYPASS_LOGIN ? 'development' : 'production';
 initErrorHandler(APP_VERSION, APP_ENV);
 
-// --- Entitlement & AI Limits ---
 // --- Entitlement & AI Limits ---
 window.showPaywall = function(reason, customMessage) {
   const modal = document.getElementById("paywallModal");
@@ -43,9 +45,36 @@ window.showPaywall = function(reason, customMessage) {
         : "Você atingiu o limite de mensagens do seu plano atual.";
     }
     modal.classList.remove("hidden");
+    document.body.style.overflow = 'hidden';
+    window.setTimeout(() => document.getElementById('closePaywallBtn')?.focus(), 0);
     trackEvent('paywall_view', { reason });
   }
 };
+
+function setupPaywallListeners() {
+  const modal = document.getElementById('paywallModal');
+  const closeBtn = document.getElementById('closePaywallBtn');
+  const upgradeBtn = document.getElementById('upgradePlanBtn');
+
+  const closePaywall = () => {
+    modal?.classList.add('hidden');
+    document.body.style.overflow = '';
+  };
+
+  closeBtn?.addEventListener('click', closePaywall);
+  upgradeBtn?.addEventListener('click', () => {
+    trackEvent(EVENTS.CHECKOUT_STARTED || 'checkout_started', { source: 'paywall' });
+    window.open(CHECKOUT_URL, '_blank', 'noopener,noreferrer');
+  });
+  modal?.addEventListener('click', event => {
+    if (event.target === modal) closePaywall();
+  });
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && modal && !modal.classList.contains('hidden')) {
+      closePaywall();
+    }
+  });
+}
 
 window.checkAiLimit = function() {
   const state = getUserPlanState(currentUser, tripData);
@@ -58,7 +87,9 @@ window.checkAiLimit = function() {
 };
 
 window.checkTripLimit = function() {
-  const state = getUserPlanState(currentUser, tripData);
+  const activeTripsCount = (tripsList || []).filter(trip => trip.status !== 'archived').length;
+  const planUser = currentUser ? { ...currentUser, tripsCount: activeTripsCount } : { tripsCount: activeTripsCount };
+  const state = getUserPlanState(planUser, tripData);
   if (!state.canCreateTrip) {
     window.showPaywall("trip_limit");
     return false;
@@ -70,23 +101,30 @@ window.renderAffiliates = function() {
   const opps = evaluateTripOpportunities(tripData);
   const containers = ["homeAffiliateContainer", "logisticsAffiliateContainer"];
   let html = "";
+  let topPartnerId = null;
   if (opps && opps.length > 0) {
     const topOpp = opps[0];
+    topPartnerId = topOpp.partnerId;
     const link = buildAffiliateLink(topOpp.partnerId, tripData) || "#";
     html = `
       <div class="affiliate-banner" style="background: rgba(46,148,168,0.1); border: 1px solid var(--primary); padding: 15px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center;">
         <div>
-          <strong style="color: var(--primary);">Recomendação: ${topOpp.category.toUpperCase()}</strong>
-          <p style="margin: 5px 0 0; font-size: 0.9rem;">${topOpp.message} <i>(Comissão incluída)</i></p>
+          <strong style="color: var(--primary);">Recomendação: ${escapeHtml(topOpp.category.toUpperCase())}</strong>
+          <p style="margin: 5px 0 0; font-size: 0.9rem;">${escapeHtml(topOpp.message)} <i>(Comissão incluída)</i></p>
         </div>
-        <a href="${link}" target="_blank" class="btn btn-primary btn-sm" onclick="analytics.track('affiliate_click', {partner: '${topOpp.partnerId}'})">Ver Opções</a>
+        <a href="${escapeHtml(link)}" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-sm affiliate-action">Ver Opções</a>
       </div>
     `;
-    analytics.track("affiliate_impression", { partner: topOpp.partnerId });
+    legacyAnalytics.track("affiliate_impression", { partner: topOpp.partnerId });
   }
   containers.forEach(id => {
     const el = document.getElementById(id);
-    if (el) el.innerHTML = html;
+    if (el) {
+      el.innerHTML = html;
+      el.querySelector(".affiliate-action")?.addEventListener("click", () => {
+        legacyAnalytics.track('affiliate_click', { partner: topPartnerId });
+      });
+    }
   });
 };
 // --------------------------------
@@ -132,6 +170,19 @@ function logDebug(event, details) {
   }
   
   console.info(`[DEBUG][${event}]`, sanitizedDetails || '');
+}
+
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"]/g, character => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;'
+  })[character]);
+}
+
+function formatSafeBoldText(value) {
+  return escapeHtml(value).replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
 }
 
 // Active Trip Foundation Layer
@@ -667,7 +718,7 @@ async function init() {
         renderSplitwise();
         renderPackingChecklist();
         checkItineraryStatus();
-        updateBudget();
+        renderBudgetFromState();
 
         if (canEdit) {
           setupAuthUI();
@@ -720,7 +771,7 @@ async function init() {
         renderSplitwise();
         renderPackingChecklist();
         checkItineraryStatus();
-        updateBudget();
+        renderBudgetFromState();
         return;
       } catch (err) {
         console.error("Falha ao carregar viagem compartilhada compactada:", err);
@@ -730,6 +781,7 @@ async function init() {
   
   setupAuthUI();
   setupAuthStateListener(handleUserLoggedIn, handleUserLoggedOut);
+  setupPaywallListeners();
 
   enableDragToScroll(document.getElementById("chatMessages"));
   enableDragToScroll(document.getElementById("travelChatMessages"));
@@ -794,6 +846,7 @@ async function init() {
 
   if (openModalBtn && createModal) {
     openModalBtn.addEventListener("click", () => {
+      if (!window.checkTripLimit()) return;
       createModal.classList.remove("hidden");
       window.showCreateTripStep(1);
       window.setTimeout(() => createModal.querySelector('.create-trip-step:not(.hidden) button')?.focus(), 0);
@@ -991,28 +1044,6 @@ async function init() {
          if (trip) {
            if (flights.length > 0) {
              flights.forEach(f => {
-// --- Entitlement & AI Limits ---
-window.checkAiLimit = function() {
-  const state = getUserPlanState(currentUser, tripData);
-  const msgCount = (chatHistory || []).filter(m => m.role === "user").length + (travelChatHistory || []).filter(m => m.role === "user").length;
-  if (msgCount >= state.entitlements.aiMessages && !state.hasRewardUnlock) {
-    document.getElementById("paywallModal").classList.remove("hidden");
-    analytics.track("paywall_shown", { reason: "ai_limit" });
-    return false;
-  }
-  return true;
-};
-window.checkTripLimit = function() {
-  const state = getUserPlanState(currentUser, tripData);
-  if (!state.canCreateTrip) {
-    document.getElementById("paywallModal").classList.remove("hidden");
-    analytics.track("paywall_shown", { reason: "trip_limit" });
-    return false;
-  }
-  return true;
-};
-// --------------------------------
-
                if (!window.checkDuplicateDocument(trip, f, 'flight')) {
                  trip.flights = trip.flights || [];
                  trip.flights.push(f);
@@ -1527,10 +1558,10 @@ function renderMyTrips() {
       card.innerHTML = `
         <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
           <div>
-            <h4 style="margin: 0; font-size: 1.05rem; font-weight: 800; color: white;">${trip.tripTitle || trip.destination || 'Viagem sem Título'}</h4>
-            <p style="margin: 4px 0 0; font-size: 0.78rem; color: var(--text-light);"><i class="fa-regular fa-calendar" style="margin-right: 4px;"></i> ${trip.infoDates || 'Datas a definir'}</p>
+            <h4 style="margin: 0; font-size: 1.05rem; font-weight: 800; color: white;">${escapeHtml(trip.tripTitle || trip.destination || 'Viagem sem Título')}</h4>
+            <p style="margin: 4px 0 0; font-size: 0.78rem; color: var(--text-light);"><i class="fa-regular fa-calendar" style="margin-right: 4px;"></i> ${escapeHtml(trip.infoDates || 'Datas a definir')}</p>
           </div>
-          <span style="font-size: 0.65rem; font-weight: 800; text-transform: uppercase; padding: 4px 8px; border-radius: 4px; background: rgba(255,255,255,0.06); color: var(--text-light); border: 1px solid var(--border-color);">${trip.status}</span>
+          <span style="font-size: 0.65rem; font-weight: 800; text-transform: uppercase; padding: 4px 8px; border-radius: 4px; background: rgba(255,255,255,0.06); color: var(--text-light); border: 1px solid var(--border-color);">${escapeHtml(trip.status)}</span>
         </div>
         
         <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; border-top: 1px solid var(--border-color); border-bottom: 1px solid var(--border-color); padding: 10px 0;">
@@ -1546,11 +1577,13 @@ function renderMyTrips() {
         <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
           ${countdownHtml}
           <div style="display: flex; gap: 8px; margin-left: auto;">
-            <button class="btn btn-secondary btn-sm" onclick="archiveTrip('${trip.id}')" title="Arquivar viagem" style="padding: 8px 10px;"><i class="fa-solid fa-archive"></i></button>
-            <button class="btn btn-primary btn-sm" onclick="openTripPanel('${trip.id}')" style="font-weight: 700; padding: 8px 16px; border-radius: 50px;">Abrir Painel <i class="fa-solid fa-arrow-right"></i></button>
+            <button type="button" class="btn btn-secondary btn-sm archive-trip-btn" title="Arquivar viagem" aria-label="Arquivar ${escapeHtml(trip.tripTitle || trip.destination || 'viagem')}" style="padding: 8px 10px;"><i class="fa-solid fa-archive"></i></button>
+            <button type="button" class="btn btn-primary btn-sm open-trip-btn" style="font-weight: 700; padding: 8px 16px; border-radius: 50px;">Abrir Painel <i class="fa-solid fa-arrow-right"></i></button>
           </div>
         </div>
       `;
+      card.querySelector(".archive-trip-btn")?.addEventListener("click", () => archiveTrip(trip.id));
+      card.querySelector(".open-trip-btn")?.addEventListener("click", () => openTripPanel(trip.id));
       grid.appendChild(card);
     });
     
@@ -1635,7 +1668,7 @@ async function loadState() {
         renderSplitwise();
         renderPackingChecklist();
         checkItineraryStatus();
-        updateBudget();
+        renderBudgetFromState();
       } catch (e) {
         console.warn("Failed to parse cached tripData:", e);
       }
@@ -1799,7 +1832,7 @@ async function loadState() {
             renderSplitwise();
             renderPackingChecklist();
             checkItineraryStatus();
-            updateBudget();
+            renderBudgetFromState();
             
             renderChatHistory('plan');
             renderChatHistory('travel');
@@ -2658,12 +2691,14 @@ function appendMessageBubble(role, text, time, mode = 'plan', attachment = null)
   const bubbleClass = (mode === 'travel' && role === 'assistant') ? 'message-bubble travel-bubble' : 'message-bubble';
   
   let attachmentHtml = "";
+  let attachmentImageSrc = null;
   if (attachment && attachment.mimeType) {
     if (attachment.mimeType.startsWith("image/")) {
       const imgSrc = attachment.dataUrl || `data:${attachment.mimeType};base64,${attachment.base64}`;
+      attachmentImageSrc = imgSrc;
       attachmentHtml = `
         <div class="message-attachment" style="margin-bottom: 8px; max-width: 200px; cursor: pointer;">
-          <img src="${imgSrc}" style="width: 100%; max-height: 150px; object-fit: cover; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);" onclick="window.openImageLightbox('${imgSrc}')">
+          <img class="message-attachment-image" src="${escapeHtml(imgSrc)}" alt="Imagem anexada" style="width: 100%; max-height: 150px; object-fit: cover; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);">
         </div>
       `;
     } else {
@@ -2671,7 +2706,7 @@ function appendMessageBubble(role, text, time, mode = 'plan', attachment = null)
       attachmentHtml = `
         <div class="message-attachment" style="margin-bottom: 8px; display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: rgba(255,255,255,0.06); border-radius: 6px; font-size: 0.8rem; border: 1px solid rgba(255,255,255,0.08);">
           <i class="fa-solid fa-file-lines" style="color: var(--primary);"></i>
-          <span style="max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500;">${attachment.name || 'documento'}</span>
+          <span style="max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500;">${escapeHtml(attachment.name || 'documento')}</span>
         </div>
       `;
     }
@@ -2682,8 +2717,13 @@ function appendMessageBubble(role, text, time, mode = 'plan', attachment = null)
       ${attachmentHtml}
       ${formattedHtml}
     </div>
-    <span class="message-time">${displayTime}</span>
+    <span class="message-time">${escapeHtml(displayTime)}</span>
   `;
+  if (attachmentImageSrc) {
+    msgDiv.querySelector(".message-attachment-image")?.addEventListener("click", () => {
+      window.openImageLightbox(attachmentImageSrc);
+    });
+  }
   container.appendChild(msgDiv);
   return msgDiv;
 }
@@ -2791,7 +2831,7 @@ function formatMarkdown(text) {
            safeUrl = `https://www.google.com/search?q=${encodeURIComponent(text)}`;
         }
       }
-      return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="chat-link" onclick="analytics.track('link_click', {url: '${safeUrl}'})">${text} \uD83D\uDD17</a>`;
+      return `<a href="${escapeHtml(safeUrl)}" target="_blank" rel="noopener noreferrer" class="chat-link">${text} \uD83D\uDD17</a>`;
     }
   );
 
@@ -3464,7 +3504,13 @@ function renderDashboard() {
   // Hotel card — show as clickable link if URL exists
   const infoHotelEl = document.getElementById("infoHotel");
   if (tripData.hotelLink && tripData.hotelLink.startsWith('http')) {
-    infoHotelEl.innerHTML = `<a href="${tripData.hotelLink}" target="_blank" rel="noopener noreferrer" class="hotel-link">${tripData.infoHotel} 🔗</a>`;
+    const hotelLink = document.createElement('a');
+    hotelLink.href = tripData.hotelLink;
+    hotelLink.target = '_blank';
+    hotelLink.rel = 'noopener noreferrer';
+    hotelLink.className = 'hotel-link';
+    hotelLink.textContent = `${tripData.infoHotel} 🔗`;
+    infoHotelEl.replaceChildren(hotelLink);
   } else {
     infoHotelEl.textContent = tripData.infoHotel;
   }
@@ -3479,12 +3525,8 @@ function renderDashboard() {
     hotelLinkInput.value = tripData.hotelLink || "";
   }
 
-  // 2. Budget Sliders Setup
-  document.getElementById("slideHospedagem").value = tripData.budget.hospedagem;
-  document.getElementById("slideAlimentacao").value = tripData.budget.alimentacao;
-  document.getElementById("slidePasseios").value = tripData.budget.passeios;
-  document.getElementById("slideCompras").value = tripData.budget.compras;
-  updateBudget();
+  // 2. Budget controls reflect saved state without writing back during render.
+  renderBudgetFromState();
 
   // 3. Render Timeline
   renderTimeline();
@@ -3526,7 +3568,7 @@ function renderTimeline() {
 
   // Default to first day on mobile devices to prevent DOM load lags on initial load
   if (activeFilter === 'all' && window.innerWidth <= 768 && tripData.itinerary && tripData.itinerary.length > 0 && !mobileShowAllDays) {
-    activeFilter = tripData.itinerary[0].dayNum || 1;
+    activeFilter = Number(tripData.itinerary[0].dayNum) || 1;
   }
   
   const optBanner = document.getElementById("itineraryOptimizationBanner");
@@ -3713,18 +3755,19 @@ function renderTimeline() {
     
     return `
       <div class="affiliate-link-container" onclick="event.stopPropagation()" style="margin-top: 8px;">
-        <a href="${link}" target="_blank" class="btn-affiliate-link" style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; font-size: 0.72rem; font-weight: 700; color: white; background: rgba(249, 115, 22, 0.1); border: 1px solid rgba(249, 115, 22, 0.3); border-radius: 6px; text-decoration: none; transition: background 0.2s, border-color 0.2s;">
-          <i class="fa-solid fa-ticket" style="color: #f97316;"></i> ${text} (${platformLabel})
+        <a href="${link}" target="_blank" rel="noopener noreferrer" class="btn-affiliate-link" style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; font-size: 0.72rem; font-weight: 700; color: white; background: rgba(249, 115, 22, 0.1); border: 1px solid rgba(249, 115, 22, 0.3); border-radius: 6px; text-decoration: none; transition: background 0.2s, border-color 0.2s;">
+          <i class="fa-solid fa-ticket" style="color: #f97316;"></i> ${escapeHtml(text)} (${platformLabel})
         </a>
       </div>
     `;
   };
 
-  tripData.itinerary.forEach(day => {
+  tripData.itinerary.forEach((day, dayIndex) => {
+    const dayNumber = Number(day.dayNum) || dayIndex + 1;
     // Add Nav Button
-    nav.innerHTML += `<button class="timeline-btn ${activeFilter == day.dayNum ? 'active' : ''}" onclick="filterTimeline(${day.dayNum})">Dia ${day.dayNum}</button>`;
+    nav.innerHTML += `<button class="timeline-btn ${activeFilter == dayNumber ? 'active' : ''}" onclick="filterTimeline(${dayNumber})">Dia ${dayNumber}</button>`;
 
-    if (activeFilter !== 'all' && activeFilter != day.dayNum) return;
+    if (activeFilter !== 'all' && activeFilter != dayNumber) return;
 
     // Extract the city for this day (used for scoped Maps links)
     const dayCity = getDayCity(day);
@@ -3751,13 +3794,13 @@ function renderTimeline() {
               <div class="calendar-time-bullet"></div>
               <div class="calendar-activity-card">
                 <div class="calendar-activity-time-label">
-                  <i class="fa-regular fa-clock"></i> ${act.time || '--:--'}
+                  <i class="fa-regular fa-clock"></i> ${escapeHtml(act.time || '--:--')}
                 </div>
                 <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-                  <h4 style="margin:0; flex:1;">${act.title}</h4>
-                  <a href="${getActivityMapLink(act.title, dayCity)}" target="_blank" class="act-map-link" onclick="event.stopPropagation()" title="Ver no Google Maps"><i class="fa-solid fa-location-dot"></i></a>
+                  <h4 style="margin:0; flex:1;">${escapeHtml(act.title)}</h4>
+                  <a href="${getActivityMapLink(act.title, dayCity)}" target="_blank" rel="noopener noreferrer" class="act-map-link" onclick="event.stopPropagation()" title="Ver no Google Maps"><i class="fa-solid fa-location-dot"></i></a>
                 </div>
-                <p>${act.desc}</p>
+                <p>${escapeHtml(act.desc)}</p>
                 ${bookingHtml}
               </div>
             </div>
@@ -3798,13 +3841,13 @@ function renderTimeline() {
 
               turnActsHtml += `
                 <div class="activity-block">
-                  <div class="activity-time">${act.time || '--:--'}</div>
+                  <div class="activity-time">${escapeHtml(act.time || '--:--')}</div>
                   <div class="activity-details">
                     <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-                      <h4 style="margin:0; flex:1;">${act.title}</h4>
-                      <a href="${getActivityMapLink(act.title, dayCity)}" target="_blank" class="act-map-link" onclick="event.stopPropagation()" title="Ver no Google Maps"><i class="fa-solid fa-location-dot"></i></a>
+                      <h4 style="margin:0; flex:1;">${escapeHtml(act.title)}</h4>
+                      <a href="${getActivityMapLink(act.title, dayCity)}" target="_blank" rel="noopener noreferrer" class="act-map-link" onclick="event.stopPropagation()" title="Ver no Google Maps"><i class="fa-solid fa-location-dot"></i></a>
                     </div>
-                    <p>${act.desc}</p>
+                    <p>${escapeHtml(act.desc)}</p>
                     ${bookingHtml}
                   </div>
                 </div>
@@ -3831,8 +3874,8 @@ function renderTimeline() {
       <div class="timeline-bullet"></div>
       <div class="glass-panel timeline-card" onclick="toggleCard(this)">
         <div class="timeline-header">
-          <span class="timeline-day">DIA ${day.dayNum} - ${day.dayTitle || 'Explorações'}</span>
-          <span class="timeline-date">${day.date || ''}</span>
+          <span class="timeline-day">DIA ${dayNumber} - ${escapeHtml(day.dayTitle || 'Explorações')}</span>
+          <span class="timeline-date">${escapeHtml(day.date || '')}</span>
         </div>
         <h3><i class="fa-solid fa-compass" style="color: var(--secondary); margin-right: 8px;"></i> Programação</h3>
         
@@ -3844,21 +3887,21 @@ function renderTimeline() {
               <i class="fa-solid fa-bed footer-detail-icon"></i>
               <div class="footer-detail-text">
                 <h5>HOSPEDAGEM</h5>
-                <p>${day.hotel || tripData.infoHotel || 'N/A'}</p>
+                <p>${escapeHtml(day.hotel || tripData.infoHotel || 'N/A')}</p>
               </div>
             </div>
             <div class="footer-detail-item">
               <i class="fa-solid fa-utensils footer-detail-icon"></i>
               <div class="footer-detail-text">
                 <h5>REFEIÇÃO</h5>
-                <p>${day.restaurant || 'Livre'}</p>
+                <p>${escapeHtml(day.restaurant || 'Livre')}</p>
               </div>
             </div>
             <div class="footer-detail-item">
               <i class="fa-solid fa-car footer-detail-icon"></i>
               <div class="footer-detail-text">
                 <h5>TRANSPORTE</h5>
-                <p>${day.transport || 'Público / Uber'}</p>
+                <p>${escapeHtml(day.transport || 'Público / Uber')}</p>
               </div>
             </div>
           </div>
@@ -3896,8 +3939,31 @@ function filterTimeline(filter) {
 }
 window.filterTimeline = filterTimeline;
 
-// Budget Conic-gradient calculator
-function updateBudget() {
+function renderBudgetFromState() {
+  const controls = [
+    ['slideHospedagem', tripData.budget?.hospedagem],
+    ['slideAlimentacao', tripData.budget?.alimentacao],
+    ['slidePasseios', tripData.budget?.passeios],
+    ['slideCompras', tripData.budget?.compras]
+  ];
+
+  controls.forEach(([id, rawValue]) => {
+    const input = document.getElementById(id);
+    if (!input) return;
+    const value = Math.max(0, Number(rawValue) || 0);
+    const step = Math.max(1, Number(input.step) || 1);
+    if (value > Number(input.max || 0)) {
+      input.max = String(Math.ceil(value / step) * step);
+    }
+    input.value = String(value);
+  });
+
+  updateBudget(false);
+}
+
+// Budget Conic-gradient calculator. Rendering saved state must never persist
+// the controls back over the source data; only direct user edits do that.
+function updateBudget(shouldPersist = true) {
   const slideHospedagem = parseInt(document.getElementById("slideHospedagem").value);
   const slideAlimentacao = parseInt(document.getElementById("slideAlimentacao").value);
   const slidePasseios = parseInt(document.getElementById("slidePasseios").value);
@@ -3986,7 +4052,7 @@ function updateBudget() {
       if (aiAnalysisBlock && budgetAiAnalysisText) {
         if (tripData.budgetAnalysis) {
           aiAnalysisBlock.style.display = "flex";
-          budgetAiAnalysisText.innerHTML = tripData.budgetAnalysis.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+          budgetAiAnalysisText.innerHTML = formatSafeBoldText(tripData.budgetAnalysis);
         } else {
           aiAnalysisBlock.style.display = "none";
         }
@@ -4004,19 +4070,20 @@ function updateBudget() {
         feedback = `Você propôs um estilo **Premium / Luxo** para este destino (mais de R$ ${limInt.toLocaleString("pt-BR")}/dia). Excelente para aproveitar passeios exclusivos, gastronomia de alto nível e hotelaria diferenciada. Dica: lembre-se de reservar restaurantes renomados com bastante antecedência!`;
       }
       
-      document.getElementById("budgetFeedbackText").innerHTML = feedback.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+      document.getElementById("budgetFeedbackText").innerHTML = formatSafeBoldText(feedback);
       
     } else {
       analysisCard.classList.add("hidden");
     }
   }
 
-  // Save budget changes in state
-  tripData.budget.hospedagem = slideHospedagem;
-  tripData.budget.alimentacao = slideAlimentacao;
-  tripData.budget.passeios = slidePasseios;
-  tripData.budget.compras = slideCompras;
-  saveState();
+  if (shouldPersist) {
+    tripData.budget.hospedagem = slideHospedagem;
+    tripData.budget.alimentacao = slideAlimentacao;
+    tripData.budget.passeios = slidePasseios;
+    tripData.budget.compras = slideCompras;
+    saveState();
+  }
 }
 window.updateBudget = updateBudget;
 
@@ -4057,7 +4124,8 @@ function renderPackingChecklist() {
     
     // Choose icon based on category name
     let iconClass = "fa-suitcase";
-    const catNameLower = cat.category.toLowerCase();
+    const categoryName = String(cat.category || 'Geral');
+    const catNameLower = categoryName.toLowerCase();
     if (catNameLower.includes("doc") || catNameLower.includes("pass")) iconClass = "fa-passport";
     else if (catNameLower.includes("eletr") || catNameLower.includes("cab")) iconClass = "fa-laptop";
     else if (catNameLower.includes("vest") || catNameLower.includes("roup")) iconClass = "fa-shirt";
@@ -4072,14 +4140,14 @@ function renderPackingChecklist() {
         itemsHtml += `
           <label class="packing-item">
             <input type="checkbox" class="packing-checkbox" id="${uniqueId}" ${isChecked} ${isSharedView ? 'disabled' : ''} onchange="togglePackingItem(${catIdx}, ${itemIdx}, this.checked)">
-            <span class="packing-item-text">${itemName}</span>
+            <span class="packing-item-text">${escapeHtml(itemName)}</span>
           </label>
         `;
       });
     }
 
     catSection.innerHTML = `
-      <h3 class="packing-category-header"><i class="fa-solid ${iconClass}" style="color: var(--secondary); margin-right: 8px;"></i> ${cat.category}</h3>
+      <h3 class="packing-category-header"><i class="fa-solid ${iconClass}" style="color: var(--secondary); margin-right: 8px;"></i> ${escapeHtml(categoryName)}</h3>
       <div class="packing-list">
         ${itemsHtml}
       </div>
@@ -4157,6 +4225,7 @@ function setupReservationFilters() {
       document.getElementById("reservationForm").reset();
       document.getElementById("editReservationId").value = "";
       document.getElementById("reservationModal").classList.remove("hidden");
+      document.getElementById("resTypeInput")?.focus();
     });
   }
 
@@ -4166,6 +4235,18 @@ function setupReservationFilters() {
       document.getElementById("reservationModal").classList.add("hidden");
     });
   }
+
+  const reservationModal = document.getElementById("reservationModal");
+  if (reservationModal) {
+    reservationModal.addEventListener("click", (event) => {
+      if (event.target === reservationModal) reservationModal.classList.add("hidden");
+    });
+  }
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && reservationModal && !reservationModal.classList.contains("hidden")) {
+      reservationModal.classList.add("hidden");
+    }
+  });
 
   const resForm = document.getElementById("reservationForm");
   if (resForm) {
@@ -4179,12 +4260,19 @@ function setupReservationFilters() {
 function saveReservation() {
   const idField = document.getElementById("editReservationId").value;
   const type = document.getElementById("resTypeInput").value;
-  const title = document.getElementById("resTitleInput").value;
-  const provider = document.getElementById("resProviderInput").value;
-  const reference = document.getElementById("resReferenceInput").value;
+  const title = document.getElementById("resTitleInput").value.trim();
+  const provider = document.getElementById("resProviderInput").value.trim();
+  const reference = document.getElementById("resReferenceInput").value.trim();
   const start = document.getElementById("resStartDateInput").value;
   const end = document.getElementById("resEndDateInput").value;
-  const notes = document.getElementById("resNotesInput").value;
+  const notes = document.getElementById("resNotesInput").value.trim();
+
+  if (!title || !start) return;
+  if (end && new Date(end) < new Date(start)) {
+    alert("A data final da reserva não pode ser anterior à data inicial.");
+    document.getElementById("resEndDateInput")?.focus();
+    return;
+  }
 
   tripData.reservations = tripData.reservations || [];
   
@@ -4288,16 +4376,16 @@ function renderDocuments() {
 
   emptyState.classList.add("hidden");
   
-  container.innerHTML = combined.map(item => {
+  container.innerHTML = combined.map((item, itemIndex) => {
     const isSupabaseFile = item.file_reference || (item.url && item.url.includes("supabase.co"));
     let blockView = false;
     if (window.isSharedView && isSupabaseFile) {
       blockView = true;
     }
 
-    const title = item.title || item.name || "Sem título";
-    const provider = item.provider || (item._isDoc ? "Arquivo" : "Reserva");
-    const refCode = item.reference ? `Ref: ${item.reference}` : "";
+    const title = escapeHtml(item.title || item.name || "Sem título");
+    const provider = escapeHtml(item.provider || (item._isDoc ? "Arquivo" : "Reserva"));
+    const refCode = item.reference ? `Ref: ${escapeHtml(item.reference)}` : "";
     const favIcon = item.is_favorite ? '<i class="fa-solid fa-star" style="color: #fbbf24;"></i>' : '<i class="fa-regular fa-star"></i>';
     
     let dateStr = "";
@@ -4309,14 +4397,14 @@ function renderDocuments() {
         dateStr += " - " + et.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
       }
     } else if (item.date) {
-      dateStr = item.date;
+      dateStr = escapeHtml(item.date);
     }
 
     const iconTypeClass = item._isDoc ? (item.type === 'pdf' ? 'fa-file-pdf' : 'fa-file-image') : 'fa-ticket';
 
     return `
       <div class="glass-panel" style="padding: 16px; display: flex; flex-direction: column; gap: 12px; position: relative;">
-        <button type="button" aria-label="${item.is_favorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}" onclick="toggleFavoriteReservation('${item.id}', ${item._isDoc})" style="position: absolute; top: 12px; right: 12px; background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.1rem; z-index: 10;">
+        <button type="button" class="reservation-favorite-btn" data-item-index="${itemIndex}" aria-label="${item.is_favorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}" style="position: absolute; top: 12px; right: 12px; background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.1rem; z-index: 10;">
           ${favIcon}
         </button>
         <div style="display: flex; align-items: center; gap: 12px;">
@@ -4332,7 +4420,7 @@ function renderDocuments() {
         <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: 4px;">
           <div style="font-size: 0.75rem; color: var(--text-light); font-weight: 600;">
             ${dateStr ? '<i class="fa-regular fa-calendar" style="margin-right: 4px;"></i> ' + dateStr : ''}
-            <div id="offline-badge-${item.id}" style="font-size: 0.65rem; color: var(--text-muted); margin-top: 4px; font-weight: normal;">
+            <div id="offline-badge-${itemIndex}" style="font-size: 0.65rem; color: var(--text-muted); margin-top: 4px; font-weight: normal;">
               <i class="fa-solid fa-spinner fa-spin"></i> Verificando cache...
             </div>
           </div>
@@ -4341,11 +4429,11 @@ function renderDocuments() {
               `<button type="button" class="btn btn-secondary btn-sm" disabled style="opacity: 0.5; cursor: not-allowed;" title="Visualização bloqueada em modo compartilhado"><i class="fa-solid fa-lock"></i></button>`
             : 
               (item._isDoc ? 
-                `<button type="button" class="btn btn-secondary btn-sm" aria-label="Visualizar documento" onclick="viewDocument('${item.id}')"><i class="fa-solid fa-eye"></i></button>`
+                `<button type="button" class="btn btn-secondary btn-sm reservation-view-btn" data-item-index="${itemIndex}" aria-label="Visualizar documento"><i class="fa-solid fa-eye"></i></button>`
               : '')
             }
             ${window.isSharedView ? '' : `
-              <button type="button" class="flight-action-btn delete" aria-label="Excluir ${item._isDoc ? 'documento' : 'reserva'}" style="padding: 6px; font-size: 0.8rem;" onclick="deleteDocumentOrRes('${item.id}', ${item._isDoc})">
+              <button type="button" class="flight-action-btn delete reservation-delete-btn" data-item-index="${itemIndex}" aria-label="Excluir ${item._isDoc ? 'documento' : 'reserva'}" style="padding: 6px; font-size: 0.8rem;">
                 <i class="fa-solid fa-trash"></i>
               </button>
             `}
@@ -4355,9 +4443,28 @@ function renderDocuments() {
     `;
   }).join("");
 
+  container.querySelectorAll(".reservation-favorite-btn").forEach(button => {
+    button.addEventListener("click", () => {
+      const item = combined[Number(button.dataset.itemIndex)];
+      if (item) toggleFavoriteReservation(item.id, item._isDoc);
+    });
+  });
+  container.querySelectorAll(".reservation-view-btn").forEach(button => {
+    button.addEventListener("click", () => {
+      const item = combined[Number(button.dataset.itemIndex)];
+      if (item) viewDocument(item.id);
+    });
+  });
+  container.querySelectorAll(".reservation-delete-btn").forEach(button => {
+    button.addEventListener("click", () => {
+      const item = combined[Number(button.dataset.itemIndex)];
+      if (item) deleteDocumentOrRes(item.id, item._isDoc);
+    });
+  });
+
   // Atualiza assincronamente os status offline no IndexedDB
-  combined.forEach(async item => {
-    const badgeEl = document.getElementById(`offline-badge-${item.id}`);
+  combined.forEach(async (item, itemIndex) => {
+    const badgeEl = document.getElementById(`offline-badge-${itemIndex}`);
     if (badgeEl) {
       if (!item._isDoc) {
         // Reservas manuais criadas no frontend não possuem arquivos anexados grandes, portanto estão prontas
@@ -4691,6 +4798,18 @@ async function handleUserLoggedIn(user, token) {
   currentUser = user;
   authToken = token;
 
+  const planCacheKey = `gptViajante_plan_${user.email}`;
+  const cachedPlan = localStorage.getItem(planCacheKey);
+  if (cachedPlan === 'free' || cachedPlan === 'premium') {
+    currentUser.plan = cachedPlan;
+  }
+
+  const applyVerifiedPlan = plan => {
+    if (plan !== 'free' && plan !== 'premium') return;
+    currentUser.plan = plan;
+    localStorage.setItem(planCacheKey, plan);
+  };
+
   const loginSubmitBtn = document.getElementById("loginSubmitBtn");
   const googleLoginBtn = document.getElementById("googleLoginBtn");
 
@@ -4760,6 +4879,8 @@ async function handleUserLoggedIn(user, token) {
           await logout();
           alert("⚠️ Seu acesso não está cadastrado ou foi revogado.");
         } else {
+          const verification = await res.json().catch(() => ({}));
+          applyVerifiedPlan(verification.plan);
           localStorage.setItem(cacheKey, "true");
         }
       }).catch(err => {
@@ -4790,6 +4911,9 @@ async function handleUserLoggedIn(user, token) {
         const errData = await response.json().catch(() => ({}));
         throw new Error(errData.error || "Acesso negado.");
       }
+
+      const verification = await response.json().catch(() => ({}));
+      applyVerifiedPlan(verification.plan);
 
       // Cache verified status
       localStorage.setItem(cacheKey, "true");
@@ -5114,6 +5238,12 @@ function renderFlights() {
   
   container.innerHTML = tripData.flights.map((flight, index) => {
     const airlineStyle = getAirlineStyle(flight.airline);
+    const safeFlightNumber = escapeHtml(flight.flightNumber || "---");
+    const safeAirline = escapeHtml(flight.airline || "Companhia Aérea");
+    const safeDepartureAirport = escapeHtml(flight.departureAirport || "---");
+    const safeDepartureCity = escapeHtml(flight.departureCity || "Partida");
+    const safeArrivalAirport = escapeHtml(flight.arrivalAirport || "---");
+    const safeArrivalCity = escapeHtml(flight.arrivalCity || "Destino");
     
     // Calculate progress and countdowns dynamically
     const now = new Date();
@@ -5200,19 +5330,19 @@ function renderFlights() {
     else if (statusLabel === "Atrasado") statusClass = "status-delayed";
     else if (statusLabel === "Cancelado") statusClass = "status-cancelled";
     
-    const terminalMarkup = flight.terminal ? `<div class="flight-info-item"><span class="flight-info-label">Terminal</span><span class="flight-info-value">${flight.terminal}</span></div>` : '<div class="flight-info-item"><span class="flight-info-label">Terminal</span><span class="flight-info-value">-</span></div>';
-    const gateMarkup = flight.gate ? `<div class="flight-info-item"><span class="flight-info-label">Portão</span><span class="flight-info-value">${flight.gate}</span></div>` : '<div class="flight-info-item"><span class="flight-info-label">Portão</span><span class="flight-info-value">-</span></div>';
-    const carouselMarkup = flight.carousel ? `<div class="flight-info-item"><span class="flight-info-label">Esteira</span><span class="flight-info-value">${flight.carousel}</span></div>` : '<div class="flight-info-item"><span class="flight-info-label">Esteira</span><span class="flight-info-value">-</span></div>';
+    const terminalMarkup = flight.terminal ? `<div class="flight-info-item"><span class="flight-info-label">Terminal</span><span class="flight-info-value">${escapeHtml(flight.terminal)}</span></div>` : '<div class="flight-info-item"><span class="flight-info-label">Terminal</span><span class="flight-info-value">-</span></div>';
+    const gateMarkup = flight.gate ? `<div class="flight-info-item"><span class="flight-info-label">Portão</span><span class="flight-info-value">${escapeHtml(flight.gate)}</span></div>` : '<div class="flight-info-item"><span class="flight-info-label">Portão</span><span class="flight-info-value">-</span></div>';
+    const carouselMarkup = flight.carousel ? `<div class="flight-info-item"><span class="flight-info-label">Esteira</span><span class="flight-info-value">${escapeHtml(flight.carousel)}</span></div>` : '<div class="flight-info-item"><span class="flight-info-label">Esteira</span><span class="flight-info-value">-</span></div>';
     
     const isActualTime = flight.actualDeparture && flight.actualDeparture !== flight.scheduledDeparture;
     const depTimeMarkup = isActualTime 
-      ? `<span class="flight-time-val delayed">${flight.scheduledDeparture}</span><span class="flight-time-val actual">${flight.actualDeparture}</span>`
-      : `<span class="flight-time-val on-time">${flight.scheduledDeparture || '--:--'}</span>`;
+      ? `<span class="flight-time-val delayed">${escapeHtml(flight.scheduledDeparture)}</span><span class="flight-time-val actual">${escapeHtml(flight.actualDeparture)}</span>`
+      : `<span class="flight-time-val on-time">${escapeHtml(flight.scheduledDeparture || '--:--')}</span>`;
 
     const isActualArrTime = flight.actualArrival && flight.actualArrival !== flight.scheduledArrival;
     const arrTimeMarkup = isActualArrTime 
-      ? `<span class="flight-time-val delayed">${flight.scheduledArrival}</span><span class="flight-time-val actual">${flight.actualArrival}</span>`
-      : `<span class="flight-time-val on-time">${flight.scheduledArrival || '--:--'}</span>`;
+      ? `<span class="flight-time-val delayed">${escapeHtml(flight.scheduledArrival)}</span><span class="flight-time-val actual">${escapeHtml(flight.actualArrival)}</span>`
+      : `<span class="flight-time-val on-time">${escapeHtml(flight.scheduledArrival || '--:--')}</span>`;
 
     return `
       <div class="flight-card glass-panel" data-index="${index}">
@@ -5230,20 +5360,20 @@ function renderFlights() {
               <i class="fa-solid fa-plane"></i>
             </div>
             <div>
-              <div class="flight-number">${flight.flightNumber}</div>
-              <div class="flight-airline-name">${flight.airline || 'Companhia Aérea'}</div>
+              <div class="flight-number">${safeFlightNumber}</div>
+              <div class="flight-airline-name">${safeAirline}</div>
             </div>
           </div>
           <span class="flight-status-badge ${statusClass}">
             <i class="fa-solid ${statusLabel === 'Em Voo' ? 'fa-plane' : statusLabel === 'Pousou' ? 'fa-circle-check' : 'fa-circle-info'}"></i>
-            ${statusLabel}
+            ${escapeHtml(statusLabel)}
           </span>
         </div>
         
         <div class="flight-route-visual">
           <div class="flight-airport-box">
-            <span class="flight-iata">${flight.departureAirport || '---'}</span>
-            <span class="flight-city">${flight.departureCity || 'Partida'}</span>
+            <span class="flight-iata">${safeDepartureAirport}</span>
+            <span class="flight-city">${safeDepartureCity}</span>
           </div>
           
           <div class="flight-progress-connector">
@@ -5254,18 +5384,18 @@ function renderFlights() {
           </div>
           
           <div class="flight-airport-box destination">
-            <span class="flight-iata">${flight.arrivalAirport || '---'}</span>
-            <span class="flight-city">${flight.arrivalCity || 'Destino'}</span>
+            <span class="flight-iata">${safeArrivalAirport}</span>
+            <span class="flight-city">${safeArrivalCity}</span>
           </div>
         </div>
         
         <div class="flight-times-row">
           <div>Partida: ${depTimeMarkup}</div>
-          <div style="font-weight: 500; font-size: 0.78rem; opacity: 0.8;">${flight.duration || ''}</div>
+          <div style="font-weight: 500; font-size: 0.78rem; opacity: 0.8;">${escapeHtml(flight.duration || '')}</div>
           <div style="text-align: right;">Chegada: ${arrTimeMarkup}</div>
         </div>
         
-        ${countdownText ? `<div class="flight-countdown-bar ${statusLabel === 'Embarque' ? 'boarding' : statusLabel === 'Em Voo' ? 'flying' : statusLabel === 'Pousou' ? 'landed' : statusLabel === 'Cancelado' ? 'cancelled' : ''}">${countdownText}</div>` : ''}
+        ${countdownText ? `<div class="flight-countdown-bar ${statusLabel === 'Embarque' ? 'boarding' : statusLabel === 'Em Voo' ? 'flying' : statusLabel === 'Pousou' ? 'landed' : statusLabel === 'Cancelado' ? 'cancelled' : ''}">${escapeHtml(countdownText)}</div>` : ''}
         
         <div class="flight-info-grid">
           ${terminalMarkup}
@@ -5614,6 +5744,16 @@ function setupSplitwiseListeners() {
     cancelExpenseModalBtn.addEventListener("click", closeExpenseModal);
   }
 
+  const expenseModal = document.getElementById("expenseModal");
+  expenseModal?.addEventListener("click", (event) => {
+    if (event.target === expenseModal) closeExpenseModal();
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && expenseModal && !expenseModal.classList.contains("hidden")) {
+      closeExpenseModal();
+    }
+  });
+
   if (expenseForm) {
     expenseForm.addEventListener("submit", (e) => {
       e.preventDefault();
@@ -5683,17 +5823,30 @@ function openExpenseModal() {
 
   const payerSelect = document.getElementById("expensePayerSelect");
   if (payerSelect) {
-    payerSelect.innerHTML = tripData.members.map(m => `<option value="${m}">${m}</option>`).join("");
+    payerSelect.replaceChildren(...tripData.members.map(member => {
+      const option = document.createElement("option");
+      option.value = member;
+      option.textContent = member;
+      return option;
+    }));
   }
 
   const checklist = document.getElementById("expenseParticipantsChecklist");
   if (checklist) {
-    checklist.innerHTML = tripData.members.map((m, idx) => `
-      <label style="display: flex; align-items: center; gap: 8px; font-size: 0.88rem; color: var(--text-light); cursor: pointer; user-select: none;">
-        <input type="checkbox" name="expenseParticipant" value="${m}" checked style="accent-color: var(--primary); width: 16px; height: 16px;">
-        <span>${m}</span>
-      </label>
-    `).join("");
+    checklist.replaceChildren(...tripData.members.map(member => {
+      const label = document.createElement("label");
+      label.style.cssText = "display:flex;align-items:center;gap:8px;font-size:.88rem;color:var(--text-light);cursor:pointer;user-select:none";
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.name = "expenseParticipant";
+      checkbox.value = member;
+      checkbox.checked = true;
+      checkbox.style.cssText = "accent-color:var(--primary);width:16px;height:16px";
+      const name = document.createElement("span");
+      name.textContent = member;
+      label.append(checkbox, name);
+      return label;
+    }));
 
     checklist.querySelectorAll('input[name="expenseParticipant"]').forEach(cb => {
       cb.addEventListener("change", () => {
@@ -5722,6 +5875,7 @@ function openExpenseModal() {
   }
 
   modal.classList.remove("hidden");
+  document.getElementById("expenseDescInput")?.focus();
 }
 
 function closeExpenseModal() {
@@ -5834,8 +5988,8 @@ function renderSplitwise() {
       return `
         <div class="member-chip">
           <i class="fa-solid fa-user-tag" style="font-size: 0.75rem; opacity: 0.8; color: ${isMain ? 'var(--primary)' : 'var(--text-muted)'}"></i>
-          <span>${m}</span>
-          ${isMain || isSharedView ? '' : `<i class="fa-solid fa-xmark remove-member" onclick="removeMember(${idx})"></i>`}
+          <span>${escapeHtml(m)}</span>
+          ${isMain || isSharedView ? '' : `<button type="button" class="remove-member" data-member-index="${idx}" aria-label="Remover ${escapeHtml(m)}" style="background:none;border:0;color:inherit;padding:2px;cursor:pointer"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>`}
         </div>
       `;
     }).join("");
@@ -5933,18 +6087,18 @@ function renderSplitwise() {
         let textPrefix = "";
         
         if (isYouDebtor) {
-          textPrefix = `Você deve <strong class="balance-type-debt">R$ ${t.amount.toFixed(2)}</strong> a <strong>${t.to}</strong>`;
+          textPrefix = `Você deve <strong class="balance-type-debt">R$ ${t.amount.toFixed(2)}</strong> a <strong>${escapeHtml(t.to)}</strong>`;
         } else if (isYouCreditor) {
-          textPrefix = `<strong>${t.from}</strong> deve <strong class="balance-type-credit">R$ ${t.amount.toFixed(2)}</strong> a você`;
+          textPrefix = `<strong>${escapeHtml(t.from)}</strong> deve <strong class="balance-type-credit">R$ ${t.amount.toFixed(2)}</strong> a você`;
         } else {
-          textPrefix = `<strong>${t.from}</strong> deve <strong>R$ ${t.amount.toFixed(2)}</strong> a <strong>${t.to}</strong>`;
+          textPrefix = `<strong>${escapeHtml(t.from)}</strong> deve <strong>R$ ${t.amount.toFixed(2)}</strong> a <strong>${escapeHtml(t.to)}</strong>`;
         }
 
         return `
           <div class="balance-item">
             <span class="balance-text">${textPrefix}</span>
             ${isSharedView ? '' : `
-            <button class="btn btn-secondary btn-sm" style="padding: 6px 12px; font-size: 0.78rem;" onclick="settleDebt('${t.from}', '${t.to}', ${t.amount})">
+            <button type="button" class="btn btn-secondary btn-sm settle-debt-btn" style="padding: 6px 12px; font-size: 0.78rem;" data-from="${escapeHtml(t.from)}" data-to="${escapeHtml(t.to)}" data-amount="${t.amount}">
               <i class="fa-solid fa-check"></i> Quitar
             </button>
             `}
@@ -6004,8 +6158,8 @@ function renderSplitwise() {
                 <i class="${iconClass}"></i>
               </div>
               <div class="expense-info">
-                <h4>${exp.desc}</h4>
-                <p>${payeeText} • ${splitText} • ${exp.date}</p>
+                <h4>${escapeHtml(exp.desc)}</h4>
+                <p>${escapeHtml(payeeText)} • ${escapeHtml(splitText)} • ${escapeHtml(exp.date)}</p>
               </div>
             </div>
             <div class="expense-right">
@@ -6024,6 +6178,15 @@ function renderSplitwise() {
       }).reverse().join("");
     }
   }
+
+  balancesList?.querySelectorAll(".settle-debt-btn").forEach(button => {
+    button.addEventListener("click", () => {
+      settleDebt(button.dataset.from, button.dataset.to, Number(button.dataset.amount));
+    });
+  });
+  membersList?.querySelectorAll(".remove-member").forEach(button => {
+    button.addEventListener("click", () => removeMember(Number(button.dataset.memberIndex)));
+  });
 }
 
 // Expose functions to global scope
@@ -6064,8 +6227,8 @@ function updateCustomSharesInputs() {
     const shareVal = (idx === 0) ? (baseShare + remainder) : baseShare;
     return `
       <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
-        <span style="font-size: 0.85rem; color: var(--text-light); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 150px;">${name}</span>
-        <input type="number" step="0.01" min="0" placeholder="0.00" class="custom-share-input" data-name="${name}" value="${shareVal.toFixed(2)}" style="width: 100px; background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); padding: 6px 8px; color: white; outline: none; font-size: 0.85rem; text-align: right;">
+        <span style="font-size: 0.85rem; color: var(--text-light); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 150px;">${escapeHtml(name)}</span>
+        <input type="number" step="0.01" min="0" placeholder="0.00" class="custom-share-input" data-name="${escapeHtml(name)}" value="${shareVal.toFixed(2)}" style="width: 100px; background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); padding: 6px 8px; color: white; outline: none; font-size: 0.85rem; text-align: right;">
       </div>
     `;
   }).join("");
@@ -6740,7 +6903,6 @@ function subscribeToTripChanges(tripId) {
             renderSplitwise();
             renderPackingChecklist();
             checkItineraryStatus();
-            updateBudget();
             renderDashboard();
             
             // Save locally

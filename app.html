@@ -1436,7 +1436,7 @@
   <!-- Undo Toast -->
   <div id="undoToast" class="hidden fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-4 z-[9999]">
     <span>Ação realizada com sucesso.</span>
-    <button id="undoBtn" class="text-blue-400 hover:text-blue-300 font-bold underline">Desfazer</button>
+    <button type="button" id="undoBtn" class="text-blue-400 hover:text-blue-300 font-bold underline">Desfazer</button>
     <button type="button" id="closeUndoBtn" aria-label="Fechar aviso de desfazer" class="text-gray-400 hover:text-gray-200 ml-2"><i class="fa-solid fa-times"></i></button>
   </div>
 
@@ -1514,7 +1514,7 @@
   </div>
 
   <!-- Paywall Modal -->
-  <div class="modal-overlay hidden" id="paywallModal" role="dialog" aria-modal="true" aria-labelledby="paywallTitle" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 100000; padding: 20px; box-sizing: border-box;">
+  <div class="modal-overlay hidden" id="paywallModal" role="dialog" aria-modal="true" aria-labelledby="paywallTitle" aria-describedby="paywallMessage" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 100000; padding: 20px; box-sizing: border-box;">
     <div class="modal-card glass-panel" style="max-width: 500px; width: 100%; max-height: 90vh; overflow-y: auto; padding: 30px; border-radius: var(--border-radius-lg); box-shadow: var(--shadow-lg); text-align: center;">
       <i class="fa-solid fa-gem" style="color: var(--primary); font-size: 3rem; margin-bottom: 20px;"></i>
       <h3 id="paywallTitle" style="margin: 0 0 10px; font-size: 1.5rem; font-weight: 700; color: var(--text-main);">Limite Alcançado</h3>

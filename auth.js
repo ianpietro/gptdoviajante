@@ -29,6 +29,7 @@ export function setupAuthStateListener(onUserActive, onUserInactive) {
     queueMicrotask(() => onUserActive({
       id: "dummy-user-id",
       email: "teste@viajante.com",
+      plan: "premium",
       user_metadata: {
         full_name: "Viajante Teste",
         avatar_url: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=150"

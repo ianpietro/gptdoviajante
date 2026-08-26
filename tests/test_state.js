@@ -43,6 +43,35 @@ async function runTests() {
     assert.strictEqual(normalized.expenses.length, 1);
   }
 
+  // Test 2b: malformed imported/cache data is repaired instead of crashing renderers
+  {
+    console.log("Test 2b: Malformed cached data repair");
+    const repaired = normalizeTripState({
+      budget: { hospedagem: '15200', alimentacao: -8, passeios: 'invalid' },
+      members: ['Você', ' Marina ', 'Marina', null],
+      expenses: [
+        { desc: 123, amount: '360.50', payer: null, participants: null },
+        null
+      ],
+      itinerary: [{ dayNum: '2', dayTitle: 42, activities: [{ time: null, title: 99, desc: null }, null] }],
+      flights: 'not-an-array',
+      reservations: null
+    });
+
+    assert.deepStrictEqual(repaired.members, ['Você', 'Marina']);
+    assert.strictEqual(repaired.budget.hospedagem, 15200);
+    assert.strictEqual(repaired.budget.alimentacao, 0);
+    assert.strictEqual(repaired.budget.passeios, 0);
+    assert.strictEqual(repaired.expenses.length, 1);
+    assert.strictEqual(repaired.expenses[0].desc, '123');
+    assert.strictEqual(repaired.expenses[0].amount, 360.5);
+    assert.deepStrictEqual(repaired.expenses[0].participants, ['Você']);
+    assert.strictEqual(repaired.itinerary[0].dayNum, 2);
+    assert.strictEqual(repaired.itinerary[0].activities[0].title, '99');
+    assert.deepStrictEqual(repaired.flights, []);
+    assert.deepStrictEqual(repaired.reservations, []);
+  }
+
   // Test 3: getSuggestedTripStatus calculations (upcoming, active, completed, archived)
   {
     console.log("Test 3: getSuggestedTripStatus time-based status calculations");
@@ -359,7 +388,12 @@ async function runTests() {
     assert.ok(appJs.includes("const stepEl = step === 2 ? createForm"), 'Plan-from-zero must reveal the actual form');
     assert.ok(appJs.includes("dashboardContent.classList.add('trips-view')"), 'First-use view must isolate the trip list');
     assert.ok(appJs.includes("switchTab('home');"), 'A newly created trip must open on Home');
+    assert.strictEqual((appJs.match(/window\.checkAiLimit\s*=/g) || []).length, 1, 'AI limit enforcement must have one implementation');
+    assert.ok(appJs.includes('setupPaywallListeners();'), 'Paywall controls must be initialized');
+    assert.ok(appJs.includes('function renderBudgetFromState()'), 'Saved budget must have a non-persisting render path');
+    assert.ok(appJs.includes('updateBudget(false);'), 'Rendering budget must not overwrite saved values');
     assert.ok(redesignCss.includes('#dashboardContent.trips-view > :not(#myTripsSection)'), 'Legacy dashboard must not leak below first-use');
+    assert.ok(redesignCss.includes('#undoToast'), 'Undo action must have standalone positioning styles');
     assert.strictEqual(manifest.theme_color, '#070b14');
     assert.strictEqual(manifest.icons[0].src, '/assets/app-icon.svg');
     assert.ok(!serviceWorker.includes('client.navigate(client.url)'), 'Service-worker activation must not interrupt open work');

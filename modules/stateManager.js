@@ -1,5 +1,15 @@
 export const CURRENT_STATE_VERSION = 2;
 
+function toNonNegativeNumber(value, fallback = 0) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+}
+
+function toText(value, fallback = '') {
+  if (value === null || value === undefined) return fallback;
+  return String(value);
+}
+
 export function normalizeTripState(trip) {
   if (!trip || typeof trip !== 'object') {
     trip = {};
@@ -53,9 +63,13 @@ export function normalizeTripState(trip) {
 
   // Inject defaults if properties are missing or undefined
   Object.keys(defaults).forEach(key => {
-    if (normalized[key] === undefined) {
+    if (normalized[key] === undefined || normalized[key] === null) {
       normalized[key] = JSON.parse(JSON.stringify(defaults[key]));
     }
+  });
+
+  ['packing', 'itinerary', 'flights', 'members', 'expenses', 'documents', 'destinations', 'travelers', 'accommodations', 'reservations', 'partner_opportunities', 'activity_log'].forEach(key => {
+    if (!Array.isArray(normalized[key])) normalized[key] = JSON.parse(JSON.stringify(defaults[key]));
   });
 
   // Ensure sharing object has all keys populated even if loaded from older trip data
@@ -81,10 +95,10 @@ export function normalizeTripState(trip) {
     normalized.budget = { hospedagem: 0, alimentacao: 0, passeios: 0, compras: 0 };
   } else {
     normalized.budget = {
-      hospedagem: normalized.budget.hospedagem || 0,
-      alimentacao: normalized.budget.alimentacao || 0,
-      passeios: normalized.budget.passeios || 0,
-      compras: normalized.budget.compras || 0
+      hospedagem: toNonNegativeNumber(normalized.budget.hospedagem),
+      alimentacao: toNonNegativeNumber(normalized.budget.alimentacao),
+      passeios: toNonNegativeNumber(normalized.budget.passeios),
+      compras: toNonNegativeNumber(normalized.budget.compras)
     };
   }
 
@@ -93,8 +107,8 @@ export function normalizeTripState(trip) {
     normalized.budgetThresholds = { economico: 150, intermediario: 450 };
   } else {
     normalized.budgetThresholds = {
-      economico: normalized.budgetThresholds.economico || 150,
-      intermediario: normalized.budgetThresholds.intermediario || 450
+      economico: toNonNegativeNumber(normalized.budgetThresholds.economico, 150) || 150,
+      intermediario: toNonNegativeNumber(normalized.budgetThresholds.intermediario, 450) || 450
     };
   }
 
@@ -113,11 +127,59 @@ export function normalizeTripState(trip) {
           }
           return { name: '', checked: false };
         }) : [];
-        return { ...cat, items };
+        return { ...cat, category: toText(cat.category, 'Geral'), items };
       }
       return { category: 'Geral', items: [] };
     });
   }
+
+  normalized.members = [...new Set(normalized.members
+    .map(member => toText(member).trim())
+    .filter(Boolean))];
+  if (!normalized.members.includes('Você')) normalized.members.unshift('Você');
+
+  normalized.expenses = normalized.expenses
+    .filter(expense => expense && typeof expense === 'object')
+    .map(expense => {
+      const payer = toText(expense.payer, 'Você').trim() || 'Você';
+      const participants = Array.isArray(expense.participants)
+        ? [...new Set(expense.participants.map(person => toText(person).trim()).filter(Boolean))]
+        : [];
+      const safeParticipants = participants.length > 0 ? participants : [payer];
+      const customShares = expense.customShares && typeof expense.customShares === 'object'
+        ? Object.fromEntries(Object.entries(expense.customShares).map(([person, share]) => [toText(person), toNonNegativeNumber(share)]))
+        : null;
+      return {
+        ...expense,
+        desc: toText(expense.desc, 'Despesa sem descrição'),
+        amount: toNonNegativeNumber(expense.amount),
+        payer,
+        participants: safeParticipants,
+        date: toText(expense.date),
+        customShares
+      };
+    });
+
+  normalized.flights = normalized.flights.filter(item => item && typeof item === 'object');
+  normalized.documents = normalized.documents.filter(item => item && typeof item === 'object');
+  normalized.reservations = normalized.reservations.filter(item => item && typeof item === 'object');
+  normalized.accommodations = normalized.accommodations.filter(item => item && typeof item === 'object');
+  normalized.itinerary = normalized.itinerary
+    .filter(day => day && typeof day === 'object')
+    .map((day, dayIndex) => ({
+      ...day,
+      dayNum: Number(day.dayNum) || dayIndex + 1,
+      dayTitle: toText(day.dayTitle),
+      city: toText(day.city),
+      activities: Array.isArray(day.activities)
+        ? day.activities.filter(activity => activity && typeof activity === 'object').map(activity => ({
+            ...activity,
+            time: toText(activity.time, '--:--'),
+            title: toText(activity.title),
+            desc: toText(activity.desc)
+          }))
+        : []
+    }));
 
   // Logical fallbacks
   if (!normalized.destination) {
