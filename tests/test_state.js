@@ -586,6 +586,19 @@ async function runStep10Tests() {
 
   // ── Test RC-4: Entitlement logic — free vs premium ─────────────────────────
   {
+    console.log("Test RC-3b: OAuth returns to the current production origin");
+    const authText = fs.readFileSync('auth.js', 'utf-8');
+    assert.ok(
+      authText.includes("new URL('/app', window.location.origin)"),
+      "Google OAuth deve retornar para /app no domínio que iniciou o login"
+    );
+    assert.ok(
+      !authText.includes("window.location.href.split('?')"),
+      "OAuth não deve preservar query string ou hash da URL de login"
+    );
+  }
+
+  {
     console.log("Test RC-4: checkUserEntitlement() logic");
     // Test the logic directly (without Supabase calls) by reading _utils.js
     const utilsText = fs.readFileSync('api/_utils.js', 'utf-8');

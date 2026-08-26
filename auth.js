@@ -63,10 +63,13 @@ export function setupAuthStateListener(onUserActive, onUserInactive) {
  */
 export async function loginWithGoogle() {
   if (!isConfigured) return;
+  // Mantém o retorno no mesmo domínio em que o login começou. O caminho fixo
+  // evita cair na landing page ou reaproveitar hashes/query strings antigos.
+  const redirectTo = new URL('/app', window.location.origin).toString();
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
-      redirectTo: window.location.href.split('?')[0].split('#')[0]
+      redirectTo
     }
   });
   if (error) {
