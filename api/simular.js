@@ -1,3 +1,5 @@
+const { routeAIRequest } = require('./_aiRouter');
+
 module.exports = async function handler(req, res) {
   // CORS Headers
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -16,12 +18,6 @@ module.exports = async function handler(req, res) {
 
   if (!destination || !days || !profile) {
     return res.status(400).json({ error: "destination, days, and profile are required fields" });
-  }
-
-  const geminiApiKey = process.env.GEMINI_API_KEY;
-  if (!geminiApiKey) {
-    console.error("GEMINI_API_KEY environment variable is not defined on the server.");
-    return res.status(500).json({ error: "Erro interno do servidor: Chave de IA não configurada." });
   }
 
   // Construct a highly detailed system prompt for premium, non-robotic trip simulation
@@ -87,47 +83,17 @@ Esquema JSON obrigatório:
 Escreva sempre em português do Brasil, de forma natural e amigável.`;
 
   try {
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`;
-    
-    const response = await fetch(geminiUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            role: "user",
-            parts: [{ text: `Gere o JSON estruturado para ${destination} de ${days} dias, perfil ${profile}. CRÍTICO: Não use aspas duplas (") dentro de nenhuma string de texto, se precisar citar algo use aspas simples ('). Não adicione quebras de linha literais dentro das strings do JSON.` }]
-          }
-        ],
-        systemInstruction: {
-          parts: [{ text: systemPrompt + "\n\nREGRAS CRÍTICAS DE ESCAPE JSON:\n1. NUNCA utilize aspas duplas (\") dentro dos textos das strings. Se precisar citar um nome, apelido, gíria ou estabelecimento, use aspas simples (').\n2. NUNCA insira quebras de linha reais/literais dentro dos textos das chaves. O JSON gerado deve ser uma string de linha contínua para cada propriedade." }]
-        },
-        generationConfig: {
-          temperature: 0.7,
-          responseMimeType: "application/json"
-        }
-      })
+    const userPrompt = `Gere o JSON estruturado para ${destination} de ${days} dias, perfil ${profile}. CRÍTICO: Não use aspas duplas (") dentro de nenhuma string de texto, se precisar citar algo use aspas simples ('). Não adicione quebras de linha literais dentro das strings do JSON.`;
+    const result = await routeAIRequest({
+      task: 'trip_simulation', messages: [{ role: 'user', content: userPrompt }],
+      systemPrompt: systemPrompt + "\n\nREGRAS CRÍTICAS DE ESCAPE JSON:\n1. NUNCA utilize aspas duplas (\") dentro dos textos das strings. Se precisar citar um nome, apelido, gíria ou estabelecimento, use aspas simples (').\n2. NUNCA insira quebras de linha reais/literais dentro dos textos das chaves.",
+      responseMimeType: 'application/json', temperature: 0.7, isSystemTask: true, userMessage: userPrompt
     });
 
-    if (!response.ok) {
-      const errData = await response.json().catch(() => ({}));
-      throw new Error(errData.error?.message || `Gemini API returned status ${response.status}`);
-    }
-
-    const resData = await response.json();
-    console.log("CANDIDATES INFO:", JSON.stringify(resData.candidates, null, 2));
-    const aiReply = resData.candidates?.[0]?.content?.parts?.[0]?.text;
-
-    if (!aiReply) {
-      throw new Error("Resposta vazia da API do Gemini.");
-    }
-
     try {
-      return res.status(200).json(JSON.parse(aiReply));
+      return res.status(200).json(JSON.parse(result.reply));
     } catch (parseError) {
-      console.error("RAW AI REPLY THAT FAILED PARSING:", aiReply);
+      console.error("AI reply failed JSON parsing.");
       throw parseError;
     }
   } catch (error) {

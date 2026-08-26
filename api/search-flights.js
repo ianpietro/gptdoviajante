@@ -1,4 +1,5 @@
 const path = require("path");
+const { routeAIRequest } = require('./_aiRouter');
 
 module.exports = async function handler(req, res) {
   // CORS Headers
@@ -22,6 +23,7 @@ module.exports = async function handler(req, res) {
   const idToken = authHeader.split("Bearer ")[1];
 
   let userEmail = null;
+  let userId = null;
 
   if (idToken === "dummy-token-unconfigured") {
     console.info("Bypassing Supabase Auth verification (local unconfigured mode)");
@@ -53,6 +55,7 @@ module.exports = async function handler(req, res) {
         return res.status(401).json({ error: "Usuário não encontrado no Supabase." });
       }
       userEmail = user.email;
+      userId = user.id;
     } catch (err) {
       console.error("Error during Supabase token verification:", err);
       return res.status(500).json({ error: "Erro na verificação de identidade." });
@@ -71,14 +74,6 @@ module.exports = async function handler(req, res) {
   if (!origin || !destination || !date) {
     return res.status(400).json({ error: "Origin, destination, and date are required." });
   }
-
-  // Use Vercel GEMINI_API_KEY
-  const geminiApiKey = process.env.GEMINI_API_KEY;
-  if (!geminiApiKey) {
-    return res.status(500).json({ error: "Erro interno: Chave do Gemini não configurada no servidor." });
-  }
-
-  const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`;
 
   const queryDate = new Date(date);
   const getOffsetDateStr = (offset) => {
@@ -153,43 +148,13 @@ Retorne APENAS um objeto JSON válido seguindo estritamente esta estrutura:
 
 Escreva APENAS o JSON puro. Não adicione markdown, não adicione comentários, não adicione tag \`\`\`json. Comece com { e termine com }.;`;
 
-  const requestBody = {
-    contents: [
-      {
-        parts: [
-          {
-            text: prompt
-          }
-        ]
-      }
-    ],
-    tools: [
-      {
-        googleSearch: {}
-      }
-    ]
-  };
-
   try {
-    const response = await fetch(geminiUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(requestBody)
+    const result = await routeAIRequest({
+      task: 'flight_search', messages: [{ role: 'user', content: prompt }], needsFreshData: true,
+      responseMimeType: 'application/json', temperature: 0.1, isSystemTask: true,
+      userId, tripId: req.body.tripId || null, userMessage: prompt
     });
-
-    if (!response.ok) {
-      const errBody = await response.json().catch(() => ({}));
-      throw new Error(errBody.error?.message || `Gemini API returned status ${response.status}`);
-    }
-
-    const data = await response.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    
-    if (!text) {
-      throw new Error("O serviço do assistente retornou uma resposta vazia.");
-    }
+    const text = result.reply;
 
     // Safely extract JSON from response
     const start = text.indexOf("{");

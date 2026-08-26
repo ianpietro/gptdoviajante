@@ -1,111 +1,159 @@
-# Security Audit — GPT do Viajante
+# SECURITY_AUDIT.md — CoPiloto de Viagem
+**Versão**: 2.0.0-rc1 | **Data**: 2026-08-22
 
-**Date:** 2026-06-08  
-**Audited by:** Claude Code (automated)
-
----
-
-## Summary
-
-| Area | Status |
-|------|--------|
-| Secrets in Git | ✅ Protected — `.gitignore` excludes `.env*`, `allowed_emails.txt` |
-| Env Vars (Vercel Prod) | ⚠️ Empty placeholders present in `.env.vercel.prod` |
-| OIDC Token Exposure | ⚠️ `.env.vercel.prod` contains `VERCEL_OIDC_TOKEN` — should not be committed |
-| CI Build Vars in `.env.vercel.prod` | ⚠️ `NX_DAEMON`, `TURBO_CACHE`, `TURBO_*` settings present |
-| Git Working Tree | ✅ Clean — no uncommitted changes |
-| Hardcoded Secrets in Code | ✅ Not found |
-| Firebase Config | ✅ Client-side only (public API key, auth domain) |
+Auditoria completa de segurança para o Release Candidate.
 
 ---
 
-## Environment Files Audit
-
-### `.env.vercel.prod` (NOT committed — gitignored)
-
-Contains:
-- Empty string placeholders for: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `NEXTAUTH_SECRET`, `POSTGRES_URL`, `POSTGRES_PRISMA_URL`, `POSTGRES_URL_NON_POOLING`, `FIREBASE_API_KEY`, `ALLOWED_EMAILS`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
-- `VERCEL_OIDC_TOKEN` — full JWT (~728 chars) with rotating expiry
-- CI build vars: `NX_DAEMON=false`, `TURBO_CACHE=write`, `TURBO_BINARY_CACHE`, `TURBO_TEAM`, `TURBO_TOKEN`, `VERCEL="1"`, `VERCEL_ENV="production"`
-
-### `.env.vercel` (NOT committed — gitignored)
-
-Contains:
-- `VERCEL_OIDC_TOKEN` only — safe
-
-### `.env.local` (NOT committed — gitignored)
-
-Contains:
-- `VERCEL_OIDC_TOKEN` only — safe
+## Legenda
+- ✅ Resolvido / OK
+- ⚠️ Atenção / Risco baixo
+- ❌ Blocker / Risco alto
+- 🔲 Pendente (requer ação externa ao código)
 
 ---
 
-## `.gitignore` Coverage
+## 1. Autenticação e BYPASS_LOGIN
 
+| Vetor | Status | Detalhe |
+|-------|--------|---------|
+| `BYPASS_LOGIN` em produção | ✅ | Agora hostname-based — false automaticamente no Vercel |
+| `BYPASS_LOGIN` em desenvolvimento | ✅ | `true` apenas em `localhost` / `127.0.0.1` |
+| `dummy-token-unconfigured` em `chat.js` | ✅ | Removido neste RC |
+| `dummy-token-unconfigured` em `verify.js` | ✅ | Removido neste RC |
+| Token JWT validado no backend | ✅ | Supabase Auth API verifica cada request |
+| Sessão expirada tratada | ✅ | Backend retorna 401; frontend redireciona para login |
+
+---
+
+## 2. API Keys e Secrets
+
+| Vetor | Status | Detalhe |
+|-------|--------|---------|
+| `GEMINI_API_KEY` hardcoded | ✅ | Apenas como env var Vercel |
+| `SUPABASE_SERVICE_ROLE_KEY` no frontend | ✅ | Apenas no backend (api/*.js) |
+| `SUPABASE_ANON_KEY` no frontend | ⚠️ | Exposta em `config.js` — é a chave pública do Supabase; aceitável se RLS correto |
+| `WEBHOOK_SECRET` | ⚠️ | Requer configuração manual no Vercel e nas plataformas de pagamento |
+| Chaves no controle de versão | ✅ | Nenhuma chave real nos arquivos rastreados |
+
+---
+
+## 3. CORS
+
+| Endpoint | Status | Ação Necessária |
+|----------|--------|----------------|
+| `/api/chat` | ⚠️ | `ALLOWED_ORIGIN=*` por padrão — restringir via env em produção |
+| `/api/verify` | ⚠️ | Idem |
+| `/api/parse-document` | ⚠️ | Idem |
+| `/api/webhook-pagamento` | ✅ | Sem CORS — correto para endpoint servidor-a-servidor |
+
+---
+
+## 4. Webhook de Pagamento
+
+| Vetor | Status | Detalhe |
+|-------|--------|---------|
+| Validação de secret | ✅ | `X-Webhook-Secret` (header) e `?secret=` (query, legado) |
+| Idempotência | ✅ | Registra em `webhook_events` com `Prefer: resolution=ignore-duplicates` |
+| Confiança apenas em email/status do payload | ✅ | Secret obrigatório; status mapeado para eventos canônicos |
+| CORS aberto no webhook | ✅ | Removido neste RC |
+| `webhook_events` table no Supabase | 🔲 | **Ação necessária**: executar migration |
+
+**Migration SQL necessária**:
+```sql
+CREATE TABLE IF NOT EXISTS webhook_events (
+  event_id     TEXT PRIMARY KEY,
+  event_type   TEXT NOT NULL,
+  email        TEXT NOT NULL,
+  processed_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+-- Apenas service_role pode inserir/ler
+ALTER TABLE webhook_events ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "service_only" ON webhook_events USING (false);
 ```
-.env
-.env.local
-.env*.local
-.env*
-.env.vercel*
-.vercel
-allowed_emails.txt
-historico_chat.jsonl
-```
-
-✅ **All environment files are properly gitignored.** The wildcard `.env*` catches any env file variant.
 
 ---
 
-## Vercel Production Environment Variables (via `vercel env ls`)
+## 5. Entitlements e Autorização de IA
 
-| Variable | Last Updated | Status |
-|----------|-------------|--------|
-| `ALLOWED_EMAILS` | 3d ago | ✅ Set |
-| `GEMINI_API_KEY` | 4d ago | ✅ Set |
-| `FIREBASE_API_KEY` | 4d ago | ✅ Set |
-
-Other secrets (OpenAI, Anthropic, etc.) are managed through Vercel's encrypted env vars — not visible in `env ls` output.
-
----
-
-## Recommendations
-
-### Critical
-- **Do not commit `.env.vercel.prod`** — it contains OIDC tokens and CI vars. Already gitignored. ✅
-
-### High
-1. **Verify all production secrets are set in Vercel dashboard** — the empty placeholders in `.env.vercel.prod` suggest they haven't been populated locally (which is correct), but confirm they exist in Vercel's encrypted env vars.
-
-### Medium
-2. **Rotate `VERCEL_OIDC_TOKEN` periodically** — observed rotating expiry timestamps across reads. Vercel handles this automatically.
-3. **Audit `TURBO_TOKEN` and `TURBO_TEAM`** in `.env.vercel.prod` — these are Turborepo remote cache credentials. Ensure they're valid and not expired.
-
-### Low
-4. **Consider adding `allowed_emails.txt` to `.gitignore`** — already covered ✅
-5. **Review `historico_chat.jsonl`** — already gitignored ✅
+| Vetor | Status | Detalhe |
+|-------|--------|---------|
+| Usuário anônimo chama `/api/chat` | ✅ | Bloqueado — exige Bearer token válido |
+| Usuário autenticado (Free) | ✅ | Acesso permitido; limites no frontend |
+| Usuário em `authorized_emails` | ✅ | Plano Premium — sem limites |
+| Cache de entitlement invalidado | ✅ | Após webhook de compra/reembolso |
+| Rate limiting server-side | ⚠️ | Não implementado — depende de cotas Gemini API |
 
 ---
 
-## Files Examined
+## 6. RLS (Row Level Security) — Supabase
 
-| File | Size | Status |
-|------|------|--------|
-| `.env.vercel.prod` | 7.8KB | ⚠️ Contains secrets — gitignored |
-| `.env.vercel` | ~300B | ✅ Gitignored |
-| `.env.local` | ~300B | ✅ Gitignored |
-| `.env.production.local` | N/A | Gitignored |
-| `.env.development.local` | N/A | Gitignored |
-| `.gitignore` | 1.1KB | ✅ Properly configured |
-| `app.js` | 147KB | ✅ No hardcoded secrets |
-| `auth.js` | 5KB | ✅ No hardcoded secrets |
-| `vendas.js` | 21KB | ✅ No hardcoded secrets |
-| `allowed_emails.txt` | 1KB | ✅ Gitignored |
+| Tabela | Status | Ação Necessária |
+|--------|--------|----------------|
+| `trips` | 🔲 | Verificar se usuário só lê suas próprias viagens |
+| `documents` | 🔲 | Verificar RLS |
+| `expenses` | 🔲 | Verificar RLS |
+| `authorized_emails` | 🔲 | Apenas `service_role`; sem acesso anon |
+| `webhook_events` | 🔲 | Apenas `service_role`; sem acesso público |
+
+**Verificação recomendada**: Authentication → Policies no Supabase Dashboard.
+**Teste manual**: Usuário A não deve ver dados do usuário B.
 
 ---
 
-## Conclusion
+## 7. Compartilhamento Público (Shared View)
 
-The project's security posture is **good**. All environment files are properly gitignored, and no secrets were found hardcoded in source code. The primary recommendation is to verify that all required secrets are configured in Vercel's production environment variables.
+| Vetor | Status | Detalhe |
+|-------|--------|---------|
+| URL pública `/v/{id}` | ⚠️ | Design intencional — link gerado explicitamente pelo usuário |
+| Downloads bloqueados em shared view | ✅ | `renderDocuments()` bloqueia (Passo 6) |
+| Dados financeiros em shared view | ⚠️ | Revisar se despesas/orçamento ficam ocultos |
+| Trip privada acessível via ID arbitrário | ⚠️ | Depende de RLS correto no Supabase |
 
-**Overall Risk: LOW** ✅
+---
+
+## 8. Upload de Documentos
+
+| Vetor | Status | Detalhe |
+|-------|--------|---------|
+| Validação de MIME type | ⚠️ | Verificar em `parse-document.js` |
+| Limite de tamanho | ⚠️ | Default Vercel: 4.5MB body |
+| Armazenamento por `user_id` | ✅ | Separado no Supabase Storage |
+| XSS via nome de arquivo | ✅ | Metadados sanitizados antes de inserir no DOM |
+
+---
+
+## 9. Injeção e XSS
+
+| Vetor | Status | Detalhe |
+|-------|--------|---------|
+| Prompt injection via documentos | ✅ | Instrução de proteção no system prompt do `chat.js` |
+| DOM injection via dados da IA | ✅ | `actionEngine.js` aplica ações estruturadas — sem HTML bruto da IA |
+| XSS via mensagens de chat | ⚠️ | Verificar se `innerHTML` é usado para renderizar mensagens |
+| Open redirect via URLs afiliadas | ✅ | `buildAffiliateLink()` sanitiza URLs |
+
+---
+
+## 10. Logs e Observabilidade
+
+| Vetor | Status | Detalhe |
+|-------|--------|---------|
+| Stack trace exposto ao usuário | ✅ | `errorHandler.js` bloqueia — usuário vê mensagem amigável |
+| Email em plain text nos logs | ⚠️ | Logs internos de servidor logam email para auditoria — não chega ao cliente |
+| Conteúdo de chat em analytics | ✅ | `analytics.js` bloqueia `chat_content` |
+| Dados de pagamento em logs | ✅ | Webhook não loga valores; response não expõe email |
+
+---
+
+## 11. Ações Prioritárias Antes do Go-Live
+
+| Prioridade | Ação |
+|-----------|------|
+| 🔴 Alta | Configurar `ALLOWED_ORIGIN=https://copilotodeviagem.com.br` nas env vars Vercel |
+| 🔴 Alta | Executar migration SQL para `webhook_events` no Supabase |
+| 🔴 Alta | Verificar e ativar RLS nas tabelas críticas |
+| 🟡 Média | Configurar `WEBHOOK_SECRET` nas plataformas (Kirvano/Kiwify/Greenn) |
+| 🟡 Média | Testar isolamento entre usuários A vs B manualmente |
+| 🟡 Média | Revisar se shared view expõe dados financeiros |
+| 🟢 Baixa | Rate limiting server-side para usuários Free |
+| 🟢 Baixa | Endpoint `/api/errors` para observabilidade em produção |

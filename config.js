@@ -3,8 +3,11 @@
 export const SUPABASE_URL = "https://mfcajxrvylkwijdpknbx.supabase.co";
 export const SUPABASE_ANON_KEY = "sb_publishable_Mm7c0n4BbiFgmzgq2j-W3A_zf8jQc8v";
 
-export const DB_NAME = "CoPilotoDocsDB";
+export const DB_NAME = "CoPilotoOfflineDocsDB";
 export const STORE_NAME = "documents";
+
+export const MAX_OFFLINE_DOCUMENT_SIZE = 5 * 1024 * 1024; // 5MB
+export const MAX_OFFLINE_DOCUMENT_TOTAL_SIZE = 50 * 1024 * 1024; // 50MB
 
 export const BUDGET_THRESHOLDS = { economico: 150, intermediario: 450 };
 
@@ -46,7 +49,28 @@ export const AFFILIATE_CONFIG = {
   flightsPartnerUrl: "https://www.kiwi.com/deep?from={origin}&to={destination}&departure={departureDate}&return={returnDate}&affilid=copilotodeviagem"
 };
 
-// Flag temporária para pular a tela de login durante o desenvolvimento
-export const BYPASS_LOGIN = true;
+// Entitlement / Quotas
+export const FREE_AI_LIMIT = 40;
+export const PREMIUM_AI_FAIR_USE_LIMIT = 500;
 
+// Versão central do aplicativo — usada em logs, analytics e service worker
+export const APP_VERSION = '2.0.0-rc1';
+
+// Desativa o bypass de login automaticamente em produção/staging.
+// Ativo somente em ambiente local (localhost / 127.0.0.1).
+export const BYPASS_LOGIN = (
+  typeof window !== 'undefined' &&
+  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+);
+
+// Feature Flags — todas ativas no Release Candidate
+export const FEATURES = {
+  multiTrip: true,
+  newHome: true,
+  tripBrain: true,
+  documentWallet: true,
+  partnerEngine: true,
+  premium: true,
+  analytics: true
+};
 

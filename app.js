@@ -13,39 +13,171 @@ import {
   isFirebaseConfigured,
   supabase
 } from './auth.js';
-import { AFFILIATE_CONFIG, BYPASS_LOGIN } from './config.js';
+import { AFFILIATE_CONFIG, BYPASS_LOGIN, FEATURES, APP_VERSION, MAX_OFFLINE_DOCUMENT_SIZE, MAX_OFFLINE_DOCUMENT_TOTAL_SIZE } from './config.js';
+import { normalizeTripState as pureNormalizeTripState, checkDuplicateDocument, inferTripFromDocuments, calculateReadinessScore, calculateCountdown } from './modules/stateManager.js';
+import { applyActions, undoLastActions } from './modules/actionEngine.js';
+import { partnerConfig, buildAffiliateLink, evaluateTripOpportunities, analytics as legacyAnalytics } from './modules/partnerEngine.js';
+import { plans, getEntitlements, getUserPlanState } from './modules/entitlementEngine.js';
+import { track as trackEvent, trackFirstValue, EVENTS } from './modules/analytics.js';
+import { initErrorHandler } from './modules/errorHandler.js';
+
+// Expõe versão globalmente para logs, analytics e error handler
+window.APP_VERSION = APP_VERSION;
+
+// Inicializa tratamento centralizado de erros
+const APP_ENV = BYPASS_LOGIN ? 'development' : 'production';
+initErrorHandler(APP_VERSION, APP_ENV);
+
+// --- Entitlement & AI Limits ---
+// --- Entitlement & AI Limits ---
+window.showPaywall = function(reason, customMessage) {
+  const modal = document.getElementById("paywallModal");
+  const msgEl = document.getElementById("paywallMessage");
+  if (modal) {
+    if (customMessage && msgEl) {
+      msgEl.textContent = customMessage;
+    } else if (msgEl) {
+      msgEl.textContent = reason === 'trip_limit' 
+        ? "Você atingiu o limite de viagens do seu plano atual." 
+        : "Você atingiu o limite de mensagens do seu plano atual.";
+    }
+    modal.classList.remove("hidden");
+    trackEvent('paywall_view', { reason });
+  }
+};
+
+window.checkAiLimit = function() {
+  const state = getUserPlanState(currentUser, tripData);
+  const msgCount = (chatHistory || []).filter(m => m.role === "user").length + (travelChatHistory || []).filter(m => m.role === "user").length;
+  if (msgCount >= state.entitlements.aiMessages && !state.hasRewardUnlock) {
+    window.showPaywall("ai_limit");
+    return false;
+  }
+  return true;
+};
+
+window.checkTripLimit = function() {
+  const state = getUserPlanState(currentUser, tripData);
+  if (!state.canCreateTrip) {
+    window.showPaywall("trip_limit");
+    return false;
+  }
+  return true;
+};
+
+window.renderAffiliates = function() {
+  const opps = evaluateTripOpportunities(tripData);
+  const containers = ["homeAffiliateContainer", "logisticsAffiliateContainer"];
+  let html = "";
+  if (opps && opps.length > 0) {
+    const topOpp = opps[0];
+    const link = buildAffiliateLink(topOpp.partnerId, tripData) || "#";
+    html = `
+      <div class="affiliate-banner" style="background: rgba(46,148,168,0.1); border: 1px solid var(--primary); padding: 15px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center;">
+        <div>
+          <strong style="color: var(--primary);">Recomendação: ${topOpp.category.toUpperCase()}</strong>
+          <p style="margin: 5px 0 0; font-size: 0.9rem;">${topOpp.message} <i>(Comissão incluída)</i></p>
+        </div>
+        <a href="${link}" target="_blank" class="btn btn-primary btn-sm" onclick="analytics.track('affiliate_click', {partner: '${topOpp.partnerId}'})">Ver Opções</a>
+      </div>
+    `;
+    analytics.track("affiliate_impression", { partner: topOpp.partnerId });
+  }
+  containers.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = html;
+  });
+};
+// --------------------------------
+
+window.checkDuplicateDocument = checkDuplicateDocument;
+window.inferTripFromDocuments = inferTripFromDocuments;
 
 // App State
 let chatHistory = [];
 let travelChatHistory = [];
-let tripData = {
-  tripTitle: "Minha Próxima Viagem",
-  tripSubtitle: "Planeje sua viagem conversando pelo chat!",
-  infoDates: "A definir",
-  infoWeather: "A definir",
-  infoGroup: "A definir",
-  infoHotel: "A definir",
-  hotelLink: "",
-  targetDate: null,
-  budget: {
-    hospedagem: 0,
-    alimentacao: 0,
-    passeios: 0,
-    compras: 0
-  },
-  budgetAnalysis: "",
-  budgetThresholds: { economico: 150, intermediario: 450 },
-  packing: [],
-  itinerary: [],
-  flights: [],
-  members: ["Você"],
-  expenses: []
-};
+let activeTripId = null;
+
+// Instrumentation for debug (development-only logging)
+const DEBUG_MODE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
+function logDebug(event, details) {
+  if (!DEBUG_MODE) return;
+  
+  let sanitizedDetails = null;
+  if (details) {
+    // Deep clone to avoid mutating original objects
+    try {
+      sanitizedDetails = JSON.parse(JSON.stringify(details));
+      const sensitiveKeys = ['token', 'password', 'jwt', 'email', 'file_url', 'base64', 'attachment', 'content'];
+      
+      const recursiveSanitize = (obj) => {
+        if (!obj || typeof obj !== 'object') return;
+        Object.keys(obj).forEach(key => {
+          const lowerKey = key.toLowerCase();
+          if (sensitiveKeys.some(sk => lowerKey.includes(sk))) {
+            obj[key] = '[REDACTED]';
+          } else if (typeof obj[key] === 'object') {
+            recursiveSanitize(obj[key]);
+          }
+        });
+      };
+      recursiveSanitize(sanitizedDetails);
+    } catch (e) {
+      sanitizedDetails = '[Unserializable details]';
+    }
+  }
+  
+  console.info(`[DEBUG][${event}]`, sanitizedDetails || '');
+}
+
+// Active Trip Foundation Layer
+function getActiveTripId() {
+  if (activeTripId) return activeTripId;
+  
+  const key = getUserStorageKey("gptViajante_activeTripId");
+  const storedId = localStorage.getItem(key);
+  if (storedId) {
+    activeTripId = storedId;
+    return activeTripId;
+  }
+  
+  if (tripData && tripData.id) {
+    activeTripId = tripData.id;
+    return activeTripId;
+  }
+  
+  return null;
+}
+
+function setActiveTripId(id) {
+  activeTripId = id;
+  const key = getUserStorageKey("gptViajante_activeTripId");
+  if (id) {
+    localStorage.setItem(key, id);
+  } else {
+    localStorage.removeItem(key);
+  }
+}
+
+function selectActiveTrip(id) {
+  logDebug("select_active_trip_triggered", { requestedTripId: id });
+  setActiveTripId(id);
+}
+
+// Wrapper to normalize and log
+function normalizeTripState(trip) {
+  const norm = pureNormalizeTripState(trip);
+  logDebug("trip_normalized", { id: norm.id, title: norm.tripTitle });
+  return norm;
+}
+
+let tripData = normalizeTripState({});
 
 let countdownInterval = null;
 let activeFilter = 'all';
 let mobileShowAllDays = false;
-let firebaseIdToken = null;
+let authToken = null;
 let currentUser = null;
 let authVerificationFailed = false;
 let planAttachment = null;
@@ -55,7 +187,7 @@ let isSharedView = false;
 let itineraryViewMode = 'list';
 let realtimeChannel = null;
 
-const DB_NAME = "CoPilotoDocsDB";
+const DB_NAME = "CoPilotoOfflineDocsDB";
 const STORE_NAME = "documents";
 
 function openDocsDB() {
@@ -72,10 +204,120 @@ function openDocsDB() {
   });
 }
 
-// Deprecated IndexedDB helpers in favor of Supabase Storage and PostgreSQL syncing
-async function saveDocumentFile(docId, base64Data) { return; }
-async function getDocumentFile(docId) { return null; }
-async function deleteDocumentFile(docId) { return; }
+// Novos helpers do IndexedDB reais e isolados com suporte a Blob e políticas de cota
+async function calculateCurrentOfflineCacheSize() {
+  try {
+    const db = await openDocsDB();
+    const tx = db.transaction(STORE_NAME, "readonly");
+    const store = tx.objectStore(STORE_NAME);
+    const req = store.getAll();
+    return new Promise((resolve) => {
+      req.onsuccess = () => {
+        const records = req.result || [];
+        const total = records.reduce((sum, r) => sum + (r.size || 0), 0);
+        resolve(total);
+      };
+      req.onerror = () => resolve(0);
+    });
+  } catch (e) {
+    console.error("Erro ao calcular tamanho de cache local:", e);
+    return 0;
+  }
+}
+
+async function saveDocumentFile(docId, tripId, userId, fileName, mimeType, size, blob) {
+  if (size > MAX_OFFLINE_DOCUMENT_SIZE) {
+    console.warn(`[Offline Cache] Arquivo excede tamanho máximo individual de 5MB: ${size} bytes`);
+    return { success: false, reason: 'exceeds_individual_limit' };
+  }
+
+  const currentTotal = await calculateCurrentOfflineCacheSize();
+  if (currentTotal + size > MAX_OFFLINE_DOCUMENT_TOTAL_SIZE) {
+    console.warn(`[Offline Cache] Tamanho total do cache excede limite de 50MB. Atual=${currentTotal}, Novo=${size}`);
+    return { success: false, reason: 'exceeds_total_limit' };
+  }
+
+  try {
+    const db = await openDocsDB();
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    const record = {
+      id: docId,
+      documentId: docId,
+      tripId,
+      userId,
+      fileName,
+      mimeType,
+      size,
+      blob,
+      cachedAt: Date.now(),
+      updatedAt: Date.now()
+    };
+    tx.objectStore(STORE_NAME).put(record);
+    await new Promise((res, rej) => { tx.oncomplete = res; tx.onerror = rej; });
+    trackEvent('offline_document_cached', { documentId: docId, size, mimeType });
+    return { success: true };
+  } catch (e) {
+    console.error("Erro ao salvar arquivo offline:", e);
+    return { success: false, reason: 'error', error: e.message };
+  }
+}
+
+async function getDocumentFile(docId, tripId, userId) {
+  try {
+    const db = await openDocsDB();
+    const tx = db.transaction(STORE_NAME, "readonly");
+    const req = tx.objectStore(STORE_NAME).get(docId);
+    return new Promise((res, rej) => {
+      req.onsuccess = () => {
+        const record = req.result;
+        // Isolamento de dados estrito: valida se o documento pertence à viagem e ao usuário logado
+        if (record && record.tripId === tripId && record.userId === userId) {
+          res(record.blob);
+        } else {
+          res(null);
+        }
+      };
+      req.onerror = rej;
+    });
+  } catch (e) {
+    console.error("Erro ao ler arquivo offline:", e);
+    return null;
+  }
+}
+
+async function deleteDocumentFile(docId) {
+  try {
+    const db = await openDocsDB();
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    tx.objectStore(STORE_NAME).delete(docId);
+    return new Promise((res, rej) => { tx.oncomplete = res; tx.onerror = rej; });
+  } catch (e) {
+    console.error("Erro ao excluir arquivo offline:", e);
+  }
+}
+
+async function clearUserOfflineCache(userId) {
+  if (!userId) return;
+  try {
+    const db = await openDocsDB();
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    const store = tx.objectStore(STORE_NAME);
+    const req = store.openCursor();
+    req.onsuccess = (e) => {
+      const cursor = e.target.result;
+      if (cursor) {
+        if (cursor.value.userId === userId) {
+          cursor.delete();
+        }
+        cursor.continue();
+      }
+    };
+    await new Promise((res, rej) => { tx.oncomplete = res; tx.onerror = rej; });
+    console.log(`[Offline Cache] Cache local limpo para o usuário: ${userId}`);
+  } catch (e) {
+    console.error("Erro ao limpar cache local do usuário:", e);
+  }
+}
 
 function getDestinationSuffix() {
   if (!tripData.tripTitle) return "";
@@ -294,7 +536,7 @@ function setupSharedViewUI() {
     if (el) el.disabled = true;
   });
 
-  switchTab('roteiro');
+  switchTab('home');
 }
 
 // Initialize
@@ -320,67 +562,81 @@ async function init() {
   if (sharedHash) {
     if (sharedHash.length === 36 || /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(sharedHash)) {
       try {
-        const { data, error } = await supabase
-          .from('trips')
-          .select('*')
-          .eq('id', sharedHash)
-          .single();
-        if (error || !data) throw new Error(error?.message || "Viagem não encontrada.");
+        let data = null;
+        let canEdit = false;
+        const activeUser = await checkCurrentUser();
         
-        tripData = {
+        if (activeUser) {
+          currentUser = activeUser;
+          // Tenta ler diretamente do Supabase passando pela RLS restrita
+          const { data: dbData, error: dbErr } = await supabase
+            .from('trips')
+            .select('*')
+            .eq('id', sharedHash)
+            .single();
+          
+          if (dbData && !dbErr) {
+            data = dbData;
+            canEdit = true;
+          }
+        }
+
+        if (!data) {
+          // Visitante anônimo ou sem permissão direta: consome endpoint seguro do backend
+          const response = await fetch(`/api/shared-trip?id=${sharedHash}`);
+          if (!response.ok) {
+            const errData = await response.json().catch(() => ({}));
+            if (response.status === 403 && errData.code === 'TRIP_PRIVATE') {
+              throw new Error("PRIVATE_TRIP");
+            }
+            throw new Error(errData.error || "Viagem não encontrada.");
+          }
+          data = await response.json();
+        }
+
+        tripData = normalizeTripState({
           id: data.id,
-          tripTitle: data.title,
-          tripSubtitle: data.subtitle,
-          infoDates: data.dates,
-          infoWeather: data.weather,
-          infoGroup: data.group_type,
-          infoHotel: data.hotel,
-          hotelLink: data.hotel_link,
-          targetDate: data.target_date,
+          tripTitle: data.title || data.tripTitle,
+          tripSubtitle: data.subtitle || data.tripSubtitle,
+          infoDates: data.dates || data.infoDates,
+          infoWeather: data.weather || data.infoWeather,
+          infoGroup: data.group_type || data.infoGroup,
+          infoHotel: data.hotel || data.infoHotel,
+          hotelLink: data.hotel_link || data.hotelLink,
+          targetDate: data.target_date || data.targetDate,
           budget: data.budget,
-          budgetThresholds: data.budget_thresholds,
-          budgetAnalysis: data.budget_analysis,
+          budgetThresholds: data.budget_thresholds || data.budgetThresholds,
+          budgetAnalysis: data.budget_analysis || data.budgetAnalysis,
           packing: data.packing,
           itinerary: data.itinerary,
           flights: data.flights,
           members: data.members,
           expenses: data.expenses,
           user_id: data.user_id,
+          sharing: data.sharing,
           documents: []
-        };
+        });
 
-        const { data: docs } = await supabase
-          .from('documents')
-          .select('*')
-          .eq('trip_id', sharedHash);
-        if (docs) {
-          tripData.documents = docs.map(d => ({
-            id: d.id,
-            name: d.name,
-            category: d.category,
-            url: d.file_url,
-            type: d.name.toLowerCase().endsWith(".pdf") ? "pdf" : "image",
-            date: new Date(d.created_at).toLocaleDateString("pt-BR"),
-            size: "Ver anexo"
-          }));
-        }
-
-        const activeUser = await checkCurrentUser();
-        let canEdit = false;
-        if (activeUser) {
-          currentUser = activeUser;
-          const cleanEmail = activeUser.email ? activeUser.email.toLowerCase().trim() : '';
-          const isOwner = data.user_id === activeUser.id;
-          const isMember = Array.isArray(data.members) && data.members.some(m => {
-            if (typeof m === 'string') {
-              return m.toLowerCase().trim() === cleanEmail;
-            }
-            return false;
-          });
-          
-          if (isOwner || isMember) {
-            canEdit = true;
+        // Buscar documentos apenas se tiver permissão de edição/dono
+        if (canEdit) {
+          const { data: docs } = await supabase
+            .from('documents')
+            .select('*')
+            .eq('trip_id', sharedHash);
+          if (docs) {
+            tripData.documents = docs.map(d => ({
+              id: d.id,
+              name: d.name,
+              category: d.category,
+              url: d.file_url,
+              file_reference: d.file_url.includes('/boarding-documents/') ? d.file_url.split('/boarding-documents/')[1] : d.file_url,
+              type: d.name.toLowerCase().endsWith(".pdf") ? "pdf" : "image",
+              date: new Date(d.created_at).toLocaleDateString("pt-BR"),
+              size: "Ver anexo"
+            }));
           }
+        } else {
+          tripData.documents = [];
         }
 
         if (canEdit) {
@@ -390,6 +646,11 @@ async function init() {
           subscribeToTripChanges(tripData.id);
         } else {
           isSharedView = true;
+          // Validar se o compartilhamento está ativado
+          if (tripData.sharing && tripData.sharing.enabled === false) {
+            throw new Error("PRIVATE_TRIP");
+          }
+          applySharingPrivacyFilter();
           setupSharedViewUI();
         }
 
@@ -412,12 +673,38 @@ async function init() {
         return;
       } catch (err) {
         console.error("Falha ao carregar viagem compartilhada:", err);
-        alert("⚠️ Não foi possível carregar a viagem compartilhada. O link pode estar quebrado ou expirado.");
+        if (err.message === "PRIVATE_TRIP") {
+          alert("⚠️ Esta viagem é privada. O proprietário desabilitou o compartilhamento público.");
+          document.querySelector(".app-container").innerHTML = `
+            <div style="height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #0f172a; color: white; font-family: sans-serif; padding: 20px; text-align: center;">
+              <i class="fa-solid fa-lock" style="font-size: 3rem; color: #ea4335; margin-bottom: 20px;"></i>
+              <h2>Viagem Privada</h2>
+              <p style="color: #94a3b8; max-width: 400px; margin-top: 10px;">Esta viagem não está disponível para visualização pública. Solicite ao proprietário que ative o compartilhamento nas configurações.</p>
+              <a href="/" style="margin-top: 20px; color: #3f83f8; text-decoration: none; font-weight: bold;"><i class="fa-solid fa-arrow-left"></i> Voltar à Home</a>
+            </div>
+          `;
+        } else {
+          alert("⚠️ Não foi possível carregar a viagem compartilhada. O link pode estar quebrado ou expirado.");
+        }
       }
     } else {
       try {
-        tripData = await decompressFromUrl(sharedHash);
+        tripData = normalizeTripState(await decompressFromUrl(sharedHash));
         isSharedView = true;
+        // Validar se o compartilhamento está ativado
+        if (tripData.sharing && tripData.sharing.enabled === false) {
+          alert("⚠️ Esta viagem é privada. O proprietário desabilitou o compartilhamento público.");
+          document.querySelector(".app-container").innerHTML = `
+            <div style="height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #0f172a; color: white; font-family: sans-serif; padding: 20px; text-align: center;">
+              <i class="fa-solid fa-lock" style="font-size: 3rem; color: #ea4335; margin-bottom: 20px;"></i>
+              <h2>Viagem Privada</h2>
+              <p style="color: #94a3b8; max-width: 400px; margin-top: 10px;">Esta viagem não está disponível para visualização pública. Solicite ao proprietário que ative o compartilhamento nas configurações.</p>
+              <a href="/" style="margin-top: 20px; color: #3f83f8; text-decoration: none; font-weight: bold;"><i class="fa-solid fa-arrow-left"></i> Voltar à Home</a>
+            </div>
+          `;
+          return;
+        }
+        applySharingPrivacyFilter();
         setupSharedViewUI();
         
         tripData.flights = tripData.flights || [];
@@ -475,6 +762,411 @@ async function init() {
   setupItineraryOptimizationBannerListener();
   setupLogisticaSubTabs();
   setupGoogleFlightsSearch();
+
+  // Minhas Viagens Navigation & Modal setup
+  const openModalBtn = document.getElementById("openCreateTripModalBtn");
+  const closeModalBtn = document.getElementById("closeCreateTripModal");
+  const createModal = document.getElementById("createTripModal");
+  const createForm = document.getElementById("createTripForm");
+  const backHeroBtn = document.getElementById("backToMyTripsHeroBtn");
+
+  window.showCreateTripStep = (step) => {
+    document.querySelectorAll('.create-trip-step').forEach(el => el.classList.add('hidden'));
+    const stepEl = document.getElementById('createTripStep' + step);
+    if (stepEl) {
+      if (step === 2) stepEl.classList.remove('hidden'); // form gets display block/flex inside
+      else stepEl.classList.remove('hidden');
+    }
+    
+    // reset states
+    if (step === 3) {
+      document.getElementById('createTripProgressContainer').classList.add('hidden');
+      document.getElementById('createTripErrorMsg').classList.add('hidden');
+      document.getElementById('createTripPasteArea').value = '';
+      if(document.getElementById('createTripFileInput')) document.getElementById('createTripFileInput').value = '';
+    }
+  };
+
+  if (openModalBtn && createModal) {
+    openModalBtn.addEventListener("click", () => {
+      createModal.classList.remove("hidden");
+      window.showCreateTripStep(1);
+    });
+  }
+
+  const hideModal = () => {
+    if (createModal) createModal.classList.add("hidden");
+    if (createForm) createForm.reset();
+  };
+
+  if (closeModalBtn) closeModalBtn.addEventListener("click", hideModal);
+
+  if (createForm) {
+    createForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const dest = document.getElementById("newTripDestination").value;
+      const start = document.getElementById("newTripStartDate").value || null;
+      const end = document.getElementById("newTripEndDate").value || null;
+      hideModal();
+      await createTrip(dest, start, end);
+    });
+  }
+
+  // --- Step 3 Logic ---
+  let tempExtractedData = [];
+  const fileInput = document.getElementById('createTripFileInput');
+  const processTextBtn = document.getElementById('createTripProcessTextBtn');
+  const progressContainer = document.getElementById('createTripProgressContainer');
+  const progressLabel = document.getElementById('createTripProgressLabel');
+  const errorMsg = document.getElementById('createTripErrorMsg');
+  const progressIcon = document.getElementById('createTripProgressIcon');
+
+  const updateProgress = (text) => {
+    progressContainer.classList.remove('hidden');
+    progressLabel.innerText = text;
+    errorMsg.classList.add('hidden');
+    progressIcon.className = "fa-solid fa-circle-notch fa-spin";
+    progressIcon.style.color = "var(--primary)";
+  };
+
+  const showError = (text) => {
+    progressContainer.classList.remove('hidden');
+    progressLabel.innerText = "Erro";
+    errorMsg.innerText = text;
+    errorMsg.classList.remove('hidden');
+    progressIcon.className = "fa-solid fa-triangle-exclamation";
+    progressIcon.style.color = "#ef4444";
+  };
+
+  const showConfirmationStep = (dataList) => {
+    tempExtractedData = dataList;
+    window.showCreateTripStep(4);
+    const listEl = document.getElementById('createTripExtractedList');
+    listEl.innerHTML = '';
+    
+    if (dataList.length === 0) {
+      listEl.innerHTML = '<p>Nenhuma informação válida encontrada.</p>';
+      return;
+    }
+    
+    dataList.forEach((data, index) => {
+      let html = `<div style="margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid var(--border-color);">
+        <strong style="color: var(--primary);">Documento ${index + 1}</strong><br>`;
+      
+      if (data.type === 'flight') {
+        html += `🛫 Voo: ${data.flightNumber || 'Desconhecido'} (${data.origin || '?'} ➔ ${data.destination || '?'})<br>`;
+        if(data.departureDate) html += `📅 Ida: ${data.departureDate} ${data.departureTime || ''}<br>`;
+      } else if (data.type === 'accommodation' || data.type === 'hotel') {
+        html += `🏨 Hospedagem: ${data.hotelName || 'Desconhecido'}<br>`;
+        if(data.checkIn) html += `📅 Check-in: ${data.checkIn}<br>`;
+        if(data.checkOut) html += `📅 Check-out: ${data.checkOut}<br>`;
+      } else {
+        html += `📄 Outro: ${data.name || 'Reserva identificada'}<br>`;
+      }
+      
+      html += `</div>`;
+      listEl.innerHTML += html;
+    });
+  };
+
+  const processImport = async (payloads) => {
+    updateProgress("Enviando...");
+    try {
+      const parsedDataList = [];
+      const token = await getFreshToken();
+      for (const payload of payloads) {
+        updateProgress("Analisando...");
+        const res = await fetch('/api/parse-document', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ ...payload, tripId: tripData.id || null })
+        });
+        if (!res.ok) throw new Error("Erro na API.");
+        
+        updateProgress("Identificando reserva...");
+        const data = await res.json();
+        
+        if (data && !data.error) {
+          parsedDataList.push(data.parsed || data);
+        }
+      }
+      
+      updateProgress("Pronto!");
+      setTimeout(() => {
+        showConfirmationStep(parsedDataList);
+      }, 500);
+      
+    } catch (err) {
+      showError("Falha ao analisar documento. Tente novamente.");
+    }
+  };
+
+  if (fileInput) {
+    fileInput.addEventListener('change', async (e) => {
+      const files = e.target.files;
+      if (!files || files.length === 0) return;
+      
+      const payloads = [];
+      for(let i=0; i<files.length; i++){
+        const file = files[i];
+        if (file.size > 4 * 1024 * 1024) {
+          showError(`O arquivo ${file.name} é maior que 4MB.`);
+          return;
+        }
+        
+        if (file.type === "application/pdf") {
+          // Extract text locally if pdf.js is loaded
+          if (window.pdfjsLib) {
+             const arrayBuffer = await file.arrayBuffer();
+             const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+             let text = "";
+             for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+               const page = await pdf.getPage(pageNum);
+               const content = await page.getTextContent();
+               text += content.items.map(item => item.str).join(" ") + " ";
+             }
+             payloads.push({ type: 'text', content: text, filename: file.name });
+          } else {
+             // fallback to base64
+             const reader = new FileReader();
+             const p = new Promise(res => {
+               reader.onload = () => res({ type: 'pdf', base64: reader.result.split(',')[1], filename: file.name });
+             });
+             reader.readAsDataURL(file);
+             payloads.push(await p);
+          }
+        } else if (file.type.startsWith("image/")) {
+           const reader = new FileReader();
+           const p = new Promise(res => {
+             reader.onload = () => res({ type: 'image', base64: reader.result.split(',')[1], filename: file.name });
+           });
+           reader.readAsDataURL(file);
+           payloads.push(await p);
+        }
+      }
+      
+      await processImport(payloads);
+    });
+  }
+
+  if (processTextBtn) {
+    processTextBtn.addEventListener('click', async () => {
+      const text = document.getElementById('createTripPasteArea').value.trim();
+      if (!text) return;
+      await processImport([{ type: 'text', content: text, filename: 'colado.txt' }]);
+    });
+  }
+
+  const confirmImportBtn = document.getElementById('createTripConfirmImportBtn');
+  if (confirmImportBtn) {
+    confirmImportBtn.addEventListener('click', async () => {
+      hideModal();
+      
+      // Infer destination and dates
+      const { dest, start, end, flights, hotels } = window.inferTripFromDocuments(tempExtractedData);
+      
+      // Create trip first
+      await createTrip(dest || 'Nova Viagem', start || null, end || null);
+      
+      // Merge logic: ensure we don't wipe activeTrip data but add to it
+      if (activeTripId) {
+         let trip = tripsList.find(t => t.id === activeTripId);
+         if (trip) {
+           if (flights.length > 0) {
+             flights.forEach(f => {
+// --- Entitlement & AI Limits ---
+window.checkAiLimit = function() {
+  const state = getUserPlanState(currentUser, tripData);
+  const msgCount = (chatHistory || []).filter(m => m.role === "user").length + (travelChatHistory || []).filter(m => m.role === "user").length;
+  if (msgCount >= state.entitlements.aiMessages && !state.hasRewardUnlock) {
+    document.getElementById("paywallModal").classList.remove("hidden");
+    analytics.track("paywall_shown", { reason: "ai_limit" });
+    return false;
+  }
+  return true;
+};
+window.checkTripLimit = function() {
+  const state = getUserPlanState(currentUser, tripData);
+  if (!state.canCreateTrip) {
+    document.getElementById("paywallModal").classList.remove("hidden");
+    analytics.track("paywall_shown", { reason: "trip_limit" });
+    return false;
+  }
+  return true;
+};
+// --------------------------------
+
+               if (!window.checkDuplicateDocument(trip, f, 'flight')) {
+                 trip.flights = trip.flights || [];
+                 trip.flights.push(f);
+               }
+             });
+           }
+           if (hotels.length > 0) {
+              const h = hotels[0];
+              if (!trip.infoHotel || trip.infoHotel === 'A definir' || trip.infoHotel === 'Sem reserva') {
+                  trip.infoHotel = h.hotelName || h.name || 'Hotel Confirmado';
+              }
+           }
+           // Save to local storage using getTripStorageKey for active trip
+           localStorage.setItem(getTripStorageKey("gptViajante_tripData", activeTripId), JSON.stringify(trip));
+           // Re-render
+           if (typeof renderFlights === 'function') renderFlights();
+           if (typeof loadState === 'function') await loadState();
+         }
+      }
+    });
+  }
+
+  if (backHeroBtn) {
+    backHeroBtn.addEventListener("click", () => {
+      showMyTripsScreen();
+    });
+  }
+
+  // Inicializa os listeners do modal de compartilhamento
+  setupShareConfigListeners();
+}
+
+function setupShareConfigListeners() {
+  const openBtn = document.getElementById("openShareConfigBtn");
+  const cancelBtn = document.getElementById("cancelShareConfigBtn");
+  const closeBtn = document.getElementById("closeShareConfigModalBtn");
+  const saveBtn = document.getElementById("saveShareConfigBtn");
+  const modal = document.getElementById("shareConfigModal");
+
+  if (!modal) return;
+
+  const openModal = () => {
+    // Carregar checkboxes com o estado atual do tripData.sharing
+    const sharing = tripData.sharing || {
+      enabled: false,
+      itinerary: true,
+      reservations: true,
+      flights: true,
+      accommodations: true,
+      budget: false,
+      expenses: false,
+      members: false,
+      packing: false,
+      documents: false
+    };
+
+    document.getElementById("shareEnabledCheckbox").checked = !!sharing.enabled;
+    document.getElementById("shareItineraryCheckbox").checked = !!sharing.itinerary;
+    document.getElementById("shareReservationsCheckbox").checked = !!sharing.reservations;
+    document.getElementById("shareFlightsCheckbox").checked = !!sharing.flights;
+    document.getElementById("shareAccommodationsCheckbox").checked = !!sharing.accommodations;
+    document.getElementById("shareBudgetCheckbox").checked = !!sharing.budget;
+    document.getElementById("shareExpensesCheckbox").checked = !!sharing.expenses;
+    document.getElementById("shareMembersCheckbox").checked = !!sharing.members;
+    document.getElementById("sharePackingCheckbox").checked = !!sharing.packing;
+
+    modal.classList.remove("hidden");
+  };
+
+  const closeModal = () => {
+    modal.classList.add("hidden");
+  };
+
+  if (openBtn) openBtn.addEventListener("click", openModal);
+  if (cancelBtn) cancelBtn.addEventListener("click", closeModal);
+  if (closeBtn) closeBtn.addEventListener("click", closeModal);
+
+  if (saveBtn) {
+    saveBtn.addEventListener("click", () => {
+      const sharing = {
+        enabled: document.getElementById("shareEnabledCheckbox").checked,
+        itinerary: document.getElementById("shareItineraryCheckbox").checked,
+        reservations: document.getElementById("shareReservationsCheckbox").checked,
+        flights: document.getElementById("shareFlightsCheckbox").checked,
+        accommodations: document.getElementById("shareAccommodationsCheckbox").checked,
+        budget: document.getElementById("shareBudgetCheckbox").checked,
+        expenses: document.getElementById("shareExpensesCheckbox").checked,
+        members: document.getElementById("shareMembersCheckbox").checked,
+        packing: document.getElementById("sharePackingCheckbox").checked,
+        documents: false // Sempre false por privacidade
+      };
+
+      tripData.sharing = sharing;
+      saveState();
+      
+      // Atualizar status visual na Home
+      updateShareStatusText();
+      
+      trackEvent('share_settings_updated', { enabled: sharing.enabled });
+      closeModal();
+      alert("✓ Configurações de compartilhamento salvas com sucesso!");
+    });
+  }
+}
+
+function updateShareStatusText() {
+  const statusTextEl = document.getElementById("shareStatusText");
+  if (statusTextEl && tripData) {
+    const sharing = tripData.sharing || {};
+    if (sharing.enabled) {
+      statusTextEl.innerHTML = `<span style="color: #10b981; font-weight: 600;"><i class="fa-solid fa-circle-check"></i> Compartilhamento ativo (link público ativado)</span>`;
+    } else {
+      statusTextEl.innerHTML = `<i class="fa-solid fa-lock"></i> Viagem privada (somente você vê)`;
+    }
+  }
+}
+
+function applySharingPrivacyFilter() {
+  if (!isSharedView) return;
+  
+  const sharing = tripData.sharing || {
+    enabled: false,
+    itinerary: true,
+    reservations: true,
+    flights: true,
+    accommodations: true,
+    budget: false,
+    expenses: false,
+    members: false,
+    packing: false,
+    documents: false
+  };
+
+  if (!sharing.itinerary) {
+    tripData.itinerary = [];
+  }
+  if (!sharing.flights) {
+    tripData.flights = [];
+  }
+  if (!sharing.accommodations) {
+    tripData.accommodations = [];
+    tripData.infoHotel = "Privado";
+    tripData.hotelLink = "";
+  }
+  if (!sharing.reservations) {
+    tripData.reservations = [];
+  }
+  if (!sharing.budget) {
+    tripData.budget = { hospedagem: 0, alimentacao: 0, passeios: 0, compras: 0 };
+    tripData.budgetAnalysis = "";
+  }
+  if (!sharing.expenses) {
+    tripData.expenses = [];
+  }
+  if (!sharing.members) {
+    tripData.members = ["Viajante"];
+  } else {
+    tripData.members = (tripData.members || []).map(m => {
+      if (typeof m === 'string' && m.includes('@')) {
+        const [user, domain] = m.split('@');
+        return user.length > 2 ? `${user.substring(0, 2)}**@${domain}` : `**@${domain}`;
+      }
+      return m;
+    });
+  }
+  if (!sharing.packing) {
+    tripData.packing = [];
+  }
+  if (!sharing.documents) {
+    tripData.documents = [];
+  }
 }
 
 if (document.readyState === "loading") {
@@ -494,14 +1186,382 @@ function getUserStorageKey(baseKey) {
   return baseKey;
 }
 
-let syncTimeout = null;
+function getTripStorageKey(baseKey, tripId) {
+  const userKey = getUserStorageKey(baseKey);
+  const targetId = tripId || activeTripId;
+  return targetId ? `${userKey}_${targetId}` : userKey;
+}
+
+let tripsList = [];
+
+async function loadTrips() {
+  const cachedTrips = localStorage.getItem(getUserStorageKey("gptViajante_trips"));
+  if (cachedTrips) {
+    try {
+      tripsList = JSON.parse(cachedTrips).map(t => normalizeTripState(t));
+    } catch (e) {
+      console.warn("Failed to parse cached trips:", e);
+    }
+  }
+
+  if (!currentUser || !currentUser.id || !navigator.onLine) {
+    logDebug("trips_loaded_local", { count: tripsList.length });
+    return tripsList;
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('trips')
+      .select('*')
+      .eq('user_id', currentUser.id)
+      .order('updated_at', { ascending: false });
+
+    if (error) throw error;
+
+    if (data) {
+      tripsList = data.map(t => normalizeTripState({
+        id: t.id,
+        tripTitle: t.title,
+        tripSubtitle: t.subtitle,
+        infoDates: t.dates,
+        infoWeather: t.weather,
+        infoGroup: t.group_type,
+        infoHotel: t.hotel,
+        hotelLink: t.hotel_link,
+        targetDate: t.target_date,
+        budget: t.budget,
+        budgetThresholds: t.budget_thresholds,
+        budgetAnalysis: t.budget_analysis,
+        packing: t.packing,
+        itinerary: t.itinerary,
+        flights: t.flights,
+        members: t.members,
+        expenses: t.expenses,
+        status: t.status
+      }));
+      localStorage.setItem(getUserStorageKey("gptViajante_trips"), JSON.stringify(tripsList));
+      logDebug("trips_synced_remote", { count: tripsList.length });
+    }
+  } catch (err) {
+    console.error("Failed to fetch remote trips, using cache:", err);
+  }
+
+  return tripsList;
+}
+
+async function loadTripById(id) {
+  let trip = tripsList.find(t => t.id === id);
+  if (trip) return trip;
+
+  if (currentUser && currentUser.id && navigator.onLine) {
+    try {
+      const { data, error } = await supabase
+        .from('trips')
+        .select('*')
+        .eq('id', id)
+        .single();
+      if (!error && data) {
+        return normalizeTripState({
+          id: data.id,
+          tripTitle: data.title,
+          tripSubtitle: data.subtitle,
+          infoDates: data.dates,
+          infoWeather: data.weather,
+          infoGroup: data.group_type,
+          infoHotel: data.hotel,
+          hotelLink: data.hotel_link,
+          targetDate: data.target_date,
+          budget: data.budget,
+          budgetThresholds: data.budget_thresholds,
+          budgetAnalysis: data.budget_analysis,
+          packing: data.packing,
+          itinerary: data.itinerary,
+          flights: data.flights,
+          members: data.members,
+          expenses: data.expenses,
+          status: data.status
+        });
+      }
+    } catch (e) {
+      console.warn("Failed to load trip by id remotely:", e);
+    }
+  }
+  return null;
+}
+
+import { getSuggestedTripStatus } from './modules/stateManager.js';
+
+async function createTrip(destination, startDate, endDate) {
+  logDebug("create_trip_started", { destination, startDate, endDate });
+  const suggestedStatus = getSuggestedTripStatus(startDate, endDate);
+  
+  let dateText = "A definir";
+  if (startDate) {
+    const sDate = new Date(startDate);
+    const options = { day: '2-digit', month: 'short' };
+    let text = sDate.toLocaleDateString('pt-BR', options);
+    if (endDate) {
+      const eDate = new Date(endDate);
+      text += ` a ${eDate.toLocaleDateString('pt-BR', options)}`;
+    }
+    dateText = text;
+  }
+
+  const rawTrip = {
+    tripTitle: destination,
+    destination: destination,
+    targetDate: startDate ? startDate + "T00:00:00" : null,
+    start_date: startDate,
+    end_date: endDate,
+    infoDates: dateText,
+    status: suggestedStatus
+  };
+
+  const newTrip = normalizeTripState(rawTrip);
+  newTrip.id = 'temp_' + Date.now();
+
+  if (currentUser && currentUser.id && navigator.onLine) {
+    try {
+      const tripToSave = {
+        user_id: currentUser.id,
+        title: newTrip.tripTitle,
+        subtitle: newTrip.tripSubtitle,
+        dates: newTrip.infoDates,
+        weather: newTrip.infoWeather,
+        group_type: newTrip.infoGroup,
+        hotel: newTrip.infoHotel,
+        hotel_link: newTrip.hotelLink,
+        target_date: newTrip.targetDate,
+        budget: newTrip.budget,
+        budget_thresholds: newTrip.budgetThresholds,
+        budget_analysis: newTrip.budgetAnalysis,
+        packing: newTrip.packing,
+        itinerary: newTrip.itinerary,
+        flights: newTrip.flights,
+        members: newTrip.members,
+        expenses: newTrip.expenses,
+        status: newTrip.status
+      };
+      
+      const { data, error } = await supabase
+        .from('trips')
+        .insert(tripToSave)
+        .select()
+        .single();
+
+      if (!error && data) {
+        newTrip.id = data.id;
+      } else {
+        console.error("Failed to insert new trip remotely:", error);
+      }
+    } catch (e) {
+      console.error("Error creating remote trip:", e);
+    }
+  }
+
+  localStorage.setItem(getTripStorageKey("gptViajante_tripData", newTrip.id), JSON.stringify(newTrip));
+  localStorage.setItem(getTripStorageKey("gptViajante_chatHistory", newTrip.id), JSON.stringify([]));
+  localStorage.setItem(getTripStorageKey("gptViajante_travelChatHistory", newTrip.id), JSON.stringify([]));
+
+  tripsList.unshift(newTrip);
+  localStorage.setItem(getUserStorageKey("gptViajante_trips"), JSON.stringify(tripsList));
+
+  selectActiveTrip(newTrip.id);
+  await loadState();
+}
+
+async function archiveTrip(id) {
+  logDebug("archive_trip_triggered", { id });
+  const trip = tripsList.find(t => t.id === id);
+  if (trip) {
+    trip.status = 'archived';
+    localStorage.setItem(getUserStorageKey("gptViajante_trips"), JSON.stringify(tripsList));
+    
+    if (currentUser && currentUser.id && navigator.onLine && !id.toString().startsWith('temp_')) {
+      try {
+        await supabase
+          .from('trips')
+          .update({ status: 'archived' })
+          .eq('id', id);
+      } catch (e) {
+        console.warn("Failed to archive trip remotely:", e);
+      }
+    }
+    
+    if (activeTripId === id) {
+      activeTripId = null;
+      localStorage.removeItem(getUserStorageKey("gptViajante_activeTripId"));
+    }
+    
+    renderMyTrips();
+  }
+}
+
+function showMyTripsScreen() {
+  logDebug("show_my_trips_screen_triggered");
+  
+  document.getElementById("myTripsSection").classList.remove("hidden");
+  
+  document.getElementById("bottomNav").style.display = "none";
+  document.getElementById("planChatPanel").classList.add("hidden");
+  document.getElementById("travelChatPanel").classList.add("hidden");
+  
+  const tabs = ['roteiro', 'orcamento', 'mala', 'logistica'];
+  tabs.forEach(t => {
+    const el = document.getElementById(t + "Panel");
+    if (el) el.classList.add("hidden");
+  });
+  
+  const backBtn = document.getElementById("backToMyTripsHeroBtn");
+  if (backBtn) backBtn.style.display = "none";
+  
+  renderMyTrips();
+}
+
+function renderMyTrips() {
+  const container = document.getElementById("myTripsListsContainer");
+  if (!container) return;
+  container.innerHTML = "";
+  
+  if (tripsList.length === 0) {
+    container.innerHTML = `
+      <div style="text-align: center; padding: 40px 20px; background: rgba(255,255,255,0.02); border: 1.5px dashed var(--border-color); border-radius: var(--border-radius-lg); margin-top: 10px;">
+        <div style="font-size: 2.2rem; color: var(--text-muted); margin-bottom: 12px;"><i class="fa-solid fa-plane-slash"></i></div>
+        <h3 style="margin: 0; font-size: 1.1rem; color: var(--text-main); font-weight: 700;">Nenhuma viagem cadastrada</h3>
+        <p style="margin: 6px 0 16px; font-size: 0.82rem; color: var(--text-light);">Crie sua primeira viagem usando o botão "+ Nova Viagem" acima!</p>
+      </div>
+    `;
+    return;
+  }
+  
+  const categories = [
+    { title: "🟢 EM ANDAMENTO", status: "active", trips: [] },
+    { title: "📅 PRÓXIMAS VIAGENS", status: "upcoming", trips: [] },
+    { title: "✏️ EM PLANEJAMENTO", status: "planning", trips: [] },
+    { title: "✅ VIAGENS PASSADAS", status: "completed", trips: [] }
+  ];
+  
+  tripsList.forEach(trip => {
+    const suggested = getSuggestedTripStatus(trip.start_date, trip.end_date, trip.status);
+    const cat = categories.find(c => c.status === suggested);
+    if (cat && trip.status !== 'archived') {
+      cat.trips.push(trip);
+    }
+  });
+  
+  categories.forEach(cat => {
+    if (cat.trips.length === 0) return;
+    
+    const catSection = document.createElement("div");
+    catSection.style.display = "flex";
+    catSection.style.flexDirection = "column";
+    catSection.style.gap = "14px";
+    
+    catSection.innerHTML = `
+      <h3 style="font-size: 0.76rem; font-weight: 800; text-transform: uppercase; color: var(--text-light); letter-spacing: 0.06em; margin-bottom: 2px;">${cat.title}</h3>
+      <div class="trips-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px;">
+        <!-- Cards -->
+      </div>
+    `;
+    
+    const grid = catSection.querySelector(".trips-grid");
+    
+    cat.trips.forEach(trip => {
+      const totalItems = trip.packing ? trip.packing.length : 0;
+      const checkedItems = trip.packing ? trip.packing.filter(i => i.checked).length : 0;
+      const percent = totalItems > 0 ? Math.round((checkedItems / totalItems) * 100) : 0;
+      
+      let countdownHtml = "";
+      if (cat.status === 'upcoming' && trip.start_date) {
+        const diff = new Date(trip.start_date) - new Date();
+        const daysLeft = Math.ceil(diff / (1000 * 60 * 60 * 24));
+        if (daysLeft > 0) {
+          countdownHtml = `<span style="font-size: 0.72rem; font-weight: 700; color: #fbbf24; background: rgba(251,191,36,0.1); padding: 4px 8px; border-radius: 50px;"><i class="fa-solid fa-clock"></i> Faltam ${daysLeft} dias</span>`;
+        }
+      }
+      
+      const card = document.createElement("div");
+      card.className = "glass-panel";
+      card.style.padding = "20px";
+      card.style.borderRadius = "var(--border-radius-lg)";
+      card.style.display = "flex";
+      card.style.flexDirection = "column";
+      card.style.gap = "12px";
+      card.style.position = "relative";
+      card.style.border = "1.5px solid var(--border-color)";
+      
+      card.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
+          <div>
+            <h4 style="margin: 0; font-size: 1.05rem; font-weight: 800; color: white;">${trip.tripTitle || trip.destination || 'Viagem sem Título'}</h4>
+            <p style="margin: 4px 0 0; font-size: 0.78rem; color: var(--text-light);"><i class="fa-regular fa-calendar" style="margin-right: 4px;"></i> ${trip.infoDates || 'Datas a definir'}</p>
+          </div>
+          <span style="font-size: 0.65rem; font-weight: 800; text-transform: uppercase; padding: 4px 8px; border-radius: 4px; background: rgba(255,255,255,0.06); color: var(--text-light); border: 1px solid var(--border-color);">${trip.status}</span>
+        </div>
+        
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; border-top: 1px solid var(--border-color); border-bottom: 1px solid var(--border-color); padding: 10px 0;">
+          <div style="font-size: 0.76rem; color: var(--text-muted);"><i class="fa-solid fa-users" style="margin-right: 4px;"></i> ${trip.members.length} Viajantes</div>
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <div style="width: 60px; height: 6px; background: rgba(255,255,255,0.06); border-radius: 10px; overflow: hidden;">
+              <div style="width: ${percent}%; height: 100%; background: var(--primary-gradient);"></div>
+            </div>
+            <span style="font-size: 0.76rem; font-weight: 700; color: var(--text-main);">${percent}% mala</span>
+          </div>
+        </div>
+        
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
+          ${countdownHtml}
+          <div style="display: flex; gap: 8px; margin-left: auto;">
+            <button class="btn btn-secondary btn-sm" onclick="archiveTrip('${trip.id}')" title="Arquivar viagem" style="padding: 8px 10px;"><i class="fa-solid fa-archive"></i></button>
+            <button class="btn btn-primary btn-sm" onclick="openTripPanel('${trip.id}')" style="font-weight: 700; padding: 8px 16px; border-radius: 50px;">Abrir Painel <i class="fa-solid fa-arrow-right"></i></button>
+          </div>
+        </div>
+      `;
+      grid.appendChild(card);
+    });
+    
+    container.appendChild(catSection);
+  });
+}
+
+async function openTripPanel(id) {
+  logDebug("open_trip_panel_triggered", { tripId: id });
+  selectActiveTrip(id);
+  await loadState();
+  switchTab('home');
+}
+
+window.showMyTripsScreen = showMyTripsScreen;
+window.archiveTrip = archiveTrip;
+window.openTripPanel = openTripPanel;
 
 async function loadState() {
+  await loadTrips();
+  
+  if (FEATURES.multiTrip) {
+    activeTripId = getActiveTripId();
+    if (!activeTripId) {
+      if (tripsList.length > 0) {
+        activeTripId = tripsList[0].id;
+        setActiveTripId(activeTripId);
+      } else {
+        showMyTripsScreen();
+        return;
+      }
+    }
+  }
+
+  // Ensure myTripsSection is hidden when inside an active trip
+  document.getElementById("myTripsSection").classList.add("hidden");
+  document.getElementById("bottomNav").style.display = "flex";
+  const backBtn = document.getElementById("backToMyTripsHeroBtn");
+  if (backBtn) backBtn.style.display = "inline-flex";
+
   // Fallback to local storage if user is not logged in or Supabase client isn't fully configured
   if (!currentUser || !currentUser.id) {
-    const savedHistory = localStorage.getItem(getUserStorageKey("gptViajante_chatHistory"));
-    const savedTravelHistory = localStorage.getItem(getUserStorageKey("gptViajante_travelChatHistory"));
-    const savedTrip = localStorage.getItem(getUserStorageKey("gptViajante_tripData"));
+    const savedHistory = localStorage.getItem(getTripStorageKey("gptViajante_chatHistory", activeTripId));
+    const savedTravelHistory = localStorage.getItem(getTripStorageKey("gptViajante_travelChatHistory", activeTripId));
+    const savedTrip = localStorage.getItem(getTripStorageKey("gptViajante_tripData", activeTripId));
 
     if (savedHistory) {
       chatHistory = JSON.parse(savedHistory);
@@ -518,45 +1578,21 @@ async function loadState() {
     }
 
     if (savedTrip) {
-      tripData = JSON.parse(savedTrip);
-      tripData.budgetAnalysis = tripData.budgetAnalysis || "";
-      tripData.budgetThresholds = tripData.budgetThresholds || { economico: 150, intermediario: 450 };
+      tripData = normalizeTripState(JSON.parse(savedTrip));
     } else {
-      tripData = {
-        tripTitle: "Minha Próxima Viagem",
-        tripSubtitle: "Planeje sua viagem conversando pelo chat!",
-        infoDates: "A definir",
-        infoWeather: "A definir",
-        infoGroup: "A definir",
-        infoHotel: "A definir",
-        hotelLink: "",
-        targetDate: null,
-        budget: {
-          hospedagem: 0,
-          alimentacao: 0,
-          passeios: 0,
-          compras: 0
-        },
-        budgetAnalysis: "",
-        budgetThresholds: { economico: 150, intermediario: 450 },
-        packing: [],
-        itinerary: [],
-        flights: [],
-        members: ["Você"],
-        expenses: []
-      };
+      tripData = normalizeTripState({});
     }
+    logDebug("trip_loaded", { source: 'local_storage', id: tripData.id, title: tripData.tripTitle });
   } else {
     // Authenticated user: Load from LocalStorage immediately for instant UX first
-    const savedHistory = localStorage.getItem(getUserStorageKey("gptViajante_chatHistory"));
-    const savedTravelHistory = localStorage.getItem(getUserStorageKey("gptViajante_travelChatHistory"));
-    const savedTrip = localStorage.getItem(getUserStorageKey("gptViajante_tripData"));
+    const savedHistory = localStorage.getItem(getTripStorageKey("gptViajante_chatHistory", activeTripId));
+    const savedTravelHistory = localStorage.getItem(getTripStorageKey("gptViajante_travelChatHistory", activeTripId));
+    const savedTrip = localStorage.getItem(getTripStorageKey("gptViajante_tripData", activeTripId));
 
     if (savedTrip) {
       try {
-        tripData = JSON.parse(savedTrip);
-        tripData.budgetAnalysis = tripData.budgetAnalysis || "";
-        tripData.budgetThresholds = tripData.budgetThresholds || { economico: 150, intermediario: 450 };
+        tripData = normalizeTripState(JSON.parse(savedTrip));
+        logDebug("trip_loaded", { source: 'local_storage_auth', id: tripData.id, title: tripData.tripTitle });
         
         // Initial fast render using cache
         renderTimeline();
@@ -594,143 +1630,156 @@ async function loadState() {
         try {
           console.log("Syncing state with Supabase in background...");
         
-        // 1. Fetch latest trip
-        const { data: trips, error: tripErr } = await supabase
-          .from('trips')
-          .select('*')
-          .eq('user_id', currentUser.id)
-          .order('updated_at', { ascending: false })
-          .limit(1);
+          let activeTrip = null;
+          if (FEATURES.multiTrip && activeTripId) {
+            const { data, error: tripErr } = await supabase
+              .from('trips')
+              .select('*')
+              .eq('id', activeTripId)
+              .single();
+            if (tripErr) throw tripErr;
+            activeTrip = data;
+          } else {
+            const { data: trips, error: tripErr } = await supabase
+              .from('trips')
+              .select('*')
+              .eq('user_id', currentUser.id)
+              .order('updated_at', { ascending: false })
+              .limit(1);
 
-        if (tripErr) throw tripErr;
+            if (tripErr) throw tripErr;
 
-        let activeTrip = null;
-        if (trips && trips.length > 0) {
-          activeTrip = trips[0];
-        } else {
-          // Create initial trip for user
-          const initialTrip = {
-            user_id: currentUser.id,
-            title: "Minha Próxima Viagem",
-            subtitle: "Planeje sua viagem conversando pelo chat!",
-            dates: "A definir",
-            weather: "A definir",
-            group_type: "A definir",
-            hotel: "A definir",
-            hotel_link: "",
-            target_date: null,
-            budget: { hospedagem: 0, alimentacao: 0, passeios: 0, compras: 0 },
-            budget_thresholds: { economico: 150, intermediario: 450 },
-            budget_analysis: "",
-            packing: [],
-            itinerary: [],
-            flights: [],
-            members: ["Você"],
-            expenses: []
-          };
-          const { data: newTrip, error: insertErr } = await supabase
-            .from('trips')
-            .insert(initialTrip)
-            .select()
-            .single();
-
-          if (insertErr) throw insertErr;
-          activeTrip = newTrip;
-        }
-
-        // Map DB schema to front-end tripData structure
-        const remoteTripData = {
-          id: activeTrip.id,
-          tripTitle: activeTrip.title,
-          tripSubtitle: activeTrip.subtitle,
-          infoDates: activeTrip.dates,
-          infoWeather: activeTrip.weather,
-          infoGroup: activeTrip.group_type,
-          infoHotel: activeTrip.hotel,
-          hotelLink: activeTrip.hotel_link,
-          targetDate: activeTrip.target_date,
-          budget: activeTrip.budget,
-          budgetThresholds: activeTrip.budget_thresholds,
-          budgetAnalysis: activeTrip.budget_analysis,
-          packing: activeTrip.packing,
-          itinerary: activeTrip.itinerary,
-          flights: activeTrip.flights,
-          members: activeTrip.members,
-          expenses: activeTrip.expenses,
-          documents: []
-        };
-
-        // 2. Fetch Chat Histories and Documents in parallel to save HTTP round-trips
-        const [chatRes, docsRes] = await Promise.all([
-          supabase.from('chat_histories').select('*').eq('trip_id', remoteTripData.id),
-          supabase.from('documents').select('*').eq('trip_id', remoteTripData.id)
-        ]);
-
-        if (chatRes.error) console.error("Error fetching chats in background:", chatRes.error);
-        if (docsRes.error) console.error("Error fetching documents metadata in background:", docsRes.error);
-
-        let remoteChatHistory = [];
-        let remoteTravelChatHistory = [];
-        
-        if (chatRes.data) {
-          const planChat = chatRes.data.find(c => c.chat_type === 'plan');
-          if (planChat) {
-            remoteChatHistory = planChat.messages;
+            if (trips && trips.length > 0) {
+              activeTrip = trips[0];
+            }
           }
-          const travelChat = chatRes.data.find(c => c.chat_type === 'travel');
-          if (travelChat) {
-            remoteTravelChatHistory = travelChat.messages;
+
+          if (!activeTrip) {
+            // Create initial trip for user
+            const initialTrip = {
+              user_id: currentUser.id,
+              title: "Minha Próxima Viagem",
+              subtitle: "Planeje sua viagem conversando pelo chat!",
+              dates: "A definir",
+              weather: "A definir",
+              group_type: "A definir",
+              hotel: "A definir",
+              hotel_link: "",
+              target_date: null,
+              budget: { hospedagem: 0, alimentacao: 0, passeios: 0, compras: 0 },
+              budget_thresholds: { economico: 150, intermediario: 450 },
+              budget_analysis: "",
+              packing: [],
+              itinerary: [],
+              flights: [],
+              members: ["Você"],
+              expenses: []
+            };
+            const { data: newTrip, error: insertErr } = await supabase
+              .from('trips')
+              .insert(initialTrip)
+              .select()
+              .single();
+
+            if (insertErr) throw insertErr;
+            activeTrip = newTrip;
           }
-        }
 
-        if (docsRes.data) {
-          remoteTripData.documents = docsRes.data.map(d => ({
-            id: d.id,
-            name: d.name,
-            category: d.category,
-            url: d.file_url,
-            type: d.name.toLowerCase().endsWith(".pdf") ? "pdf" : "image",
-            date: new Date(d.created_at).toLocaleDateString("pt-BR"),
-            size: "Ver anexo"
-          }));
-        }
+          // Map DB schema to front-end tripData structure
+          const remoteTripData = normalizeTripState({
+            id: activeTrip.id,
+            tripTitle: activeTrip.title,
+            tripSubtitle: activeTrip.subtitle,
+            infoDates: activeTrip.dates,
+            infoWeather: activeTrip.weather,
+            infoGroup: activeTrip.group_type,
+            infoHotel: activeTrip.hotel,
+            hotelLink: activeTrip.hotel_link,
+            targetDate: activeTrip.target_date,
+            budget: activeTrip.budget,
+            budgetThresholds: activeTrip.budget_thresholds,
+            budgetAnalysis: activeTrip.budget_analysis,
+            packing: activeTrip.packing,
+            itinerary: activeTrip.itinerary,
+            flights: activeTrip.flights,
+            members: activeTrip.members,
+            expenses: activeTrip.expenses,
+            documents: []
+          });
 
-        // Compare and update if data has changed
-        const hasTripChanged = JSON.stringify(tripData) !== JSON.stringify(remoteTripData);
-        const hasChatChanged = JSON.stringify(chatHistory) !== JSON.stringify(remoteChatHistory);
-        const hasTravelChatChanged = JSON.stringify(travelChatHistory) !== JSON.stringify(remoteTravelChatHistory);
+          // 2. Fetch Chat Histories and Documents in parallel to save HTTP round-trips
+          const [chatRes, docsRes] = await Promise.all([
+            supabase.from('chat_histories').select('*').eq('trip_id', remoteTripData.id),
+            supabase.from('documents').select('*').eq('trip_id', remoteTripData.id)
+          ]);
 
-        if (hasTripChanged || hasChatChanged || hasTravelChatChanged) {
-          console.log("State updated from Supabase, re-rendering UI.");
-          tripData = remoteTripData;
-          chatHistory = remoteChatHistory;
-          travelChatHistory = remoteTravelChatHistory;
+          if (chatRes.error) console.error("Error fetching chats in background:", chatRes.error);
+          if (docsRes.error) console.error("Error fetching documents metadata in background:", docsRes.error);
 
-          renderTimeline();
-          renderFlights();
-          renderSplitwise();
-          renderPackingChecklist();
-          checkItineraryStatus();
-          updateBudget();
+          let remoteChatHistory = [];
+          let remoteTravelChatHistory = [];
           
-          renderChatHistory('plan');
-          renderChatHistory('travel');
+          if (chatRes.data) {
+            const planChat = chatRes.data.find(c => c.chat_type === 'plan');
+            if (planChat) {
+              remoteChatHistory = planChat.messages;
+            }
+            const travelChat = chatRes.data.find(c => c.chat_type === 'travel');
+            if (travelChat) {
+              remoteTravelChatHistory = travelChat.messages;
+            }
+          }
 
-          // Save fresh state to LocalStorage
-          localStorage.setItem(getUserStorageKey("gptViajante_chatHistory"), JSON.stringify(chatHistory));
-          localStorage.setItem(getUserStorageKey("gptViajante_travelChatHistory"), JSON.stringify(travelChatHistory));
-          localStorage.setItem(getUserStorageKey("gptViajante_tripData"), JSON.stringify(tripData));
-        } else {
-          console.log("State is already in sync with Supabase.");
+          if (docsRes.data) {
+            remoteTripData.documents = docsRes.data.map(d => ({
+              id: d.id,
+              name: d.name,
+              category: d.category,
+              url: d.file_url,
+              file_reference: d.file_url.includes('/boarding-documents/') ? d.file_url.split('/boarding-documents/')[1] : d.file_url,
+              type: d.name.toLowerCase().endsWith(".pdf") ? "pdf" : "image",
+              date: new Date(d.created_at).toLocaleDateString("pt-BR"),
+              size: "Ver anexo"
+            }));
+          }
+
+          // Compare and update if data has changed
+          const hasTripChanged = JSON.stringify(tripData) !== JSON.stringify(remoteTripData);
+          const hasChatChanged = JSON.stringify(chatHistory) !== JSON.stringify(remoteChatHistory);
+          const hasTravelChatChanged = JSON.stringify(travelChatHistory) !== JSON.stringify(remoteTravelChatHistory);
+
+          if (hasTripChanged || hasChatChanged || hasTravelChatChanged) {
+            console.log("State updated from Supabase, re-rendering UI.");
+            tripData = remoteTripData;
+            logDebug("trip_loaded", { source: 'supabase', id: tripData.id, title: tripData.tripTitle });
+            chatHistory = remoteChatHistory;
+            travelChatHistory = remoteTravelChatHistory;
+
+            renderTimeline();
+            renderFlights();
+            renderSplitwise();
+            renderPackingChecklist();
+            checkItineraryStatus();
+            updateBudget();
+            
+            renderChatHistory('plan');
+            renderChatHistory('travel');
+
+            // Save fresh state to LocalStorage
+            localStorage.setItem(getTripStorageKey("gptViajante_chatHistory", activeTripId), JSON.stringify(chatHistory));
+            localStorage.setItem(getTripStorageKey("gptViajante_travelChatHistory", activeTripId), JSON.stringify(travelChatHistory));
+            localStorage.setItem(getTripStorageKey("gptViajante_tripData", activeTripId), JSON.stringify(tripData));
+          } else {
+            console.log("State is already in sync with Supabase.");
+          }
+        } catch (err) {
+          console.error("Failed to sync state from Supabase in background:", err);
         }
-      } catch (err) {
-        console.error("Failed to sync state from Supabase in background:", err);
-      }
-    }, 0);
-  } else {
-    console.log("Device offline. Skipping background Supabase load sync.");
+      }, 0);
+    } else {
+      console.log("Device offline. Skipping background Supabase load sync.");
+    }
   }
-}
 
   tripData.flights = tripData.flights || [];
   tripData.members = tripData.members || ["Você"];
@@ -743,9 +1792,10 @@ async function loadState() {
 }
 
 async function saveState() {
-  localStorage.setItem(getUserStorageKey("gptViajante_chatHistory"), JSON.stringify(chatHistory));
-  localStorage.setItem(getUserStorageKey("gptViajante_travelChatHistory"), JSON.stringify(travelChatHistory));
-  localStorage.setItem(getUserStorageKey("gptViajante_tripData"), JSON.stringify(tripData));
+  localStorage.setItem(getTripStorageKey("gptViajante_chatHistory"), JSON.stringify(chatHistory));
+  localStorage.setItem(getTripStorageKey("gptViajante_travelChatHistory"), JSON.stringify(travelChatHistory));
+  localStorage.setItem(getTripStorageKey("gptViajante_tripData"), JSON.stringify(tripData));
+  logDebug("trip_saved_local", { id: tripData.id, title: tripData.tripTitle });
 
   if (!currentUser || !currentUser.id) return;
   
@@ -792,7 +1842,7 @@ async function saveState() {
           .single();
         if (error) throw error;
         tripData.id = data.id;
-        localStorage.setItem(getUserStorageKey("gptViajante_tripData"), JSON.stringify(tripData));
+        localStorage.setItem(getTripStorageKey("gptViajante_tripData"), JSON.stringify(tripData));
       }
 
       if (tripData.id) {
@@ -822,6 +1872,7 @@ async function saveState() {
       }
       
       console.log("Supabase sync completed successfully.");
+      logDebug("trip_synced", { id: tripData.id, title: tripData.tripTitle });
     } catch (err) {
       console.error("Error syncing state to Supabase:", err);
     }
@@ -861,26 +1912,31 @@ function switchTab(tab) {
   const activeBtn = document.querySelector(`.bottom-nav-btn[data-tab="${tab}"]`);
   if (activeBtn) activeBtn.classList.add('active');
 
-  if (tab === 'naviagem') {
+  if (tab === 'chat') {
     chatSidebar.style.display = 'flex';
     dashboardContent.style.display = 'none';
-    if (planPanel) planPanel.classList.add('hidden');
-    if (travelPanel) travelPanel.classList.remove('hidden');
-    if (modeLabel) modeLabel.textContent = 'Na Viagem';
-    setTravelMode(true);
-  } else if (tab === 'chat') {
-    chatSidebar.style.display = 'flex';
-    dashboardContent.style.display = 'none';
-    if (planPanel) planPanel.classList.remove('hidden');
-    if (travelPanel) travelPanel.classList.add('hidden');
-    if (modeLabel) modeLabel.textContent = 'Planejar Roteiro';
-    setTravelMode(false);
+    
+    // Determine which chat panel to show based on trip status
+    const isActive = tripData && getSuggestedTripStatus(tripData.start_date, tripData.end_date, tripData.status) === 'active';
+    
+    if (isActive) {
+      if (planPanel) planPanel.classList.add('hidden');
+      if (travelPanel) travelPanel.classList.remove('hidden');
+      if (modeLabel) modeLabel.textContent = 'Na Viagem';
+      setTravelMode(true);
+    } else {
+      if (planPanel) planPanel.classList.remove('hidden');
+      if (travelPanel) travelPanel.classList.add('hidden');
+      if (modeLabel) modeLabel.textContent = 'Planejar Roteiro';
+      setTravelMode(false);
+    }
   } else {
     chatSidebar.style.display = 'none';
     dashboardContent.style.display = 'block';
     setTravelMode(false);
     
     const sectionMap = {
+      home: 'homeSection',
       logistica: 'logisticaSection',
       roteiro: 'itinerarySection',
       orcamento: 'budgetSection',
@@ -908,6 +1964,12 @@ function switchTab(tab) {
     if (targetId) {
       const el = document.getElementById(targetId);
       if (el) el.classList.remove('hidden');
+    }
+    
+    if (tab === 'home') {
+      if (typeof renderHomeDashboard === 'function') {
+        renderHomeDashboard();
+      }
     }
     
     // Reset scroll to top of the dashboard content
@@ -1166,14 +2228,14 @@ function setupUIEventListeners() {
         }
 
         // Clear local storage cache
-        localStorage.removeItem(getUserStorageKey("gptViajante_chatHistory"));
-        localStorage.removeItem(getUserStorageKey("gptViajante_travelChatHistory"));
-        localStorage.removeItem(getUserStorageKey("gptViajante_tripData"));
-        localStorage.removeItem(getUserStorageKey("gptViajante_packingState"));
+        localStorage.removeItem(getTripStorageKey("gptViajante_chatHistory", activeTripId));
+        localStorage.removeItem(getTripStorageKey("gptViajante_travelChatHistory", activeTripId));
+        localStorage.removeItem(getTripStorageKey("gptViajante_tripData", activeTripId));
+        localStorage.removeItem(getTripStorageKey("gptViajante_packingState", activeTripId));
         
         chatHistory = [];
         travelChatHistory = [];
-        tripData = {
+        tripData = normalizeTripState({
           tripTitle: defaultTripDb.title,
           tripSubtitle: defaultTripDb.subtitle,
           infoDates: defaultTripDb.dates,
@@ -1190,7 +2252,7 @@ function setupUIEventListeners() {
           flights: defaultTripDb.flights,
           members: defaultTripDb.members,
           expenses: defaultTripDb.expenses
-        };
+        });
 
         location.reload();
       }
@@ -1299,6 +2361,7 @@ function setupUIEventListeners() {
 
   // Initialize Documents Event Listeners
   setupDocumentListeners();
+  if (typeof setupReservationFilters === 'function') setupReservationFilters();
 
   // Webhook/PDF importadores mágicos
   const magicImportPdfBtn = document.getElementById("magicImportPdfBtn");
@@ -1653,10 +2716,28 @@ function formatMarkdown(text) {
   // Step 4: Italic
   html = html.replace(/(?<!\*)\*(?!\*)(.*?)(?<!\*)\*(?!\*)/g, '<em>$1</em>');
 
-  // Step 5: Links
+  // Step 5: Links (Strict URL Isolation)
   html = html.replace(
     /\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g,
-    '<a href="$2" target="_blank" rel="noopener noreferrer" class="chat-link">$1 \uD83D\uDD17</a>'
+    (match, text, url) => {
+      const lowerUrl = url.toLowerCase();
+      const lowerText = text.toLowerCase();
+      
+      let safeUrl = url;
+      if (lowerText.includes('booking') || lowerUrl.includes('booking.com')) {
+        safeUrl = buildAffiliateLink('booking', tripData) || safeUrl;
+      } else if (lowerText.includes('safetywing') || lowerUrl.includes('safetywing.com')) {
+        safeUrl = buildAffiliateLink('safetywing', tripData) || safeUrl;
+      } else if (lowerText.includes('airalo') || lowerUrl.includes('airalo.com')) {
+        safeUrl = buildAffiliateLink('airalo', tripData) || safeUrl;
+      } else {
+        // Prevent arbitrary URL injection. Whitelist maps or search only.
+        if (!lowerUrl.includes('google.com/maps') && !lowerUrl.includes('tripadvisor.com')) {
+           safeUrl = `https://www.google.com/search?q=${encodeURIComponent(text)}`;
+        }
+      }
+      return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="chat-link" onclick="analytics.track('link_click', {url: '${safeUrl}'})">${text} \uD83D\uDD17</a>`;
+    }
   );
 
   // Step 5b: Auto-inject Maps + TripAdvisor buttons
@@ -1808,6 +2889,7 @@ function extractJsonFromReply(replyContent) {
 
 // Sending and Receiving Message (Planning Chat)
 async function handleUserSendMessage() {
+  if (!window.checkAiLimit()) return;
   const chatInput = document.getElementById("chatInput");
   const text = chatInput.value.trim();
   
@@ -1863,16 +2945,38 @@ async function handleUserSendMessage() {
       body: JSON.stringify({ 
         messages: chatHistory, 
         travelMode: false,
+        tripId: tripData.id,
         tripContext: {
+          id: tripData.id,
           hotel: tripData.infoHotel,
           hotelLink: tripData.hotelLink,
           flights: tripData.flights,
           budget: tripData.budget,
           dates: tripData.infoDates,
-          destination: tripData.tripTitle
+          destination: tripData.tripTitle,
+          itinerary: tripData.itinerary,
+          packing: tripData.packing,
+          expenses: tripData.expenses,
+          reservations: tripData.reservations,
+          members: tripData.members,
+          accommodations: tripData.accommodations,
+          ai_context: tripData.ai_context
         }
       })
     });
+
+    if (response.status === 429) {
+      const errData = await response.json().catch(() => ({}));
+      removeTypingIndicator('plan');
+      if (errData.code === 'AI_LIMIT_EXCEEDED') {
+        trackEvent('ai_limit_reached', { plan: errData.plan });
+        window.showPaywall('ai_limit', errData.error);
+      } else {
+        trackEvent('ai_rate_limited', {});
+        appendMessageBubble("assistant", `⚠️ **Muitas mensagens:** ${errData.error || "Aguarde um momento antes de continuar."}`, null, 'plan');
+      }
+      return;
+    }
 
     if (response.status === 401 || response.status === 403) {
       const errData = await response.json().catch(() => ({}));
@@ -1915,6 +3019,7 @@ async function handleUserSendMessage() {
 
 // Sending and Receiving Message (Travel Chat)
 async function handleTravelSendMessage() {
+  if (!window.checkAiLimit()) return;
   const input = document.getElementById("travelChatInput");
   const text = input.value.trim();
   
@@ -1968,16 +3073,38 @@ async function handleTravelSendMessage() {
       body: JSON.stringify({ 
         messages: travelChatHistory, 
         travelMode: true,
+        tripId: tripData.id,
         tripContext: {
+          id: tripData.id,
           hotel: tripData.infoHotel,
           hotelLink: tripData.hotelLink,
           flights: tripData.flights,
           budget: tripData.budget,
           dates: tripData.infoDates,
-          destination: tripData.tripTitle
+          destination: tripData.tripTitle,
+          itinerary: tripData.itinerary,
+          packing: tripData.packing,
+          expenses: tripData.expenses,
+          reservations: tripData.reservations,
+          members: tripData.members,
+          accommodations: tripData.accommodations,
+          ai_context: tripData.ai_context
         }
       })
     });
+
+    if (response.status === 429) {
+      const errData = await response.json().catch(() => ({}));
+      removeTypingIndicator('travel');
+      if (errData.code === 'AI_LIMIT_EXCEEDED') {
+        trackEvent('ai_limit_reached', { plan: errData.plan });
+        window.showPaywall('ai_limit', errData.error);
+      } else {
+        trackEvent('ai_rate_limited', {});
+        appendMessageBubble("assistant", `⚠️ **Muitas mensagens:** ${errData.error || "Aguarde um momento antes de continuar."}`, null, 'travel');
+      }
+      return;
+    }
 
     if (response.status === 401 || response.status === 403) {
       const errData = await response.json().catch(() => ({}));
@@ -2022,38 +3149,41 @@ async function handleTravelSendMessage() {
 // 5. DASHBOARD STATE SYNC & RENDERING
 // ==========================================================================
 function updateDashboardData(newJson, skipLogisticsUpdate = false) {
-  if (newJson.tripTitle) tripData.tripTitle = newJson.tripTitle;
-  if (newJson.tripSubtitle) tripData.tripSubtitle = newJson.tripSubtitle;
-  if (newJson.infoDates) tripData.infoDates = newJson.infoDates;
-  if (newJson.infoWeather) tripData.infoWeather = newJson.infoWeather;
-  if (newJson.infoGroup) tripData.infoGroup = newJson.infoGroup;
-  
-  if (!skipLogisticsUpdate) {
-    if (newJson.infoHotel) tripData.infoHotel = newJson.infoHotel;
-    if (newJson.hotelLink) tripData.hotelLink = newJson.hotelLink;
-  }
-  
-  if (newJson.targetDate) tripData.targetDate = newJson.targetDate;
-  
-  if (newJson.budget) {
-    tripData.budget.hospedagem = newJson.budget.hospedagem || 0;
-    tripData.budget.alimentacao = newJson.budget.alimentacao || 0;
-    tripData.budget.passeios = newJson.budget.passeios || 0;
-    tripData.budget.compras = newJson.budget.compras || 0;
-  }
-
-  if (newJson.budgetAnalysis !== undefined) {
-    tripData.budgetAnalysis = newJson.budgetAnalysis;
-  }
-  if (newJson.budgetThresholds !== undefined) {
-    tripData.budgetThresholds = newJson.budgetThresholds;
-  }
-
-  if (newJson.packing) tripData.packing = newJson.packing;
-  if (newJson.itinerary) tripData.itinerary = newJson.itinerary;
-  
-  if (!skipLogisticsUpdate) {
-    if (newJson.flights) tripData.flights = newJson.flights;
+  if (newJson.actions && Array.isArray(newJson.actions)) {
+    try {
+      tripData = applyActions(newJson.actions, tripData);
+      showUndoToast();
+    } catch(e) {
+      console.error("Action Engine Error:", e);
+    }
+  } else {
+    // Legacy support
+    if (skipLogisticsUpdate) {
+      logDebug("manual_data_preserved", { id: tripData.id, preservedFields: ['flights', 'infoHotel', 'hotelLink'] });
+    }
+    if (newJson.tripTitle) tripData.tripTitle = newJson.tripTitle;
+    if (newJson.tripSubtitle) tripData.tripSubtitle = newJson.tripSubtitle;
+    if (newJson.infoDates) tripData.infoDates = newJson.infoDates;
+    if (newJson.infoWeather) tripData.infoWeather = newJson.infoWeather;
+    if (newJson.infoGroup) tripData.infoGroup = newJson.infoGroup;
+    if (!skipLogisticsUpdate) {
+      if (newJson.infoHotel) tripData.infoHotel = newJson.infoHotel;
+      if (newJson.hotelLink) tripData.hotelLink = newJson.hotelLink;
+    }
+    if (newJson.targetDate) tripData.targetDate = newJson.targetDate;
+    if (newJson.budget) {
+      tripData.budget.hospedagem = newJson.budget.hospedagem || 0;
+      tripData.budget.alimentacao = newJson.budget.alimentacao || 0;
+      tripData.budget.passeios = newJson.budget.passeios || 0;
+      tripData.budget.compras = newJson.budget.compras || 0;
+    }
+    if (newJson.budgetAnalysis !== undefined) tripData.budgetAnalysis = newJson.budgetAnalysis;
+    if (newJson.budgetThresholds !== undefined) tripData.budgetThresholds = newJson.budgetThresholds;
+    if (newJson.packing) tripData.packing = newJson.packing;
+    if (newJson.itinerary) tripData.itinerary = newJson.itinerary;
+    if (!skipLogisticsUpdate) {
+      if (newJson.flights) tripData.flights = newJson.flights;
+    }
   }
 
   // Persist State
@@ -2062,7 +3192,43 @@ function updateDashboardData(newJson, skipLogisticsUpdate = false) {
   // Re-render
   setupCountdown();
   renderDashboard();
+  logDebug("chat_state_updated", { id: tripData.id, updatedFields: Object.keys(newJson) });
 }
+
+window.showUndoToast = function() {
+  const toast = document.getElementById('undoToast');
+  if (toast) {
+    toast.classList.remove('hidden');
+    setTimeout(() => {
+      toast.classList.add('hidden');
+    }, 10000);
+  }
+}
+
+window.handleUndo = function() {
+  try {
+    tripData = undoLastActions(tripData);
+    saveState();
+    setupCountdown();
+    renderDashboard();
+    const toast = document.getElementById('undoToast');
+    if(toast) toast.classList.add('hidden');
+  } catch(e) {
+    console.error("Undo failed:", e);
+    alert("Não há ações para desfazer.");
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const undoBtn = document.getElementById('undoBtn');
+  if (undoBtn) undoBtn.addEventListener('click', window.handleUndo);
+  
+  const closeUndo = document.getElementById('closeUndoBtn');
+  if (closeUndo) closeUndo.addEventListener('click', () => {
+    document.getElementById('undoToast').classList.add('hidden');
+  });
+});
+
 
 const parseLocalDate = (dateStr) => {
   if (!dateStr) return null;
@@ -2208,6 +3374,8 @@ const fetchRealWeatherForecast = async () => {
 };
 
 function renderDashboard() {
+  window.renderAffiliates();
+
   // Ensure budget object exists
   tripData.budget = tripData.budget || { hospedagem: 0, alimentacao: 0, passeios: 0, compras: 0 };
   
@@ -2828,10 +3996,6 @@ function renderPackingChecklist() {
 
   categoriesDiv.innerHTML = "";
 
-  // Packing list checkboxes state loaded from LocalStorage
-  const savedState = localStorage.getItem(getUserStorageKey("gptViajante_packingState"));
-  const checkedItems = savedState ? JSON.parse(savedState) : {};
-
   tripData.packing.forEach((cat, catIdx) => {
     const catSection = document.createElement("div");
     catSection.className = "packing-category";
@@ -2848,11 +4012,12 @@ function renderPackingChecklist() {
     if (cat.items) {
       cat.items.forEach((item, itemIdx) => {
         const uniqueId = `pack-${catIdx}-${itemIdx}`;
-        const isChecked = checkedItems[uniqueId] ? "checked" : "";
+        const itemName = typeof item === 'object' ? item.name : item;
+        const isChecked = (item && item.checked) ? "checked" : "";
         itemsHtml += `
           <label class="packing-item">
-            <input type="checkbox" class="packing-checkbox" id="${uniqueId}" ${isChecked} ${isSharedView ? 'disabled' : ''} onchange="saveChecklistState()">
-            <span class="packing-item-text">${item}</span>
+            <input type="checkbox" class="packing-checkbox" id="${uniqueId}" ${isChecked} ${isSharedView ? 'disabled' : ''} onchange="togglePackingItem(${catIdx}, ${itemIdx}, this.checked)">
+            <span class="packing-item-text">${itemName}</span>
           </label>
         `;
       });
@@ -2870,18 +4035,21 @@ function renderPackingChecklist() {
   updateChecklistProgress();
 }
 
-function saveChecklistState() {
-  const checkboxes = document.querySelectorAll(".packing-checkbox");
-  const checkedItems = {};
-
-  checkboxes.forEach(cb => {
-    checkedItems[cb.id] = cb.checked;
-  });
-
-  localStorage.setItem(getUserStorageKey("gptViajante_packingState"), JSON.stringify(checkedItems));
-  updateChecklistProgress();
+function togglePackingItem(catIdx, itemIdx, checked) {
+  if (tripData.packing && tripData.packing[catIdx] && tripData.packing[catIdx].items[itemIdx]) {
+    if (typeof tripData.packing[catIdx].items[itemIdx] === 'string') {
+      tripData.packing[catIdx].items[itemIdx] = {
+        name: tripData.packing[catIdx].items[itemIdx],
+        checked: checked
+      };
+    } else {
+      tripData.packing[catIdx].items[itemIdx].checked = checked;
+    }
+    saveState();
+    updateChecklistProgress();
+  }
 }
-window.saveChecklistState = saveChecklistState;
+window.togglePackingItem = togglePackingItem;
 
 function updateChecklistProgress() {
   const checkboxes = document.querySelectorAll(".packing-checkbox");
@@ -2905,13 +4073,159 @@ function formatBytes(bytes, decimals = 1) {
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
 }
 
+let activeDocumentCategory = "Todos";
+let documentSearchQuery = "";
+
+// Attach event listeners for category filters and search
+function setupReservationFilters() {
+  const categoryBtns = document.querySelectorAll(".category-filters .btn-sub-tab");
+  categoryBtns.forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      categoryBtns.forEach(b => b.classList.remove("active"));
+      e.target.classList.add("active");
+      activeDocumentCategory = e.target.dataset.category;
+      renderDocuments();
+    });
+  });
+
+  const searchInput = document.getElementById("documentSearchInput");
+  if (searchInput) {
+    searchInput.addEventListener("input", (e) => {
+      documentSearchQuery = e.target.value.toLowerCase();
+      renderDocuments();
+    });
+  }
+
+  const openResModalBtn = document.getElementById("openReservationModalBtn");
+  if (openResModalBtn) {
+    openResModalBtn.addEventListener("click", () => {
+      document.getElementById("reservationForm").reset();
+      document.getElementById("editReservationId").value = "";
+      document.getElementById("reservationModal").classList.remove("hidden");
+    });
+  }
+
+  const closeResModalBtn = document.getElementById("closeReservationModal");
+  if (closeResModalBtn) {
+    closeResModalBtn.addEventListener("click", () => {
+      document.getElementById("reservationModal").classList.add("hidden");
+    });
+  }
+
+  const resForm = document.getElementById("reservationForm");
+  if (resForm) {
+    resForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      saveReservation();
+    });
+  }
+}
+
+function saveReservation() {
+  const idField = document.getElementById("editReservationId").value;
+  const type = document.getElementById("resTypeInput").value;
+  const title = document.getElementById("resTitleInput").value;
+  const provider = document.getElementById("resProviderInput").value;
+  const reference = document.getElementById("resReferenceInput").value;
+  const start = document.getElementById("resStartDateInput").value;
+  const end = document.getElementById("resEndDateInput").value;
+  const notes = document.getElementById("resNotesInput").value;
+
+  tripData.reservations = tripData.reservations || [];
+  
+  if (idField) {
+    const res = tripData.reservations.find(r => r.id === idField);
+    if (res) {
+      res.type = type;
+      res.title = title;
+      res.provider = provider;
+      res.reference = reference;
+      res.start_datetime = start;
+      res.end_datetime = end;
+      res.notes = notes;
+    }
+  } else {
+    const newRes = {
+      id: "res_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5),
+      trip_id: tripData.id || "temp",
+      type: type,
+      title: title,
+      provider: provider,
+      reference: reference,
+      start_datetime: start,
+      end_datetime: end,
+      notes: notes,
+      is_favorite: false,
+      created_at: new Date().toISOString()
+    };
+    tripData.reservations.push(newRes);
+  }
+  
+  saveState();
+  renderDocuments();
+  document.getElementById("reservationModal").classList.add("hidden");
+}
+
+function toggleFavoriteReservation(id, isDoc = false) {
+  const list = isDoc ? (tripData.documents || []) : (tripData.reservations || []);
+  const item = list.find(i => i.id === id);
+  if (item) {
+    item.is_favorite = !item.is_favorite;
+    saveState();
+    renderDocuments();
+  }
+}
+
 function renderDocuments() {
   const container = document.getElementById("documentsList");
   const emptyState = document.getElementById("documentsEmpty");
   if (!container || !emptyState) return;
 
   const docs = tripData.documents || [];
-  if (docs.length === 0) {
+  const res = tripData.reservations || [];
+
+  let combined = [
+    ...docs.map(d => ({ ...d, _isDoc: true })),
+    ...res.map(r => ({ ...r, _isDoc: false }))
+  ];
+
+  if (activeDocumentCategory !== "Todos") {
+    combined = combined.filter(item => {
+      const itemType = item.type || item.category || "";
+      if (activeDocumentCategory === "Passagem Aérea") return itemType.includes("Passagem") || itemType.includes("Voo");
+      if (activeDocumentCategory === "Hospedagem") return itemType.includes("Hospedagem") || itemType.includes("Hotel");
+      if (activeDocumentCategory === "Ingresso") return itemType.includes("Ingresso");
+      if (activeDocumentCategory === "Seguro Viagem") return itemType.includes("Seguro");
+      return itemType.includes("Outros") || (!itemType.includes("Passagem") && !itemType.includes("Voo") && !itemType.includes("Hospedagem") && !itemType.includes("Hotel") && !itemType.includes("Ingresso") && !itemType.includes("Seguro"));
+    });
+  }
+
+  if (documentSearchQuery) {
+    combined = combined.filter(item => {
+      const text = `${item.title || item.name || ""} ${item.provider || ""} ${item.reference || ""}`.toLowerCase();
+      return text.includes(documentSearchQuery);
+    });
+  }
+
+  const now = new Date();
+  
+  if (tripData.start_date && (new Date(tripData.start_date) <= now)) {
+    combined.sort((a, b) => {
+      const dateA = new Date(a.start_datetime || a.created_at || a.date || 0);
+      const dateB = new Date(b.start_datetime || b.created_at || b.date || 0);
+      return dateA - dateB;
+    });
+  } else {
+    combined.sort((a, b) => {
+      if (a.is_favorite && !b.is_favorite) return -1;
+      if (!a.is_favorite && b.is_favorite) return 1;
+      const typeA = a.type || a.category || "";
+      const typeB = b.type || b.category || "";
+      return typeA.localeCompare(typeB);
+    });
+  }
+
+  if (combined.length === 0) {
     emptyState.classList.remove("hidden");
     container.innerHTML = "";
     return;
@@ -2919,37 +4233,107 @@ function renderDocuments() {
 
   emptyState.classList.add("hidden");
   
-  container.innerHTML = docs.map(doc => {
-    const iconClass = doc.type === 'pdf' ? 'fa-file-pdf' : 'fa-file-image';
-    const typeClass = doc.type === 'pdf' ? 'pdf' : 'image';
+  container.innerHTML = combined.map(item => {
+    const isSupabaseFile = item.file_reference || (item.url && item.url.includes("supabase.co"));
+    let blockView = false;
+    if (window.isSharedView && isSupabaseFile) {
+      blockView = true;
+    }
+
+    const title = item.title || item.name || "Sem título";
+    const provider = item.provider || (item._isDoc ? "Arquivo" : "Reserva");
+    const refCode = item.reference ? `Ref: ${item.reference}` : "";
+    const favIcon = item.is_favorite ? '<i class="fa-solid fa-star" style="color: #fbbf24;"></i>' : '<i class="fa-regular fa-star"></i>';
+    
+    let dateStr = "";
+    if (item.start_datetime) {
+      const dt = new Date(item.start_datetime);
+      dateStr = dt.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+      if (item.end_datetime) {
+        const et = new Date(item.end_datetime);
+        dateStr += " - " + et.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+      }
+    } else if (item.date) {
+      dateStr = item.date;
+    }
+
+    const iconTypeClass = item._isDoc ? (item.type === 'pdf' ? 'fa-file-pdf' : 'fa-file-image') : 'fa-ticket';
+
     return `
-      <div class="document-item">
-        <div style="display: flex; align-items: center; gap: 14px; min-width: 0; flex: 1;">
-          <div class="doc-type-icon ${typeClass}">
-            <i class="fa-solid ${iconClass}"></i>
+      <div class="glass-panel" style="padding: 16px; display: flex; flex-direction: column; gap: 12px; position: relative;">
+        <button onclick="toggleFavoriteReservation('${item.id}', ${item._isDoc})" style="position: absolute; top: 12px; right: 12px; background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.1rem; z-index: 10;">
+          ${favIcon}
+        </button>
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <div style="width: 40px; height: 40px; background: rgba(255,255,255,0.05); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; color: var(--primary);">
+            <i class="fa-solid ${iconTypeClass}"></i>
           </div>
-          <div style="min-width: 0;">
-            <h4 style="font-size: 0.88rem; font-weight: 700; margin: 0; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${doc.name}</h4>
-            <p style="font-size: 0.74rem; color: var(--text-muted); margin: 3px 0 0 0;">
-              <span style="background: rgba(255,255,255,0.06); padding: 2px 6px; border-radius: 4px; font-weight: 600; margin-right: 6px; color: var(--text-light); text-transform: uppercase; font-size: 0.65rem;">${doc.category}</span>
-              ${doc.size} • ${doc.date}
-            </p>
+          <div style="flex: 1; min-width: 0;">
+            <h4 style="margin: 0; font-size: 0.95rem; font-weight: 700; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 24px;">${title}</h4>
+            <p style="margin: 2px 0 0; font-size: 0.75rem; color: var(--text-muted);">${provider} ${refCode ? '• ' + refCode : ''}</p>
           </div>
         </div>
-        <div style="display: flex; gap: 8px; flex-shrink: 0; align-items: center;">
-          <button class="btn btn-secondary btn-sm" style="padding: 6px 12px; font-size: 0.78rem;" onclick="viewDocument('${doc.id}')">
-            <i class="fa-solid fa-eye"></i> Ver
-          </button>
-          ${isSharedView ? '' : `
-          <button class="flight-action-btn delete" style="padding: 8px;" onclick="deleteDocument('${doc.id}')">
-            <i class="fa-solid fa-trash"></i>
-          </button>
-          `}
+        
+        <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: 4px;">
+          <div style="font-size: 0.75rem; color: var(--text-light); font-weight: 600;">
+            ${dateStr ? '<i class="fa-regular fa-calendar" style="margin-right: 4px;"></i> ' + dateStr : ''}
+            <div id="offline-badge-${item.id}" style="font-size: 0.65rem; color: var(--text-muted); margin-top: 4px; font-weight: normal;">
+              <i class="fa-solid fa-spinner fa-spin"></i> Verificando cache...
+            </div>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            ${blockView ? 
+              `<button class="btn btn-secondary btn-sm" disabled style="opacity: 0.5; cursor: not-allowed;" title="Visualização bloqueada em modo compartilhado"><i class="fa-solid fa-lock"></i></button>` 
+            : 
+              (item._isDoc ? 
+                `<button class="btn btn-secondary btn-sm" onclick="viewDocument('${item.id}')"><i class="fa-solid fa-eye"></i></button>`
+              : '')
+            }
+            ${window.isSharedView ? '' : `
+              <button class="flight-action-btn delete" style="padding: 6px; font-size: 0.8rem;" onclick="deleteDocumentOrRes('${item.id}', ${item._isDoc})">
+                <i class="fa-solid fa-trash"></i>
+              </button>
+            `}
+          </div>
         </div>
       </div>
     `;
-  }).reverse().join(""); // Show newest first
+  }).join("");
+
+  // Atualiza assincronamente os status offline no IndexedDB
+  combined.forEach(async item => {
+    const badgeEl = document.getElementById(`offline-badge-${item.id}`);
+    if (badgeEl) {
+      if (!item._isDoc) {
+        // Reservas manuais criadas no frontend não possuem arquivos anexados grandes, portanto estão prontas
+        badgeEl.innerHTML = `<span style="color: #10b981; font-weight: 600;"><i class="fa-solid fa-circle-check"></i> Disponível offline</span>`;
+      } else {
+        const userId = (currentUser && currentUser.id) || 'anonymous';
+        const tripId = tripData.id || 'local';
+        const isCached = await getDocumentFile(item.id, tripId, userId);
+        if (isCached) {
+          badgeEl.innerHTML = `<span style="color: #10b981; font-weight: 600;"><i class="fa-solid fa-circle-check"></i> Disponível offline</span>`;
+        } else {
+          badgeEl.innerHTML = `<span style="color: #f59e0b; font-weight: 600;"><i class="fa-solid fa-cloud"></i> Requer internet</span>`;
+        }
+      }
+    }
+  });
 }
+
+function deleteDocumentOrRes(id, isDoc) {
+  if (confirm("Deseja excluir este item?")) {
+    if (isDoc) {
+      deleteDocument(id);
+    } else {
+      tripData.reservations = tripData.reservations.filter(r => r.id !== id);
+      saveState();
+      renderDocuments();
+    }
+  }
+}
+window.deleteDocumentOrRes = deleteDocumentOrRes;
+window.toggleFavoriteReservation = toggleFavoriteReservation;
 
 function setupDocumentListeners() {
   const fileInput = document.getElementById("documentFileInput");
@@ -2992,17 +4376,13 @@ function setupDocumentListeners() {
 
       if (uploadErr) throw uploadErr;
 
-      const { data: { publicUrl } } = supabase.storage
-        .from('boarding-documents')
-        .getPublicUrl(filePath);
-
       const { data: docData, error: dbErr } = await supabase
         .from('documents')
         .insert({
           trip_id: tripData.id,
           name: file.name,
           category: category,
-          file_url: publicUrl
+          file_url: filePath
         })
         .select()
         .single();
@@ -3015,6 +4395,7 @@ function setupDocumentListeners() {
         type: file.type.includes("pdf") ? "pdf" : "image",
         category: docData.category,
         url: docData.file_url,
+        file_reference: docData.file_url,
         date: new Date(docData.created_at).toLocaleDateString("pt-BR"),
         size: formatBytes(file.size)
       };
@@ -3023,8 +4404,30 @@ function setupDocumentListeners() {
       tripData.documents.push(newDoc);
       renderDocuments();
       
+      // Salvar offline no IndexedDB
+      const offlineResult = await saveDocumentFile(
+        docData.id,
+        tripData.id,
+        currentUser.id,
+        file.name,
+        file.type,
+        file.size,
+        file
+      );
+
       fileInput.value = "";
-      alert("✓ Documento enviado e guardado na nuvem com sucesso!");
+
+      if (offlineResult && !offlineResult.success) {
+        if (offlineResult.reason === 'exceeds_total_limit') {
+          alert("✓ Documento salvo na nuvem com sucesso! No entanto, ele não estará disponível offline porque você atingiu o limite de 50MB de armazenamento local.");
+        } else if (offlineResult.reason === 'exceeds_individual_limit') {
+          alert("✓ Documento salvo na nuvem com sucesso! No entanto, ele não estará disponível offline porque o tamanho deste arquivo excede o limite individual de 5MB.");
+        } else {
+          alert("✓ Documento salvo na nuvem, mas não foi possível salvá-lo no cache local.");
+        }
+      } else {
+        alert("✓ Documento enviado e disponível offline com sucesso!");
+      }
     } catch (err) {
       console.error("Error saving document to Supabase:", err);
       alert("⚠️ Ocorreu um erro ao salvar o documento.");
@@ -3036,23 +4439,80 @@ async function viewDocument(docId) {
   const doc = tripData.documents.find(d => d.id === docId);
   if (!doc) return;
 
+  const isSupabaseFile = doc.file_reference || (doc.url && doc.url.includes("supabase.co"));
+  if (window.isSharedView && isSupabaseFile) {
+    alert("A visualização de arquivos privados está desabilitada no modo de compartilhamento.");
+    return;
+  }
+
+  const userId = (currentUser && currentUser.id) || 'anonymous';
+  const tripId = tripData.id || 'local';
+
+  // 1. Tentar ler do IndexedDB primeiro (cache offline)
+  const localBlob = await getDocumentFile(docId, tripId, userId);
+  let fileUrl = doc.url;
+  let isOfflineAvailable = false;
+
+  if (localBlob) {
+    fileUrl = URL.createObjectURL(localBlob);
+    isOfflineAvailable = true;
+    trackEvent('offline_document_opened', { documentId: docId });
+  } else if (!navigator.onLine) {
+    // Se estiver offline e sem cache
+    alert("⚠️ Você está offline e este documento não foi baixado localmente ainda. Conecte-se à internet para abri-lo.");
+    trackEvent('offline_document_unavailable', { documentId: docId });
+    return;
+  } else {
+    // Se estiver online e sem cache, obter uma URL assinada (Signed URL) temporária
+    if (isSupabaseFile) {
+      try {
+        const urlParts = (doc.url || '').split('/boarding-documents/');
+        const filePath = doc.file_reference || (urlParts.length > 1 ? urlParts[1] : null);
+        if (filePath) {
+          const { data: signData, error: signErr } = await supabase.storage
+            .from('boarding-documents')
+            .createSignedUrl(filePath, 3600); // 1 hora
+          if (signErr) throw signErr;
+          if (signData && signData.signedUrl) {
+            fileUrl = signData.signedUrl;
+          }
+        }
+      } catch (err) {
+        console.error("[Storage] Erro ao assinar URL de visualização:", err.message);
+      }
+    }
+
+    // Se estiver online e sem cache, tentar baixar e cachear em background para a próxima vez usando a URL (assinada se necessário)
+    console.log(`[Offline Cache] Baixando arquivo para cache local: ${doc.name}`);
+    fetch(fileUrl)
+      .then(res => {
+        if (!res.ok) throw new Error("Erro de download");
+        return res.blob();
+      })
+      .then(blob => {
+        saveDocumentFile(docId, tripId, userId, doc.name, blob.type, blob.size, blob);
+      })
+      .catch(err => console.warn("[Offline Cache] Falha ao cachear documento em background:", err));
+  }
+
+  // 2. Abrir o arquivo
   if (doc.type === "pdf") {
     const win = window.open();
     if (win) {
-      win.document.write(`<iframe src="${doc.url}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
+      win.document.write(`<iframe src="${fileUrl}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
     } else {
       const link = document.createElement("a");
-      link.href = doc.url;
+      link.href = fileUrl;
       link.target = "_blank";
       link.download = doc.name;
       link.click();
     }
   } else {
     if (window.openImageLightbox) {
-      window.openImageLightbox(doc.url, doc.name);
+      window.openImageLightbox(fileUrl, doc.name);
     } else {
       const win = window.open();
-      win.document.write(`<img src="${doc.url}" style="max-width:100%; max-height:100%; display:block; margin:auto;"/>`);
+      win.document.write(`<img src="${fileUrl}" style="max-width:100%; max-height:100%; display:block; margin:auto;"/>`);
     }
   }
 }
@@ -3071,9 +4531,12 @@ async function deleteDocument(docId) {
 
     if (dbErr) throw dbErr;
 
-    const urlParts = doc.url.split('/boarding-documents/');
-    if (urlParts.length > 1) {
-      const filePath = urlParts[1];
+    // Remover cache local do IndexedDB
+    await deleteDocumentFile(docId);
+
+    const urlParts = (doc.url || '').split('/boarding-documents/');
+    const filePath = doc.file_reference || (urlParts.length > 1 ? urlParts[1] : null);
+    if (filePath) {
       const { error: storageErr } = await supabase.storage
         .from('boarding-documents')
         .remove([filePath]);
@@ -3163,7 +4626,7 @@ function exportAsPdf() {
 }
 
 // ==========================================================================
-// 7. FIREBASE AUTH LOGIC & USER INTERFACE HANDLERS
+// 7. AUTH LOGIC & USER INTERFACE HANDLERS
 // ==========================================================================
 let isRegisterMode = false;
 
@@ -3171,7 +4634,7 @@ let isUiInitialized = false;
 
 async function handleUserLoggedIn(user, token) {
   currentUser = user;
-  firebaseIdToken = token;
+  authToken = token;
 
   const loginSubmitBtn = document.getElementById("loginSubmitBtn");
   const googleLoginBtn = document.getElementById("googleLoginBtn");
@@ -3317,33 +4780,18 @@ function handleUserLoggedOut() {
   // When bypassing login, never show the login screen
   if (BYPASS_LOGIN) return;
 
+  const oldUserId = currentUser ? currentUser.id : null;
+  if (oldUserId) {
+    clearUserOfflineCache(oldUserId).catch(err => console.error("Erro ao limpar cache offline no logout:", err));
+  }
+
   currentUser = null;
-  firebaseIdToken = null;
+  authToken = null;
 
   // Reset in-memory state to prevent leakage between user sessions
   chatHistory = [];
   travelChatHistory = [];
-  tripData = {
-    tripTitle: "Minha Próxima Viagem",
-    tripSubtitle: "Planeje sua viagem conversando pelo chat!",
-    infoDates: "A definir",
-    infoWeather: "A definir",
-    infoGroup: "A definir",
-    infoHotel: "A definir",
-    hotelLink: "",
-    targetDate: null,
-    budget: {
-      hospedagem: 0,
-      alimentacao: 0,
-      passeios: 0,
-      compras: 0
-    },
-    packing: [],
-    itinerary: [],
-    flights: [],
-    members: ["Você"],
-    expenses: []
-  };
+  tripData = normalizeTripState({});
 
   const userProfileEl = document.getElementById("userProfile");
   const loginScreenEl = document.getElementById("loginScreen");
@@ -5392,16 +6840,38 @@ async function triggerAiLogisticsSync() {
       body: JSON.stringify({ 
         messages: chatHistory, 
         travelMode: false,
+        tripId: tripData.id,
         tripContext: {
+          id: tripData.id,
           hotel: tripData.infoHotel,
           hotelLink: tripData.hotelLink,
           flights: tripData.flights,
           budget: tripData.budget,
           dates: tripData.infoDates,
-          destination: tripData.tripTitle
+          destination: tripData.tripTitle,
+          itinerary: tripData.itinerary,
+          packing: tripData.packing,
+          expenses: tripData.expenses,
+          reservations: tripData.reservations,
+          members: tripData.members,
+          accommodations: tripData.accommodations,
+          ai_context: tripData.ai_context
         }
       })
     });
+
+    if (response.status === 429) {
+      const errData = await response.json().catch(() => ({}));
+      if (loader) loader.classList.add("hidden");
+      if (errData.code === 'AI_LIMIT_EXCEEDED') {
+        trackEvent('ai_limit_reached', { plan: errData.plan });
+        window.showPaywall('ai_limit', errData.error);
+      } else {
+        trackEvent('ai_rate_limited', {});
+        alert(`⚠️ Muitas mensagens: ${errData.error || "Aguarde um momento antes de continuar."}`);
+      }
+      return;
+    }
 
     if (response.status === 401 || response.status === 403) {
       const errData = await response.json().catch(() => ({}));
@@ -5978,3 +7448,165 @@ function setupLogisticaSubTabs() {
 
 
 
+window.renderHomeDashboard = function() {
+  if (!tripData) return;
+
+  // Atualizar status visual do compartilhamento na Home
+  if (typeof updateShareStatusText === 'function') {
+    updateShareStatusText();
+  }
+  
+  // 1. Header (Title, Date, Status Badge)
+  const homeTripTitle = document.getElementById('homeTripTitle');
+  if (homeTripTitle) homeTripTitle.textContent = tripData.tripTitle || "Minha Próxima Viagem";
+  
+  const homeDateRange = document.getElementById('homeDateRange');
+  let dateText = "Datas a definir";
+  if (tripData.start_date && tripData.end_date) {
+    const s = new Date(tripData.start_date).toLocaleDateString('pt-BR');
+    const e = new Date(tripData.end_date).toLocaleDateString('pt-BR');
+    dateText = `${s} - ${e}`;
+  } else if (tripData.start_date) {
+    dateText = "A partir de " + new Date(tripData.start_date).toLocaleDateString('pt-BR');
+  } else if (tripData.infoDates) {
+    dateText = tripData.infoDates;
+  }
+  if (homeDateRange) homeDateRange.textContent = dateText;
+  
+  // Update status badge
+  const statusStr = getSuggestedTripStatus(tripData.start_date, tripData.end_date, tripData.status);
+  const badgeMap = {
+    planning: { text: "Planejamento", icon: "fa-map", bg: "var(--primary-color)" },
+    upcoming: { text: "Próxima", icon: "fa-calendar-check", bg: "#f59e0b" },
+    active: { text: "Em Andamento", icon: "fa-plane-departure", bg: "#10b981" },
+    completed: { text: "Concluída", icon: "fa-flag-checkered", bg: "#6b7280" },
+    archived: { text: "Arquivada", icon: "fa-box-archive", bg: "#4b5563" }
+  };
+  const bInfo = badgeMap[statusStr] || badgeMap['planning'];
+  const statusBadge = document.getElementById('homeStatusBadge');
+  if (statusBadge) {
+    statusBadge.innerHTML = `<i class="fa-solid ${bInfo.icon}"></i> ${bInfo.text}`;
+    statusBadge.style.backgroundColor = bInfo.bg;
+  }
+  
+  // 2. Countdown Timer
+  const countdownValue = document.getElementById('homeCountdownValue');
+  const countdownLabel = document.getElementById('homeCountdownLabel');
+  if (countdownValue && countdownLabel) {
+    const cData = calculateCountdown(tripData.start_date, statusStr);
+    countdownValue.textContent = cData.value;
+    countdownLabel.textContent = cData.label;
+  }
+  
+  // 3. Readiness Score
+  const rData = calculateReadinessScore(tripData);
+  
+  const readinessText = document.getElementById('readinessText');
+  const readinessBar = document.getElementById('readinessBar');
+  const readinessDesc = document.getElementById('readinessDescription');
+  
+  if (readinessText) readinessText.textContent = `${rData.score} de ${rData.max} essenciais concluídos`;
+  if (readinessBar) readinessBar.style.width = `${rData.percentage}%`;
+  if (readinessDesc) {
+    if (rData.percentage === 100) readinessDesc.textContent = "Tudo pronto! Você está 100% preparado para a viagem.";
+    else if (rData.percentage > 60) readinessDesc.textContent = "Quase lá! Faltam poucos detalhes para sua viagem.";
+    else readinessDesc.textContent = "Complete os itens essenciais para viajar com tranquilidade.";
+  }
+  
+  // 4. Dynamic Next Step
+  const nextStepBanner = document.getElementById('homeNextStepBanner');
+  const nextStepText = document.getElementById('homeNextStepText');
+  if (nextStepBanner && nextStepText) {
+    if (!rData.hasDates) {
+      nextStepText.textContent = "Definir as datas da viagem no chat.";
+    } else if (!rData.hasTransport) {
+      nextStepText.textContent = "Adicionar seus voos e passagens na aba Logística.";
+    } else if (!rData.hasHotel) {
+      nextStepText.textContent = "Definir sua hospedagem.";
+    } else if (!rData.hasItinerary) {
+      nextStepText.textContent = "Gerar o roteiro dia a dia com o CoPiloto.";
+    } else if (!rData.hasBudget) {
+      nextStepText.textContent = "Ajustar o orçamento estimado da viagem.";
+    } else if (rData.totalItems > 0 && rData.packedItems < rData.totalItems) {
+      nextStepText.textContent = `Terminar de arrumar a mala (${rData.packedItems}/${rData.totalItems}).`;
+    } else {
+      nextStepText.textContent = "Aproveitar sua viagem! Tudo organizado.";
+    }
+  }
+  
+  // 5. Contextual Cards
+  const grid = document.getElementById('homeContextGrid');
+  if (grid) {
+    grid.innerHTML = '';
+    
+    // Always show CoPiloto quick action
+    const chatCard = document.createElement('div');
+    chatCard.className = 'glass-panel info-card';
+    chatCard.style.cursor = 'pointer';
+    chatCard.onclick = () => switchTab('chat');
+    chatCard.innerHTML = `
+      <div class="info-card-icon" style="color: var(--primary-color);"><i class="fa-solid fa-comments"></i></div>
+      <div class="info-card-details">
+        <h3>Falar com CoPiloto</h3>
+        <p>Tire dúvidas e planeje</p>
+      </div>
+    `;
+    grid.appendChild(chatCard);
+    
+    if (statusStr === 'active') {
+      // Today's schedule card
+      const todayCard = document.createElement('div');
+      todayCard.className = 'glass-panel info-card';
+      todayCard.style.cursor = 'pointer';
+      todayCard.onclick = () => switchTab('roteiro');
+      todayCard.innerHTML = `
+        <div class="info-card-icon" style="color: #10b981;"><i class="fa-solid fa-map-location-dot"></i></div>
+        <div class="info-card-details">
+          <h3>Roteiro de Hoje</h3>
+          <p>${rData.hasItinerary ? 'Ver atividades' : 'Sem atividades'}</p>
+        </div>
+      `;
+      grid.appendChild(todayCard);
+      
+      // Expenses card
+      const expCard = document.createElement('div');
+      expCard.className = 'glass-panel info-card';
+      expCard.style.cursor = 'pointer';
+      expCard.onclick = () => switchTab('orcamento');
+      expCard.innerHTML = `
+        <div class="info-card-icon" style="color: #f59e0b;"><i class="fa-solid fa-receipt"></i></div>
+        <div class="info-card-details">
+          <h3>Gastos Atuais</h3>
+          <p>Registrar despesas</p>
+        </div>
+      `;
+      grid.appendChild(expCard);
+    } else if (statusStr === 'completed' || statusStr === 'archived') {
+      // Summary card
+      const summaryCard = document.createElement('div');
+      summaryCard.className = 'glass-panel info-card';
+      summaryCard.innerHTML = `
+        <div class="info-card-icon" style="color: #8b5cf6;"><i class="fa-solid fa-chart-pie"></i></div>
+        <div class="info-card-details">
+          <h3>Resumo da Viagem</h3>
+          <p>Ver estatísticas</p>
+        </div>
+      `;
+      grid.appendChild(summaryCard);
+    } else {
+      // Pre-trip: Packing card
+      const packCard = document.createElement('div');
+      packCard.className = 'glass-panel info-card';
+      packCard.style.cursor = 'pointer';
+      packCard.onclick = () => switchTab('mala');
+      packCard.innerHTML = `
+        <div class="info-card-icon" style="color: #6366f1;"><i class="fa-solid fa-suitcase"></i></div>
+        <div class="info-card-details">
+          <h3>Checklist de Mala</h3>
+          <p>${rData.totalItems > 0 ? `${rData.packedItems}/${rData.totalItems} itens` : 'Criar lista'}</p>
+        </div>
+      `;
+      grid.appendChild(packCard);
+    }
+  }
+};

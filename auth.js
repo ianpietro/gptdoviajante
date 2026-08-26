@@ -7,11 +7,14 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const isConfigured = !!(SUPABASE_URL && SUPABASE_ANON_KEY);
 
 /**
- * Returns if Supabase is configured
+ * Returns true if Supabase Auth is configured (URL + Anon Key present).
+ * Alias: isFirebaseConfigured kept for backward compatibility during rename migration.
  */
-export function isFirebaseConfigured() {
+export function isAuthConfigured() {
   return isConfigured;
 }
+/** @deprecated use isAuthConfigured() */
+export const isFirebaseConfigured = isAuthConfigured;
 
 /**
  * Monitor auth state changes

@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Allow: /assets/
+Allow: /marketing_creatives/
+Disallow: /app.html
+Disallow: /v/
+Disallow: /api/
+
+Sitemap: https://copilotodeviagem.com.br/sitemap.xml

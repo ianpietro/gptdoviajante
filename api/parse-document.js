@@ -1,11 +1,12 @@
-const fetch = require('node-fetch-native' in global ? global.fetch : 'node-fetch');
-const { checkUserAccess } = require('./_utils');
+const fetch = global.fetch || require('node-fetch');
+const { checkUserAccess, handleCors } = require('./_utils');
+const { routeAIRequest } = require('./_aiRouter');
 
 module.exports = async function handler(req, res) {
-  // Cabeçalhos CORS
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  // CORS check
+  if (!handleCors(req, res)) {
+    return res.status(403).json({ error: 'Acesso CORS negado.' });
+  }
 
   if (req.method === "OPTIONS") {
     return res.status(200).end();
@@ -23,6 +24,7 @@ module.exports = async function handler(req, res) {
   const idToken = authHeader.split("Bearer ")[1];
 
   let userEmail = null;
+  let userId = null;
 
   if (idToken === "dummy-token-unconfigured") {
     userEmail = "teste@viajante.com";
@@ -52,6 +54,7 @@ module.exports = async function handler(req, res) {
         return res.status(401).json({ error: "Usuário não encontrado." });
       }
       userEmail = user.email;
+      userId = user.id;
     } catch (err) {
       console.error("Erro na verificação de identidade:", err);
       return res.status(500).json({ error: "Erro interno na verificação de sessão." });
@@ -65,100 +68,86 @@ module.exports = async function handler(req, res) {
   }
 
   // 3. Extração do Texto do Documento
-  const { text } = req.body;
-  if (!text || text.trim().length === 0) {
-    return res.status(400).json({ error: "O texto extraído do documento é obrigatório." });
-  }
-
-  // 4. Chamada da API do Gemini para Estruturar os Dados
-  const geminiApiKey = process.env.GEMINI_API_KEY;
-  if (!geminiApiKey) {
-    console.error("Chave de API do Gemini não configurada.");
-    return res.status(500).json({ error: "Erro de configuração de IA no servidor." });
+  const { text, content, base64, type, mimeType, tripId } = req.body;
+  const documentText = String(text || content || '').trim();
+  const attachment = base64 ? {
+    base64,
+    mimeType: mimeType || (type === 'pdf' ? 'application/pdf' : 'image/jpeg')
+  } : null;
+  if (!documentText && !attachment) {
+    return res.status(400).json({ error: "O texto ou arquivo do documento é obrigatório." });
   }
 
   const systemPrompt = `Você é o assistente de inteligência artificial de bordo do CoPiloto de Viagem.
-Sua tarefa é analisar o texto bruto extraído de um comprovante de reserva (passagem aérea ou hospedagem) e estruturar os dados estritamente em formato JSON.
+Sua tarefa é analisar o texto bruto extraído de um comprovante de reserva (passagem aérea, hospedagem, ingresso, aluguel de carro, seguro viagem, etc.) e estruturar os dados estritamente em formato JSON.
 
-Regras de Negócio:
-1. Analise o texto fornecido e determine se é uma Passagem Aérea (Voo) ou uma Hospedagem (Hotel/Airbnb).
-2. Se for uma Passagem Aérea (Voo), retorne um JSON com a chave "type": "flight" e os dados correspondentes:
+Campos obrigatórios no JSON de retorno:
+1. "type": "flight" | "hotel" | "ticket" | "other"
+2. "document_type": "flight_ticket" | "hotel_reservation" | "activity_ticket" | "car_rental" | "insurance" | "generic"
+3. "provider": Nome da empresa/airline/hotel/plataforma (Ex: Air France, Booking.com, Civitatis)
+4. "traveler_names": Array contendo nomes dos viajantes encontrados no documento
+5. "booking_reference": Código localizador ou referência da reserva
+6. "start_date": Data de início da reserva/evento no formato YYYY-MM-DD
+7. "end_date": Data de término se aplicável (check-out, etc.) no formato YYYY-MM-DD
+8. "departure_datetime": Decolagem do voo no formato YYYY-MM-DDTHH:MM:SS se disponível
+9. "arrival_datetime": Pouso do voo no formato YYYY-MM-DDTHH:MM:SS se disponível
+10. "origin": Origem da viagem ou voo (Ex: GIG ou Rio de Janeiro)
+11. "destination": Destino da viagem ou voo (Ex: CDG ou Paris)
+12. "flight_number": Código do voo se aplicável (Ex: AF443)
+13. "hotel_name": Nome do hotel ou acomodação se aplicável
+14. "checkin": Data de check-in YYYY-MM-DD se aplicável
+15. "checkout": Data de check-out YYYY-MM-DD se aplicável
+16. "currency": Moeda (Ex: BRL, USD, EUR)
+17. "total_amount": Valor total pago se encontrado (numérico)
+18. "address": Endereço do hotel ou evento
+19. "activity_name": Nome da atividade ou ingresso se aplicável
+20. "ticket_date": Data do ingresso YYYY-MM-DD se aplicável
+21. "confidence": Nível de certeza da extração (0.0 a 1.0) baseado na clareza dos dados encontrados
+
+Para manter compatibilidade retroativa com a versão anterior do frontend, você DEVE preencher a propriedade "data" com os seguintes formatos baseados no tipo:
+
+Se type for "flight", preencha "data" assim:
 {
-  "type": "flight",
-  "data": {
-    "flightNumber": "Código do voo (Ex: G3 1234 ou LA 8112)",
-    "date": "Data do voo no formato YYYY-MM-DD (Ex: 2026-10-12)",
-    "airline": "Nome da companhia aérea (Ex: GOL, LATAM, Azul)",
-    "status": "Confirmado",
-    "departureAirport": "Código IATA do aeroporto de origem (Ex: GRU)",
-    "departureCity": "Cidade de origem (Ex: São Paulo)",
-    "arrivalAirport": "Código IATA do aeroporto de destino (Ex: LIS)",
-    "arrivalCity": "Cidade de destino (Ex: Lisboa)",
-    "scheduledDeparture": "Horário de decolagem HH:MM (Ex: 18:00)",
-    "scheduledArrival": "Horário de pouso HH:MM (Ex: 06:00)",
-    "terminal": "Terminal se encontrado (Ex: 3)",
-    "gate": "Portão se encontrado (Ex: 302)",
-    "carousel": "Esteira se encontrada (Ex: 4)",
-    "duration": "Duração estimada do voo no formato XXh XXm (Ex: 09h 00m)"
-  }
+  "flightNumber": "flight_number",
+  "date": "start_date",
+  "airline": "provider",
+  "status": "Confirmado",
+  "departureAirport": "Código IATA da origem se encontrado",
+  "departureCity": "Cidade de origem",
+  "arrivalAirport": "Código IATA do destino se encontrado",
+  "arrivalCity": "Cidade de destino",
+  "scheduledDeparture": "Horário HH:MM",
+  "scheduledArrival": "Horário HH:MM",
+  "terminal": "Terminal se encontrado",
+  "gate": "Portão se encontrado",
+  "carousel": "Esteira se encontrada",
+  "duration": "Duração no formato XXh XXm se encontrada"
 }
 
-3. Se for uma Hospedagem (Hotel/Airbnb), retorne um JSON com a chave "type": "hotel" e os dados correspondentes:
+Se type for "hotel", preencha "data" assim:
 {
-  "type": "hotel",
-  "data": {
-    "hotel": "Nome do Hotel ou Airbnb (Ex: Bourbon Resort ou Apartamento Centro)",
-    "hotelLink": "",
-    "dates": "Período (Ex: 12 a 15 de Outubro)",
-    "checkInDate": "Data de Check-in YYYY-MM-DD (Ex: 2026-10-12)",
-    "checkOutDate": "Data de Check-out YYYY-MM-DD (Ex: 2026-10-15)"
-  }
+  "hotel": "hotel_name",
+  "hotelLink": "",
+  "dates": "Período legível por humano (Ex: 12 a 15 de Outubro)",
+  "checkInDate": "checkin",
+  "checkOutDate": "checkout"
 }
 
-4. Retorne APENAS o objeto JSON puro. Não use markdown, não adicione explicações, não inclua o bloco de código \`\`\`json. Retorne estritamente o objeto JSON pronto para parse.`;
+Retorne APENAS o objeto JSON puro. Não use markdown, não adicione explicações, não inclua o bloco de código \`\`\`json.`;
 
   try {
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`;
-    
-    const response = await fetch(geminiUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            role: "user",
-            parts: [{ text: `Analise o texto a seguir e extraia os dados:\n\n${text}` }]
-          }
-        ],
-        systemInstruction: {
-          parts: [{ text: systemPrompt }]
-        },
-        generationConfig: {
-          temperature: 0.1, // temperatura baixa para extrações exatas
-          responseMimeType: "application/json"
-        }
-      })
+    const result = await routeAIRequest({
+      task: 'document_parse',
+      messages: [{ role: 'user', content: documentText ? `Analise o texto a seguir e extraia os dados:\n\n${documentText}` : 'Analise o documento anexo e extraia os dados.', attachment }],
+      systemPrompt,
+      responseMimeType: 'application/json',
+      temperature: 0.1,
+      isSystemTask: true,
+      userId,
+      tripId: tripId || null,
+      userMessage: 'Extrair dados de documento'
     });
-
-    if (!response.ok) {
-      const errData = await response.json().catch(() => ({}));
-      throw new Error(errData.error?.message || `Gemini API retornou erro ${response.status}`);
-    }
-
-    const resData = await response.json();
-    const aiReply = resData.candidates?.[0]?.content?.parts?.[0]?.text;
-
-    if (!aiReply) {
-      throw new Error("Resposta de extração vazia do Gemini.");
-    }
-
-    let cleanReply = aiReply.trim();
-    if (cleanReply.startsWith("```")) {
-      cleanReply = cleanReply.replace(/^```json\s*/i, "").replace(/```$/, "").trim();
-    }
-    const parsedJson = JSON.parse(cleanReply);
+    const parsedJson = JSON.parse(result.reply);
     return res.status(200).json(parsedJson);
 
   } catch (error) {

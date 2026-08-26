@@ -114,4 +114,49 @@ function setupScrollAnimationFallback() {
   });
 }
 
+// ==========================================================================
+// 4. ORGANIC TRACKING HOOKS (landing_view, cta_start_trip, pricing_view)
+// ==========================================================================
+function setupOrganicTracking() {
+  window.dataLayer = window.dataLayer || [];
+  
+  // 1. landing_view
+  window.dataLayer.push({ event: 'landing_view' });
+  console.log('Tracked: landing_view');
+  
+  // 2. cta_start_trip
+  const ctaButtons = [
+    document.getElementById('btnHeaderCta'),
+    document.getElementById('btnHeroBuy'),
+    document.getElementById('btnCheckoutPurchase')
+  ];
+  
+  ctaButtons.forEach(btn => {
+    if (btn) {
+      btn.addEventListener('click', () => {
+        window.dataLayer.push({ event: 'cta_start_trip' });
+        console.log('Tracked: cta_start_trip');
+      });
+    }
+  });
+
+  // 3. pricing_view
+  const priceCard = document.getElementById('priceCard');
+  if (priceCard) {
+    const priceObserver = new IntersectionObserver((entries, obs) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          window.dataLayer.push({ event: 'pricing_view' });
+          console.log('Tracked: pricing_view');
+          obs.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.5 });
+    priceObserver.observe(priceCard);
+  }
+}
+
+document.addEventListener("DOMContentLoaded", setupOrganicTracking);
+
+
 
