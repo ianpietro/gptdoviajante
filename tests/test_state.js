@@ -343,6 +343,28 @@ async function runTests() {
     assert.strictEqual(processed[1].blockView, true); // private supabase restricted
   }
 
+  // Test 14: Redesign shell and first-use regression guards
+  {
+    console.log("Test 14: Redesign shell, accessibility and first-use guards");
+    const appHtml = fs.readFileSync('app.html', 'utf8');
+    const appJs = fs.readFileSync('app.js', 'utf8');
+    const redesignCss = fs.readFileSync('style.v2.css', 'utf8');
+    const serviceWorker = fs.readFileSync('sw.js', 'utf8');
+    const manifest = JSON.parse(fs.readFileSync('manifest.json', 'utf8'));
+
+    assert.ok(appHtml.includes('href="/style.v2.css"'), 'Redesign stylesheet must be loaded');
+    assert.ok(appHtml.includes('href="/assets/app-icon.svg"'), 'App icon must be configured');
+    assert.ok(appHtml.includes('id="createTripModal" role="dialog"'), 'Trip creation must expose dialog semantics');
+    assert.ok(appHtml.includes('id="reservationModal" role="dialog"'), 'Reservation modal must expose dialog semantics');
+    assert.ok(appJs.includes("const stepEl = step === 2 ? createForm"), 'Plan-from-zero must reveal the actual form');
+    assert.ok(appJs.includes("dashboardContent.classList.add('trips-view')"), 'First-use view must isolate the trip list');
+    assert.ok(appJs.includes("switchTab('home');"), 'A newly created trip must open on Home');
+    assert.ok(redesignCss.includes('#dashboardContent.trips-view > :not(#myTripsSection)'), 'Legacy dashboard must not leak below first-use');
+    assert.strictEqual(manifest.theme_color, '#070b14');
+    assert.strictEqual(manifest.icons[0].src, '/assets/app-icon.svg');
+    assert.ok(!serviceWorker.includes('client.navigate(client.url)'), 'Service-worker activation must not interrupt open work');
+  }
+
   console.log("✅ All tests passed successfully!");
 }
 

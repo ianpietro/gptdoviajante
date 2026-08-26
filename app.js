@@ -775,10 +775,12 @@ async function init() {
 
   window.showCreateTripStep = (step) => {
     document.querySelectorAll('.create-trip-step').forEach(el => el.classList.add('hidden'));
-    const stepEl = document.getElementById('createTripStep' + step);
+    const stepEl = step === 2 ? createForm : document.getElementById('createTripStep' + step);
     if (stepEl) {
-      if (step === 2) stepEl.classList.remove('hidden'); // form gets display block/flex inside
-      else stepEl.classList.remove('hidden');
+      stepEl.classList.remove('hidden');
+      if (step === 2) {
+        window.setTimeout(() => document.getElementById('newTripDestination')?.focus(), 0);
+      }
     }
     
     // reset states
@@ -794,15 +796,27 @@ async function init() {
     openModalBtn.addEventListener("click", () => {
       createModal.classList.remove("hidden");
       window.showCreateTripStep(1);
+      window.setTimeout(() => createModal.querySelector('.create-trip-step:not(.hidden) button')?.focus(), 0);
     });
   }
 
   const hideModal = () => {
     if (createModal) createModal.classList.add("hidden");
     if (createForm) createForm.reset();
+    openModalBtn?.focus();
   };
 
   if (closeModalBtn) closeModalBtn.addEventListener("click", hideModal);
+  if (createModal) {
+    createModal.addEventListener('click', event => {
+      if (event.target === createModal) hideModal();
+    });
+  }
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && createModal && !createModal.classList.contains('hidden')) {
+      hideModal();
+    }
+  });
 
   if (createForm) {
     createForm.addEventListener("submit", async (e) => {
@@ -1380,6 +1394,7 @@ async function createTrip(destination, startDate, endDate) {
 
   selectActiveTrip(newTrip.id);
   await loadState();
+  switchTab('home');
 }
 
 async function archiveTrip(id) {
@@ -1413,6 +1428,7 @@ function showMyTripsScreen() {
   logDebug("show_my_trips_screen_triggered");
   
   document.getElementById("myTripsSection").classList.remove("hidden");
+  document.getElementById("dashboardContent").classList.add("trips-view");
   
   document.getElementById("bottomNav").style.display = "none";
   document.getElementById("planChatPanel").classList.add("hidden");
@@ -1440,9 +1456,15 @@ function renderMyTrips() {
       <div style="text-align: center; padding: 40px 20px; background: rgba(255,255,255,0.02); border: 1.5px dashed var(--border-color); border-radius: var(--border-radius-lg); margin-top: 10px;">
         <div style="font-size: 2.2rem; color: var(--text-muted); margin-bottom: 12px;"><i class="fa-solid fa-plane-slash"></i></div>
         <h3 style="margin: 0; font-size: 1.1rem; color: var(--text-main); font-weight: 700;">Nenhuma viagem cadastrada</h3>
-        <p style="margin: 6px 0 16px; font-size: 0.82rem; color: var(--text-light);">Crie sua primeira viagem usando o botão "+ Nova Viagem" acima!</p>
+        <p style="margin: 6px auto 18px; max-width: 420px; font-size: 0.82rem; color: var(--text-light);">Informe seu destino e as datas para abrir seu primeiro painel de viagem.</p>
+        <button type="button" class="btn btn-primary" id="emptyStateCreateTripBtn" style="padding: 10px 18px;">
+          <i class="fa-solid fa-plus"></i> Criar minha primeira viagem
+        </button>
       </div>
     `;
+    document.getElementById('emptyStateCreateTripBtn')?.addEventListener('click', () => {
+      document.getElementById('openCreateTripModalBtn')?.click();
+    });
     return;
   }
   
@@ -1565,6 +1587,7 @@ async function loadState() {
 
   // Ensure myTripsSection is hidden when inside an active trip
   document.getElementById("myTripsSection").classList.add("hidden");
+  document.getElementById("dashboardContent").classList.remove("trips-view");
   document.getElementById("bottomNav").style.display = "flex";
   const backBtn = document.getElementById("backToMyTripsHeroBtn");
   if (backBtn) backBtn.style.display = "inline-flex";
@@ -1907,17 +1930,27 @@ let travelMode = false;
 function setupBottomNav() {
   const chatSidebar = document.getElementById('chatSidebar');
   const dashboardContent = document.getElementById('dashboardContent');
-  const chatMessages = document.getElementById('chatMessages');
-
-  // Start with chat visible
-  chatSidebar.style.display = 'flex';
-  dashboardContent.style.display = 'none';
+  const myTripsSection = document.getElementById('myTripsSection');
+  const bottomNav = document.getElementById('bottomNav');
 
   document.querySelectorAll('.bottom-nav-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       switchTab(btn.dataset.tab);
     });
   });
+
+  if (myTripsSection && !myTripsSection.classList.contains('hidden')) {
+    chatSidebar.style.display = 'none';
+    dashboardContent.style.display = 'block';
+    dashboardContent.classList.add('trips-view');
+    if (bottomNav) bottomNav.style.display = 'none';
+    return;
+  }
+
+  // The Home button is active in the initial markup, so the visible surface
+  // must match it. Chat remains one explicit navigation action away.
+  if (bottomNav) bottomNav.style.display = 'flex';
+  switchTab('home');
 }
 
 function switchTab(tab) {
@@ -1927,6 +1960,8 @@ function switchTab(tab) {
   const planPanel = document.getElementById('planChatPanel');
   const travelPanel = document.getElementById('travelChatPanel');
   const modeLabel = document.getElementById('chatModeLabel');
+
+  dashboardContent.classList.remove('trips-view');
 
   allBtns.forEach(b => b.classList.remove('active'));
   const activeBtn = document.querySelector(`.bottom-nav-btn[data-tab="${tab}"]`);
@@ -4281,7 +4316,7 @@ function renderDocuments() {
 
     return `
       <div class="glass-panel" style="padding: 16px; display: flex; flex-direction: column; gap: 12px; position: relative;">
-        <button onclick="toggleFavoriteReservation('${item.id}', ${item._isDoc})" style="position: absolute; top: 12px; right: 12px; background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.1rem; z-index: 10;">
+        <button type="button" aria-label="${item.is_favorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}" onclick="toggleFavoriteReservation('${item.id}', ${item._isDoc})" style="position: absolute; top: 12px; right: 12px; background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.1rem; z-index: 10;">
           ${favIcon}
         </button>
         <div style="display: flex; align-items: center; gap: 12px;">
@@ -4303,14 +4338,14 @@ function renderDocuments() {
           </div>
           <div style="display: flex; gap: 8px;">
             ${blockView ? 
-              `<button class="btn btn-secondary btn-sm" disabled style="opacity: 0.5; cursor: not-allowed;" title="Visualização bloqueada em modo compartilhado"><i class="fa-solid fa-lock"></i></button>` 
+              `<button type="button" class="btn btn-secondary btn-sm" disabled style="opacity: 0.5; cursor: not-allowed;" title="Visualização bloqueada em modo compartilhado"><i class="fa-solid fa-lock"></i></button>`
             : 
               (item._isDoc ? 
-                `<button class="btn btn-secondary btn-sm" onclick="viewDocument('${item.id}')"><i class="fa-solid fa-eye"></i></button>`
+                `<button type="button" class="btn btn-secondary btn-sm" aria-label="Visualizar documento" onclick="viewDocument('${item.id}')"><i class="fa-solid fa-eye"></i></button>`
               : '')
             }
             ${window.isSharedView ? '' : `
-              <button class="flight-action-btn delete" style="padding: 6px; font-size: 0.8rem;" onclick="deleteDocumentOrRes('${item.id}', ${item._isDoc})">
+              <button type="button" class="flight-action-btn delete" aria-label="Excluir ${item._isDoc ? 'documento' : 'reserva'}" style="padding: 6px; font-size: 0.8rem;" onclick="deleteDocumentOrRes('${item.id}', ${item._isDoc})">
                 <i class="fa-solid fa-trash"></i>
               </button>
             `}
@@ -4877,10 +4912,12 @@ function setupAuthUI() {
     togglePasswordBtn.addEventListener("click", () => {
       if (passwordInput.type === "password") {
         passwordInput.type = "text";
+        togglePasswordBtn.setAttribute("aria-label", "Ocultar senha");
         passwordEyeIcon.classList.remove("fa-eye");
         passwordEyeIcon.classList.add("fa-eye-slash");
       } else {
         passwordInput.type = "password";
+        togglePasswordBtn.setAttribute("aria-label", "Mostrar senha");
         passwordEyeIcon.classList.remove("fa-eye-slash");
         passwordEyeIcon.classList.add("fa-eye");
       }
@@ -5181,9 +5218,9 @@ function renderFlights() {
       <div class="flight-card glass-panel" data-index="${index}">
         ${isSharedView ? '' : `
         <div class="flight-card-actions">
-          <button class="flight-action-btn refresh" onclick="window.refreshFlightStatus(${index})" title="Atualizar Status"><i class="fa-solid fa-rotate"></i></button>
-          <button class="flight-action-btn edit" onclick="window.editFlight(${index})"><i class="fa-solid fa-pen"></i></button>
-          <button class="flight-action-btn delete" onclick="window.deleteFlight(${index})"><i class="fa-solid fa-trash"></i></button>
+          <button type="button" class="flight-action-btn refresh" onclick="window.refreshFlightStatus(${index})" title="Atualizar status"><i class="fa-solid fa-rotate"></i></button>
+          <button type="button" class="flight-action-btn edit" aria-label="Editar voo" onclick="window.editFlight(${index})"><i class="fa-solid fa-pen"></i></button>
+          <button type="button" class="flight-action-btn delete" aria-label="Excluir voo" onclick="window.deleteFlight(${index})"><i class="fa-solid fa-trash"></i></button>
         </div>
         `}
         
@@ -5979,7 +6016,7 @@ function renderSplitwise() {
                 </div>
               </div>
               ${isSharedView ? '' : `
-              <button class="flight-action-btn delete" onclick="deleteExpense(${idx})" style="padding: 6px;"><i class="fa-solid fa-trash"></i></button>
+              <button type="button" class="flight-action-btn delete" aria-label="Excluir despesa" onclick="deleteExpense(${idx})" style="padding: 6px;"><i class="fa-solid fa-trash"></i></button>
               `}
             </div>
           </div>

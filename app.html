@@ -5,6 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>CoPiloto de Viagem - Painel Interativo</title>
   <meta name="description" content="Seu painel pessoal para planejar a viagem perfeita. Roteiro interativo, mala inteligente e orçamento reativo.">
+  <meta name="theme-color" content="#070b14">
+  <meta name="color-scheme" content="dark light">
+  <link rel="icon" href="/assets/app-icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/assets/logo.jpeg">
   
   <!-- Modern Typography (Google Fonts) -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -27,7 +31,7 @@
   <!-- Lightbox for Gallery or PDF views -->
   <div class="lightbox" id="galleryLightbox">
     <div class="lightbox-content">
-      <button class="lightbox-close" id="closeLightbox"><i class="fa-solid fa-xmark"></i></button>
+      <button type="button" class="lightbox-close" id="closeLightbox" aria-label="Fechar visualização"><i class="fa-solid fa-xmark"></i></button>
       <img src="" alt="" id="lightboxImg">
       <div class="lightbox-caption" id="lightboxCaption">Legenda da Imagem</div>
     </div>
@@ -67,7 +71,7 @@
           <label for="loginPassword">Senha</label>
           <div style="position: relative; width: 100%;">
             <input type="password" id="loginPassword" placeholder="Digite sua senha..." required autocomplete="current-password" style="width: 100%; box-sizing: border-box; padding-right: 44px;">
-            <button type="button" id="togglePasswordVisibilityBtn" style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 4px; display: flex; align-items: center; justify-content: center; outline: none;">
+            <button type="button" id="togglePasswordVisibilityBtn" aria-label="Mostrar senha" style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 4px; display: flex; align-items: center; justify-content: center; outline: none;">
               <i class="fa-solid fa-eye" id="passwordEyeIcon" style="font-size: 1.05rem;"></i>
             </button>
           </div>
@@ -124,7 +128,7 @@
         </span>
       </button>
       <div class="app-topbar-actions">
-        <span class="app-version">2.2 Preview</span>
+        <span class="app-version">2.2 RC</span>
         <div class="travel-badge hidden" id="travelModeBadge">✈ Na Viagem</div>
         <button class="topbar-action tutorial-trigger-btn" id="tutorialBtn" title="Conhecer o aplicativo" type="button">
           <i class="fa-regular fa-circle-question"></i><span>Ajuda</span>
@@ -408,7 +412,7 @@
 
         <!-- Document Upload Area (kept for generic uploads if needed) -->
         <div id="documentUploadArea" style="display: flex; flex-direction: column; align-items: center; justify-content: center; border: 2px dashed var(--border-color); border-radius: var(--border-radius-md); padding: 20px; text-align: center; cursor: pointer; position: relative; background: rgba(255, 255, 255, 0.01); transition: background 0.2s, border-color 0.2s; margin-bottom: 24px;">
-          <input type="file" id="documentFileInput" accept="application/pdf,image/*" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer;">
+          <input type="file" id="documentFileInput" aria-label="Enviar documento de viagem" accept="application/pdf,image/*" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer;">
           <i class="fa-solid fa-cloud-arrow-up" style="font-size: 1.8rem; color: var(--primary); margin-bottom: 8px;"></i>
           <h4 style="font-size: 0.85rem; font-weight: 700; margin-bottom: 4px; color: var(--text-main);">Arraste ou clique para enviar um arquivo</h4>
           <p style="font-size: 0.72rem; color: var(--text-muted); margin: 0;">PDF ou Imagem (Máx. 4MB)</p>
@@ -449,7 +453,7 @@
             <button class="btn btn-primary btn-sm" onclick="switchTab('logistica')" style="padding: 6px 12px; font-size: 0.74rem; background: linear-gradient(135deg, var(--primary) 0%, #1d4ed8 100%); border: none; white-space: nowrap;">
               <i class="fa-solid fa-plane-departure"></i> Preencher Logística
             </button>
-            <button type="button" id="closeItineraryOptimizationBanner" style="background: transparent; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.1rem; padding: 4px; line-height: 1; display: flex; align-items: center; justify-content: center; transition: color 0.2s;"><i class="fa-solid fa-xmark"></i></button>
+            <button type="button" id="closeItineraryOptimizationBanner" aria-label="Dispensar aviso de otimização" style="background: transparent; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.1rem; padding: 4px; line-height: 1; display: flex; align-items: center; justify-content: center; transition: color 0.2s;"><i class="fa-solid fa-xmark"></i></button>
           </div>
         </div>
 
@@ -601,7 +605,7 @@
                   <span>Hospedagem &amp; Voos</span>
                   <span id="labelHospedagem">R$ 0</span>
                 </div>
-                <input type="range" class="budget-slider" id="slideHospedagem" min="0" max="10000" step="100" value="0" oninput="updateBudget()">
+                <input type="range" class="budget-slider" id="slideHospedagem" aria-label="Orçamento de hospedagem" min="0" max="10000" step="100" value="0" oninput="updateBudget()">
               </div>
               
               <div class="budget-input-group">
@@ -609,7 +613,7 @@
                   <span>Alimentação</span>
                   <span id="labelAlimentacao">R$ 0</span>
                 </div>
-                <input type="range" class="budget-slider" id="slideAlimentacao" min="0" max="5000" step="50" value="0" oninput="updateBudget()">
+                <input type="range" class="budget-slider" id="slideAlimentacao" aria-label="Orçamento de alimentação" min="0" max="5000" step="50" value="0" oninput="updateBudget()">
               </div>
               
               <div class="budget-input-group">
@@ -617,7 +621,7 @@
                   <span>Passeios &amp; Atrações</span>
                   <span id="labelPasseios">R$ 0</span>
                 </div>
-                <input type="range" class="budget-slider" id="slidePasseios" min="0" max="5000" step="50" value="0" oninput="updateBudget()">
+                <input type="range" class="budget-slider" id="slidePasseios" aria-label="Orçamento de passeios" min="0" max="5000" step="50" value="0" oninput="updateBudget()">
               </div>
               
               <div class="budget-input-group">
@@ -625,7 +629,7 @@
                   <span>Compras &amp; Emergências</span>
                   <span id="labelCompras">R$ 0</span>
                 </div>
-                <input type="range" class="budget-slider" id="slideCompras" min="0" max="5000" step="50" value="0" oninput="updateBudget()">
+                <input type="range" class="budget-slider" id="slideCompras" aria-label="Orçamento de compras" min="0" max="5000" step="50" value="0" oninput="updateBudget()">
               </div>
             </div>
           </div>
@@ -759,15 +763,15 @@
           </div>
         </div>
         <!-- Input -->
-        <input type="file" id="planFileInput" style="display: none;" accept="image/*,application/pdf,text/*">
-        <input type="file" id="planCameraInput" style="display: none;" accept="image/*" capture="environment">
+        <input type="file" id="planFileInput" aria-label="Anexar arquivo ao chat de planejamento" style="display: none;" accept="image/*,application/pdf,text/*">
+        <input type="file" id="planCameraInput" aria-label="Tirar foto para o chat de planejamento" style="display: none;" accept="image/*" capture="environment">
         <div id="planAttachmentPreview" class="attachment-preview-container hidden" style="align-items: center; gap: 10px; padding: 8px 12px; background: rgba(255,255,255,0.04); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); margin: 8px 16px 0; display: none;"></div>
         <div class="chat-input-area">
           <textarea id="chatInput" placeholder="Ex: Quero ir a Lisboa em julho por 10 dias..." rows="1"></textarea>
           <div class="input-actions">
             <button class="input-btn" id="attachBtn" title="Anexar Arquivo"><i class="fa-solid fa-paperclip"></i></button>
             <button class="input-btn" id="cameraBtn" title="Tirar Foto"><i class="fa-solid fa-camera"></i></button>
-            <button class="send-btn" id="sendBtn"><i class="fa-solid fa-paper-plane"></i></button>
+            <button type="button" class="send-btn" id="sendBtn" aria-label="Enviar mensagem"><i class="fa-solid fa-paper-plane"></i></button>
           </div>
         </div>
       </div>
@@ -812,15 +816,15 @@
           </div>
         </div>
         <!-- Input -->
-        <input type="file" id="travelFileInput" style="display: none;" accept="image/*,application/pdf,text/*">
-        <input type="file" id="travelCameraInput" style="display: none;" accept="image/*" capture="environment">
+        <input type="file" id="travelFileInput" aria-label="Anexar arquivo ao chat durante a viagem" style="display: none;" accept="image/*,application/pdf,text/*">
+        <input type="file" id="travelCameraInput" aria-label="Tirar foto para o chat durante a viagem" style="display: none;" accept="image/*" capture="environment">
         <div id="travelAttachmentPreview" class="attachment-preview-container hidden" style="align-items: center; gap: 10px; padding: 8px 12px; background: rgba(255,255,255,0.04); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); margin: 8px 16px 0; display: none;"></div>
         <div class="chat-input-area">
           <textarea id="travelChatInput" placeholder="Ex: Estou na Plaza de Mayo em Buenos Aires, me leve em um tour imersivo..." rows="1"></textarea>
           <div class="input-actions">
             <button class="input-btn" id="travelAttachBtn" title="Anexar Arquivo"><i class="fa-solid fa-paperclip"></i></button>
             <button class="input-btn" id="travelCameraBtn" title="Tirar Foto"><i class="fa-solid fa-camera"></i></button>
-            <button class="send-btn" id="travelSendBtn"><i class="fa-solid fa-paper-plane"></i></button>
+            <button type="button" class="send-btn" id="travelSendBtn" aria-label="Enviar mensagem durante a viagem"><i class="fa-solid fa-paper-plane"></i></button>
           </div>
         </div>
       </div>
@@ -831,11 +835,11 @@
   </div>
 
   <!-- Flight Modal Overlay -->
-  <div class="modal-overlay hidden" id="flightModal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 100000; padding: 20px; box-sizing: border-box;">
+  <div class="modal-overlay hidden" id="flightModal" role="dialog" aria-modal="true" aria-labelledby="flightModalTitle" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 100000; padding: 20px; box-sizing: border-box;">
     <div class="modal-card glass-panel" style="max-width: 480px; width: 100%; max-height: 90vh; overflow-y: auto; padding: 30px; border-radius: var(--border-radius-lg); box-shadow: var(--shadow-lg);">
       <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--border-color); padding-bottom: 12px;">
         <h3 id="flightModalTitle" style="margin: 0; font-size: 1.2rem; font-weight: 700; color: var(--text-main);"><i class="fa-solid fa-plane-arrival" style="color: var(--primary); margin-right: 8px;"></i> Adicionar Voo</h3>
-        <button class="modal-close" id="closeFlightModal" style="background: transparent; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.2rem;"><i class="fa-solid fa-xmark"></i></button>
+        <button type="button" class="modal-close" id="closeFlightModal" aria-label="Fechar cadastro de voo" style="background: transparent; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.2rem;"><i class="fa-solid fa-xmark"></i></button>
       </div>
       
       <form class="modal-form" id="flightForm" style="display: flex; flex-direction: column; gap: 14px;">
@@ -954,7 +958,7 @@
         <h3 class="text-import-title" style="margin: 0; font-size: 1.25rem; font-weight: 800; color: white; display: flex; align-items: center; gap: 10px;">
           <i class="fa-solid fa-paste" style="color: #10b981;"></i> Importar por Texto
         </h3>
-        <button class="modal-close" id="closeTextImportModal" style="background: transparent; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.2rem; transition: color 0.2s, transform 0.2s;"><i class="fa-solid fa-xmark"></i></button>
+        <button type="button" class="modal-close" id="closeTextImportModal" aria-label="Fechar importação de texto" style="background: transparent; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.2rem; transition: color 0.2s, transform 0.2s;"><i class="fa-solid fa-xmark"></i></button>
       </div>
       
       <p style="font-size: 0.82rem; color: var(--text-light); line-height: 1.5; margin: 0;">
@@ -976,11 +980,11 @@
   </dialog>
   
   <!-- Expense Modal Overlay (Splitwise) -->
-  <div class="modal-overlay hidden" id="expenseModal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 100000; padding: 20px; box-sizing: border-box;">
+  <div class="modal-overlay hidden" id="expenseModal" role="dialog" aria-modal="true" aria-labelledby="expenseModalTitle" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 100000; padding: 20px; box-sizing: border-box;">
     <div class="modal-card glass-panel" style="max-width: 440px; width: 100%; max-height: 90vh; overflow-y: auto; padding: 30px; border-radius: var(--border-radius-lg); box-shadow: var(--shadow-lg);">
       <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--border-color); padding-bottom: 12px;">
         <h3 id="expenseModalTitle" style="margin: 0; font-size: 1.2rem; font-weight: 700; color: var(--text-main);"><i class="fa-solid fa-receipt" style="color: var(--primary); margin-right: 8px;"></i> Adicionar Despesa</h3>
-        <button class="modal-close" id="closeExpenseModal" style="background: transparent; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.2rem;"><i class="fa-solid fa-xmark"></i></button>
+        <button type="button" class="modal-close" id="closeExpenseModal" aria-label="Fechar cadastro de despesa" style="background: transparent; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.2rem;"><i class="fa-solid fa-xmark"></i></button>
       </div>
       
       <form class="modal-form" id="expenseForm" style="display: flex; flex-direction: column; gap: 14px;">
@@ -1289,11 +1293,11 @@
   </div>
 
   <!-- Create Trip Modal Overlay -->
-  <div class="modal-overlay hidden" id="createTripModal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 100000; padding: 20px; box-sizing: border-box;">
+  <div class="modal-overlay hidden" id="createTripModal" role="dialog" aria-modal="true" aria-labelledby="createTripModalTitle" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 100000; padding: 20px; box-sizing: border-box;">
     <div class="modal-card glass-panel" style="max-width: 500px; width: 100%; max-height: 90vh; overflow-y: auto; padding: 30px; border-radius: var(--border-radius-lg); box-shadow: var(--shadow-lg);">
       <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--border-color); padding-bottom: 12px;">
-        <h3 style="margin: 0; font-size: 1.2rem; font-weight: 700; color: var(--text-main);"><i class="fa-solid fa-route" style="color: var(--primary); margin-right: 8px;"></i> Criar Nova Viagem</h3>
-        <button class="modal-close" id="closeCreateTripModal" style="background: transparent; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.2rem;"><i class="fa-solid fa-xmark"></i></button>
+        <h3 id="createTripModalTitle" style="margin: 0; font-size: 1.2rem; font-weight: 700; color: var(--text-main);"><i class="fa-solid fa-route" style="color: var(--primary); margin-right: 8px;"></i> Criar Nova Viagem</h3>
+        <button type="button" class="modal-close" id="closeCreateTripModal" aria-label="Fechar criação de viagem" style="background: transparent; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.2rem;"><i class="fa-solid fa-xmark"></i></button>
       </div>
       
       <!-- Step 1: Mode Choice -->
@@ -1348,7 +1352,7 @@
         <h4 style="margin-top: 0; margin-bottom: 15px;">Importar Comprovantes</h4>
         
         <div id="createTripUploadArea" style="display: flex; flex-direction: column; align-items: center; justify-content: center; border: 2px dashed var(--border-color); border-radius: var(--border-radius-md); padding: 20px; text-align: center; cursor: pointer; position: relative; background: rgba(255, 255, 255, 0.01); transition: background 0.2s, border-color 0.2s;">
-          <input type="file" id="createTripFileInput" accept="application/pdf,image/*" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer;" multiple>
+          <input type="file" id="createTripFileInput" aria-label="Importar documentos para a nova viagem" accept="application/pdf,image/*" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer;" multiple>
           <i class="fa-solid fa-cloud-arrow-up" style="font-size: 1.8rem; color: var(--primary); margin-bottom: 8px;"></i>
           <h4 style="font-size: 0.85rem; font-weight: 700; margin-bottom: 4px; color: var(--text-main);">Arraste ou clique para enviar</h4>
           <p style="font-size: 0.72rem; color: var(--text-muted); margin: 0;">PDF ou Imagem</p>
@@ -1412,13 +1416,14 @@
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('/sw.js')
           .then(reg => {
+            if (!reg) return;
             console.log('Service Worker registered successfully in app:', reg.scope);
             reg.onupdatefound = () => {
               const installingWorker = reg.installing;
+              if (!installingWorker) return;
               installingWorker.onstatechange = () => {
                 if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                  console.log('New version detected! Reloading page...');
-                  window.location.reload();
+                  console.log('New version detected and ready for the next navigation.');
                 }
               };
             };
@@ -1432,7 +1437,7 @@
   <div id="undoToast" class="hidden fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-4 z-[9999]">
     <span>Ação realizada com sucesso.</span>
     <button id="undoBtn" class="text-blue-400 hover:text-blue-300 font-bold underline">Desfazer</button>
-    <button id="closeUndoBtn" class="text-gray-400 hover:text-gray-200 ml-2"><i class="fa-solid fa-times"></i></button>
+    <button type="button" id="closeUndoBtn" aria-label="Fechar aviso de desfazer" class="text-gray-400 hover:text-gray-200 ml-2"><i class="fa-solid fa-times"></i></button>
   </div>
 
   <!-- Confirm Modal -->
@@ -1448,11 +1453,11 @@
     </div>
   </div>
 
-  <div class="modal-overlay hidden" id="reservationModal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 100000; padding: 20px; box-sizing: border-box;">
+  <div class="modal-overlay hidden" id="reservationModal" role="dialog" aria-modal="true" aria-labelledby="reservationModalTitle" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 100000; padding: 20px; box-sizing: border-box;">
     <div class="modal-card glass-panel" style="max-width: 500px; width: 100%; max-height: 90vh; overflow-y: auto; padding: 30px; border-radius: var(--border-radius-lg); box-shadow: var(--shadow-lg);">
       <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--border-color); padding-bottom: 12px;">
         <h3 id="reservationModalTitle" style="margin: 0; font-size: 1.2rem; font-weight: 700; color: var(--text-main);"><i class="fa-solid fa-bookmark" style="color: var(--primary); margin-right: 8px;"></i> Adicionar Reserva</h3>
-        <button class="modal-close" id="closeReservationModal" style="background: transparent; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.2rem;"><i class="fa-solid fa-xmark"></i></button>
+        <button type="button" class="modal-close" id="closeReservationModal" aria-label="Fechar cadastro de reserva" style="background: transparent; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.2rem;"><i class="fa-solid fa-xmark"></i></button>
       </div>
       
       <form class="modal-form" id="reservationForm" style="display: flex; flex-direction: column; gap: 14px;">
@@ -1509,10 +1514,10 @@
   </div>
 
   <!-- Paywall Modal -->
-  <div class="modal-overlay hidden" id="paywallModal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 100000; padding: 20px; box-sizing: border-box;">
+  <div class="modal-overlay hidden" id="paywallModal" role="dialog" aria-modal="true" aria-labelledby="paywallTitle" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 100000; padding: 20px; box-sizing: border-box;">
     <div class="modal-card glass-panel" style="max-width: 500px; width: 100%; max-height: 90vh; overflow-y: auto; padding: 30px; border-radius: var(--border-radius-lg); box-shadow: var(--shadow-lg); text-align: center;">
       <i class="fa-solid fa-gem" style="color: var(--primary); font-size: 3rem; margin-bottom: 20px;"></i>
-      <h3 style="margin: 0 0 10px; font-size: 1.5rem; font-weight: 700; color: var(--text-main);">Limite Alcançado</h3>
+      <h3 id="paywallTitle" style="margin: 0 0 10px; font-size: 1.5rem; font-weight: 700; color: var(--text-main);">Limite Alcançado</h3>
       <p style="color: var(--text-muted); margin-bottom: 20px;" id="paywallMessage">Você atingiu o limite do seu plano atual.</p>
       
       <div style="background: rgba(46, 148, 168, 0.1); padding: 15px; border-radius: 8px; margin-bottom: 20px;">
@@ -1522,16 +1527,18 @@
       </div>
 
       <div style="display: flex; gap: 10px; justify-content: center;">
-        <button id="closePaywallBtn" class="btn btn-secondary" style="padding: 10px 20px;">Entendi</button>
-        <button id="upgradePlanBtn" class="btn btn-primary" style="padding: 10px 20px;"><i class="fa-solid fa-arrow-up-right-dots"></i> Ver Opções</button>
+        <button type="button" id="closePaywallBtn" class="btn btn-secondary" style="padding: 10px 20px;">Entendi</button>
+        <button type="button" id="upgradePlanBtn" class="btn btn-primary" style="padding: 10px 20px;"><i class="fa-solid fa-arrow-up-right-dots"></i> Ver Opções</button>
       </div>
     </div>
+  </div>
+
   <!-- Modal de Configuração de Compartilhamento -->
-  <div class="modal-overlay hidden" id="shareConfigModal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 100000; padding: 20px; box-sizing: border-box;">
+  <div class="modal-overlay hidden" id="shareConfigModal" role="dialog" aria-modal="true" aria-labelledby="shareConfigTitle" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 100000; padding: 20px; box-sizing: border-box;">
     <div class="modal-card glass-panel" style="max-width: 450px; width: 100%; padding: 24px; border-radius: var(--border-radius-lg); position: relative; background: var(--bg-card); border: 1px solid var(--border-color);">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-        <h3 style="margin: 0; font-size: 1.2rem; font-weight: 700; color: var(--text-light); display: flex; align-items: center; gap: 8px;"><i class="fa-solid fa-lock" style="color: var(--primary);"></i> Privacidade do Compartilhamento</h3>
-        <button class="btn-close" id="closeShareConfigModalBtn" style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.2rem; outline: none;"><i class="fa-solid fa-xmark"></i></button>
+        <h3 id="shareConfigTitle" style="margin: 0; font-size: 1.2rem; font-weight: 700; color: var(--text-light); display: flex; align-items: center; gap: 8px;"><i class="fa-solid fa-lock" style="color: var(--primary);"></i> Privacidade do Compartilhamento</h3>
+        <button type="button" class="btn-close" id="closeShareConfigModalBtn" aria-label="Fechar configurações de privacidade" style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.2rem; outline: none;"><i class="fa-solid fa-xmark"></i></button>
       </div>
       
       <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 16px; line-height: 1.4;">Escolha quais informações ficarão visíveis para outras pessoas que acessarem o link de compartilhamento da viagem.</p>

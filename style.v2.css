@@ -1,5 +1,5 @@
 /* ========================================================================== 
-   COPILOTO 2.1 — APPLICATION SHELL
+   COPILOTO 2.2 — APPLICATION SHELL
    Visual layer only. Existing IDs and behavior remain untouched.
    ========================================================================== */
 
@@ -280,6 +280,8 @@ body.light-theme .app-topbar {
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
 }
+
+.bottom-nav[style*="display: none"] { display: none !important; }
 
 body.light-theme .bottom-nav { background: rgba(248, 250, 255, 0.9) !important; }
 
@@ -621,6 +623,11 @@ body.light-theme #proactiveInsightsSection { background: rgba(255, 255, 255, 0.5
 /* ── Trips, generic cards and empty states ───────────────────────────────── */
 
 #myTripsSection { padding-top: 38px !important; }
+#dashboardContent.trips-view > :not(#myTripsSection) { display: none !important; }
+#dashboardContent.trips-view #myTripsSection {
+  min-height: 100%;
+  padding-bottom: 64px !important;
+}
 .trips-grid { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)) !important; }
 .trips-grid > .glass-panel { min-height: 205px; padding: 20px !important; }
 .trips-grid > .glass-panel h4 { color: var(--text-main) !important; letter-spacing: -0.02em; }
@@ -735,7 +742,19 @@ body.light-theme #proactiveInsightsSection { background: rgba(255, 255, 255, 0.5
 #splitwisePanel { padding: 24px !important; }
 .budget-chart-donut { filter: saturate(0.9); }
 .budget-slider { accent-color: var(--primary-color); }
-.btn-sub-tab { border-radius: 999px !important; }
+.btn-sub-tab {
+  border: 1px solid rgba(142, 155, 190, 0.2) !important;
+  border-radius: 999px !important;
+  background: rgba(255, 255, 255, 0.035) !important;
+  color: var(--text-light) !important;
+  box-shadow: none !important;
+}
+.btn-sub-tab:hover { border-color: rgba(124, 140, 255, 0.4) !important; color: var(--text-main) !important; }
+.btn-sub-tab.active {
+  border-color: rgba(124, 140, 255, 0.5) !important;
+  background: rgba(124, 140, 255, 0.14) !important;
+  color: #c9ceff !important;
+}
 .expense-item { border-radius: 15px !important; background: rgba(255, 255, 255, 0.025) !important; }
 
 /* ── Packing ────────────────────────────────────────────────────────────── */
@@ -918,6 +937,18 @@ body.light-theme .chat-input-area { background: rgba(255, 255, 255, 0.96) !impor
   :root { --topbar-height: 64px; }
 
   html, body { overflow: hidden !important; }
+
+  .login-screen {
+    align-items: flex-start !important;
+    overflow-y: auto !important;
+    padding: max(14px, env(safe-area-inset-top, 0px)) 16px max(20px, env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  .login-card {
+    flex: 0 0 auto;
+    margin: 0 auto !important;
+    padding: 26px 22px !important;
+  }
 
   .app-container {
     grid-template-columns: minmax(0, 1fr) !important;

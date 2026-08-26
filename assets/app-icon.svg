@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title id="title">CoPiloto de Viagem</title>
+  <defs>
+    <linearGradient id="bg" x1="64" y1="48" x2="448" y2="464" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1c2850"/>
+      <stop offset="1" stop-color="#090e1a"/>
+    </linearGradient>
+    <linearGradient id="ring" x1="120" y1="104" x2="400" y2="416" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8d9aff"/>
+      <stop offset=".52" stop-color="#6d7cff"/>
+      <stop offset="1" stop-color="#39d4b4"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="128" fill="url(#bg)"/>
+  <circle cx="256" cy="256" r="154" fill="#0d1527" stroke="url(#ring)" stroke-width="24"/>
+  <path d="M256 138c-65 0-118 53-118 118s53 118 118 118 118-53 118-118" fill="none" stroke="#eef1ff" stroke-width="28" stroke-linecap="round"/>
+  <path d="m348 142 8 72-72-8 64-64Z" fill="#39d4b4"/>
+  <circle cx="256" cy="256" r="28" fill="#8d9aff"/>
+</svg>
