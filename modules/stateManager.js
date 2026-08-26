@@ -30,6 +30,7 @@ export function normalizeTripState(trip) {
     travelers: [],
     accommodations: [],
     reservations: [],
+    timezone: "America/Sao_Paulo",
     preferences: { pace: "moderate", interests: [], dietary_restrictions: [] },
     readiness: { packing_percentage: 0, checklist_todo_count: 0, has_missing_documents: false },
     partner_opportunities: [],

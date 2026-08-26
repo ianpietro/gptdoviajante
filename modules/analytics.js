@@ -26,6 +26,12 @@ export const EVENTS = {
   TRIP_PLAN_GENERATED:    'trip_plan_generated',
   TRIP_BRAIN_ACTION:      'trip_brain_action',
   AI_MESSAGE_SENT:        'ai_message_sent',
+  // CoPiloto Proativo (somente metadados; nunca conteúdo da viagem)
+  PROACTIVE_ENGINE_EVALUATED: 'proactive_engine_evaluated',
+  PROACTIVE_INSIGHT_SHOWN: 'proactive_insight_shown',
+  PROACTIVE_INSIGHT_OPENED: 'proactive_insight_opened',
+  PROACTIVE_INSIGHT_SNOOZED: 'proactive_insight_snoozed',
+  PROACTIVE_INSIGHT_DISMISSED: 'proactive_insight_dismissed',
   // Progresso
   READINESS_PROGRESS:     'readiness_progress',
   // Parceiros

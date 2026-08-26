@@ -4,6 +4,14 @@ Este guia descreve como aplicar as migrações SQL necessárias no Supabase para
 1. Rate limiting distribuído baseado no banco de dados.
 2. Reserva atômica de cota de IA (contra race conditions) com rollback.
 3. Políticas RLS estritas de Trips e Documents (bloqueio de leitura pública anônima).
+4. Datas canônicas e preferências privadas do CoPiloto Proativo.
+
+As migrações devem ser executadas em ordem (`001` → `002` → `003` → `004`).
+Para o Prompt 11, execute o arquivo `004_proactive_trip_dates.sql` completo depois das três anteriores. Ele é idempotente, preserva os dados existentes e cria:
+
+- `trips.start_date`, `trips.end_date` e `trips.timezone`;
+- a validação do ciclo de vida da viagem;
+- `proactive_insight_preferences`, protegida por RLS, para sincronizar apenas dispensas e lembretes do dono da viagem.
 
 ---
 

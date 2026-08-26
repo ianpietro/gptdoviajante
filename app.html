@@ -205,6 +205,19 @@
           <p id="readinessDescription" style="margin: 0; font-size: 0.8rem; color: var(--text-muted);">Complete os itens essenciais para viajar com tranquilidade.</p>
         </div>
 
+        <!-- CoPiloto Proativo: percepções derivadas somente dos dados salvos -->
+        <section id="proactiveInsightsSection" class="hidden" aria-labelledby="proactiveInsightsTitle" style="margin-bottom: 24px;">
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px;">
+            <div>
+              <h3 id="proactiveInsightsTitle" style="margin: 0; font-size: 1.05rem; display: flex; align-items: center; gap: 8px;">
+                <i class="fa-solid fa-compass" style="color: var(--primary-color);"></i> O CoPiloto percebeu
+              </h3>
+              <p style="margin: 4px 0 0; color: var(--text-muted); font-size: 0.78rem;">Sugestões baseadas no que já está salvo nesta viagem.</p>
+            </div>
+          </div>
+          <div id="proactiveInsightsList" style="display: grid; gap: 10px;"></div>
+        </section>
+
         <!-- Próximo Passo Dinâmico -->
         <div id="homeNextStepBanner" class="next-step-banner" style="background: linear-gradient(135deg, rgba(63, 131, 248, 0.15), rgba(63, 131, 248, 0.05)); border: 1px solid rgba(63, 131, 248, 0.3); border-radius: 12px; padding: 16px; margin-bottom: 24px; display: flex; align-items: center; gap: 16px; cursor: pointer;" onclick="switchTab('chat')">
           <div style="background: rgba(63, 131, 248, 0.2); width: 40px; height: 40px; border-radius: 50%; display: flex; justify-content: center; align-items: center; color: var(--primary-color);">

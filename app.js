@@ -20,6 +20,7 @@ import { partnerConfig, buildAffiliateLink, evaluateTripOpportunities, analytics
 import { plans, getEntitlements, getUserPlanState } from './modules/entitlementEngine.js';
 import { track as trackEvent, trackFirstValue, EVENTS } from './modules/analytics.js';
 import { initErrorHandler } from './modules/errorHandler.js';
+import { buildProactiveInsights, filterInactiveInsights } from './modules/proactiveEngine.js';
 
 // Expõe versão globalmente para logs, analytics e error handler
 window.APP_VERSION = APP_VERSION;
@@ -97,6 +98,8 @@ window.inferTripFromDocuments = inferTripFromDocuments;
 let chatHistory = [];
 let travelChatHistory = [];
 let activeTripId = null;
+const proactiveShownThisSession = new Set();
+const proactiveSyncRequested = new Set();
 
 // Instrumentation for debug (development-only logging)
 const DEBUG_MODE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
@@ -1229,6 +1232,9 @@ async function loadTrips() {
         infoHotel: t.hotel,
         hotelLink: t.hotel_link,
         targetDate: t.target_date,
+        start_date: t.start_date || (t.target_date ? String(t.target_date).slice(0, 10) : null),
+        end_date: t.end_date,
+        timezone: t.timezone,
         budget: t.budget,
         budgetThresholds: t.budget_thresholds,
         budgetAnalysis: t.budget_analysis,
@@ -1271,6 +1277,9 @@ async function loadTripById(id) {
           infoHotel: data.hotel,
           hotelLink: data.hotel_link,
           targetDate: data.target_date,
+          start_date: data.start_date || (data.target_date ? String(data.target_date).slice(0, 10) : null),
+          end_date: data.end_date,
+          timezone: data.timezone,
           budget: data.budget,
           budgetThresholds: data.budget_thresholds,
           budgetAnalysis: data.budget_analysis,
@@ -1332,6 +1341,9 @@ async function createTrip(destination, startDate, endDate) {
         hotel: newTrip.infoHotel,
         hotel_link: newTrip.hotelLink,
         target_date: newTrip.targetDate,
+        start_date: newTrip.start_date,
+        end_date: newTrip.end_date,
+        timezone: newTrip.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Sao_Paulo',
         budget: newTrip.budget,
         budget_thresholds: newTrip.budgetThresholds,
         budget_analysis: newTrip.budgetAnalysis,
@@ -1696,6 +1708,10 @@ async function loadState() {
             infoHotel: activeTrip.hotel,
             hotelLink: activeTrip.hotel_link,
             targetDate: activeTrip.target_date,
+            start_date: activeTrip.start_date || (activeTrip.target_date ? String(activeTrip.target_date).slice(0, 10) : null),
+            end_date: activeTrip.end_date,
+            timezone: activeTrip.timezone,
+            status: activeTrip.status,
             budget: activeTrip.budget,
             budgetThresholds: activeTrip.budget_thresholds,
             budgetAnalysis: activeTrip.budget_analysis,
@@ -1817,6 +1833,10 @@ async function saveState() {
         hotel: tripData.infoHotel || 'A definir',
         hotel_link: tripData.hotelLink || '',
         target_date: tripData.targetDate || null,
+        start_date: tripData.start_date || (tripData.targetDate ? String(tripData.targetDate).slice(0, 10) : null),
+        end_date: tripData.end_date || null,
+        timezone: tripData.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Sao_Paulo',
+        status: getSuggestedTripStatus(tripData.start_date, tripData.end_date, tripData.status),
         budget: tripData.budget || {},
         budget_thresholds: tripData.budgetThresholds || { economico: 150, intermediario: 450 },
         budget_analysis: tripData.budgetAnalysis || '',
@@ -7446,6 +7466,181 @@ function setupLogisticaSubTabs() {
   }
 }
 
+const PROACTIVE_ALLOWED_TABS = new Set(['chat', 'roteiro', 'orcamento', 'mala', 'logistica']);
+
+function getProactiveState() {
+  try {
+    const raw = localStorage.getItem(getTripStorageKey('gptViajante_proactiveInsights'));
+    const parsed = raw ? JSON.parse(raw) : {};
+    return {
+      dismissed: Array.isArray(parsed.dismissed) ? parsed.dismissed : [],
+      snoozed: parsed.snoozed && typeof parsed.snoozed === 'object' ? parsed.snoozed : {}
+    };
+  } catch {
+    return { dismissed: [], snoozed: {} };
+  }
+}
+
+function saveProactiveState(state) {
+  localStorage.setItem(getTripStorageKey('gptViajante_proactiveInsights'), JSON.stringify(state));
+}
+
+async function persistProactivePreference(insightId, status, snoozedUntil = null) {
+  const tripId = activeTripId || tripData?.id;
+  if (!currentUser?.id || !tripId || String(tripId).startsWith('temp_') || !navigator.onLine) return;
+  const { error } = await supabase.from('proactive_insight_preferences').upsert({
+    user_id: currentUser.id,
+    trip_id: tripId,
+    insight_id: insightId,
+    status,
+    snoozed_until: snoozedUntil,
+    updated_at: new Date().toISOString()
+  }, { onConflict: 'user_id,trip_id,insight_id' });
+  if (error) console.warn('Não foi possível sincronizar a preferência proativa:', error.message);
+}
+
+async function syncProactiveStateFromRemote() {
+  const tripId = activeTripId || tripData?.id;
+  if (!FEATURES.proactiveCopilot || isSharedView || !currentUser?.id || !tripId || String(tripId).startsWith('temp_') || !navigator.onLine) return;
+  const syncKey = `${currentUser.id}:${tripId}`;
+  if (proactiveSyncRequested.has(syncKey)) return;
+  proactiveSyncRequested.add(syncKey);
+
+  const { data, error } = await supabase
+    .from('proactive_insight_preferences')
+    .select('insight_id,status,snoozed_until')
+    .eq('user_id', currentUser.id)
+    .eq('trip_id', tripId);
+  if (error) {
+    proactiveSyncRequested.delete(syncKey);
+    console.warn('Não foi possível carregar preferências proativas:', error.message);
+    return;
+  }
+
+  const state = getProactiveState();
+  (data || []).forEach(row => {
+    if (row.status === 'dismissed' && !state.dismissed.includes(row.insight_id)) state.dismissed.push(row.insight_id);
+    if (row.status === 'snoozed' && row.snoozed_until) state.snoozed[row.insight_id] = row.snoozed_until;
+  });
+  saveProactiveState(state);
+  renderHomeDashboard();
+}
+
+function dismissProactiveInsight(insight) {
+  const state = getProactiveState();
+  if (!state.dismissed.includes(insight.id)) state.dismissed.push(insight.id);
+  delete state.snoozed[insight.id];
+  saveProactiveState(state);
+  persistProactivePreference(insight.id, 'dismissed').catch(() => {});
+  trackEvent(EVENTS.PROACTIVE_INSIGHT_DISMISSED, { rule_key: insight.ruleKey, severity: insight.severity });
+  renderHomeDashboard();
+}
+
+function snoozeProactiveInsight(insight) {
+  const state = getProactiveState();
+  const snoozedUntil = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+  state.snoozed[insight.id] = snoozedUntil;
+  saveProactiveState(state);
+  persistProactivePreference(insight.id, 'snoozed', snoozedUntil).catch(() => {});
+  trackEvent(EVENTS.PROACTIVE_INSIGHT_SNOOZED, { rule_key: insight.ruleKey, severity: insight.severity, hours: 24 });
+  renderHomeDashboard();
+}
+
+function openProactiveInsight(insight) {
+  if (!PROACTIVE_ALLOWED_TABS.has(insight.targetTab)) return;
+  trackEvent(EVENTS.PROACTIVE_INSIGHT_OPENED, { rule_key: insight.ruleKey, severity: insight.severity, target: insight.targetTab });
+  switchTab(insight.targetTab);
+}
+
+function renderProactiveInsights() {
+  const section = document.getElementById('proactiveInsightsSection');
+  const list = document.getElementById('proactiveInsightsList');
+  const legacyNextStep = document.getElementById('homeNextStepBanner');
+  if (!section || !list) return;
+
+  if (!FEATURES.proactiveCopilot || isSharedView) {
+    section.classList.add('hidden');
+    list.replaceChildren();
+    if (legacyNextStep) legacyNextStep.style.display = 'flex';
+    return;
+  }
+
+  const candidates = buildProactiveInsights(tripData, {
+    timeZone: tripData.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Sao_Paulo',
+    limit: 3
+  });
+  const insights = filterInactiveInsights(candidates, getProactiveState()).slice(0, 3);
+  trackEvent(EVENTS.PROACTIVE_ENGINE_EVALUATED, { candidate_count: candidates.length, visible_count: insights.length });
+
+  list.replaceChildren();
+  section.classList.toggle('hidden', insights.length === 0);
+  if (legacyNextStep) legacyNextStep.style.display = insights.length > 0 ? 'none' : 'flex';
+
+  const palette = {
+    urgent: { color: '#ef4444', background: 'rgba(239, 68, 68, 0.08)', border: 'rgba(239, 68, 68, 0.35)', label: 'Urgente' },
+    attention: { color: '#f59e0b', background: 'rgba(245, 158, 11, 0.08)', border: 'rgba(245, 158, 11, 0.35)', label: 'Atenção' },
+    info: { color: 'var(--primary-color)', background: 'rgba(63, 131, 248, 0.08)', border: 'rgba(63, 131, 248, 0.3)', label: 'Sugestão' }
+  };
+
+  insights.forEach(insight => {
+    const colors = palette[insight.severity] || palette.info;
+    const card = document.createElement('article');
+    card.className = 'glass-panel';
+    card.style.cssText = `padding: 14px; border: 1px solid ${colors.border}; background: ${colors.background}; display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: start;`;
+
+    const icon = document.createElement('div');
+    icon.style.cssText = `width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; color: ${colors.color}; background: var(--bg-card);`;
+    const iconGlyph = document.createElement('i');
+    iconGlyph.className = `fa-solid ${insight.icon}`;
+    icon.appendChild(iconGlyph);
+
+    const content = document.createElement('div');
+    const badge = document.createElement('span');
+    badge.textContent = colors.label;
+    badge.style.cssText = `display: inline-block; color: ${colors.color}; font-size: 0.68rem; font-weight: 800; text-transform: uppercase; margin-bottom: 3px;`;
+    const title = document.createElement('h4');
+    title.textContent = insight.title;
+    title.style.cssText = 'margin: 0 0 4px; font-size: 0.92rem; color: var(--text-light);';
+    const message = document.createElement('p');
+    message.textContent = insight.message;
+    message.style.cssText = 'margin: 0 0 10px; font-size: 0.8rem; line-height: 1.4; color: var(--text-muted);';
+    const actions = document.createElement('div');
+    actions.style.cssText = 'display: flex; gap: 8px; flex-wrap: wrap;';
+    const openButton = document.createElement('button');
+    openButton.type = 'button';
+    openButton.className = 'btn btn-primary btn-sm';
+    openButton.textContent = insight.ctaLabel;
+    openButton.onclick = () => openProactiveInsight(insight);
+    const snoozeButton = document.createElement('button');
+    snoozeButton.type = 'button';
+    snoozeButton.className = 'btn btn-secondary btn-sm';
+    snoozeButton.textContent = 'Lembrar amanhã';
+    snoozeButton.onclick = () => snoozeProactiveInsight(insight);
+    actions.append(openButton, snoozeButton);
+    content.append(badge, title, message, actions);
+
+    const dismissButton = document.createElement('button');
+    dismissButton.type = 'button';
+    dismissButton.setAttribute('aria-label', `Dispensar: ${insight.title}`);
+    dismissButton.title = 'Dispensar';
+    dismissButton.style.cssText = 'border: 0; background: transparent; color: var(--text-muted); cursor: pointer; padding: 4px;';
+    const dismissIcon = document.createElement('i');
+    dismissIcon.className = 'fa-solid fa-xmark';
+    dismissButton.appendChild(dismissIcon);
+    dismissButton.onclick = () => dismissProactiveInsight(insight);
+    card.append(icon, content, dismissButton);
+    list.appendChild(card);
+
+    const shownKey = `${activeTripId || tripData.id || 'local'}:${insight.id}`;
+    if (!proactiveShownThisSession.has(shownKey)) {
+      proactiveShownThisSession.add(shownKey);
+      trackEvent(EVENTS.PROACTIVE_INSIGHT_SHOWN, { rule_key: insight.ruleKey, severity: insight.severity });
+    }
+  });
+
+  syncProactiveStateFromRemote().catch(() => {});
+}
+
 
 
 window.renderHomeDashboard = function() {
@@ -7512,6 +7707,8 @@ window.renderHomeDashboard = function() {
     else if (rData.percentage > 60) readinessDesc.textContent = "Quase lá! Faltam poucos detalhes para sua viagem.";
     else readinessDesc.textContent = "Complete os itens essenciais para viajar com tranquilidade.";
   }
+
+  renderProactiveInsights();
   
   // 4. Dynamic Next Step
   const nextStepBanner = document.getElementById('homeNextStepBanner');
