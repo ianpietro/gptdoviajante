@@ -1,6 +1,6 @@
 // No-Cache Service Worker — always fetches from network
 // Bump this version string to force update on all clients
-const CACHE_VERSION = '20260826-v2.1.0-rc1-proactive-copilot';
+const CACHE_VERSION = '20260826-v2.2.0-preview1-redesign';
 
 // Install: take control immediately
 self.addEventListener('install', event => {

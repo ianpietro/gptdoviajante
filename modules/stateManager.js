@@ -320,7 +320,10 @@ export function calculateCountdown(startDateStr, statusStr, nowMs = Date.now()) 
     return { value: "--", label: "Dias" };
   }
   
-  const start = new Date(startDateStr);
+  const dateOnlyParts = typeof startDateStr === 'string' ? startDateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/) : null;
+  const start = dateOnlyParts
+    ? new Date(Number(dateOnlyParts[1]), Number(dateOnlyParts[2]) - 1, Number(dateOnlyParts[3]))
+    : new Date(startDateStr);
   start.setHours(0, 0, 0, 0);
   const now = new Date(nowMs);
   now.setHours(0, 0, 0, 0);

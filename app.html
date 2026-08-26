@@ -16,6 +16,7 @@
   
   <!-- Stylesheet -->
   <link rel="stylesheet" href="/style.v123.css">
+  <link rel="stylesheet" href="/style.v2.css">
   
   <!-- Web App Manifest for PWA -->
   <link rel="manifest" href="/manifest.json">
@@ -112,6 +113,45 @@
 
   <!-- Main Layout Container: Dashboard on Top, Chat on Bottom -->
   <div class="app-container hidden">
+
+    <!-- Persistent application shell -->
+    <header class="app-topbar">
+      <button class="app-brand" type="button" aria-label="Ir para a página inicial" onclick="switchTab('home')">
+        <span class="app-brand-mark"><i class="fa-solid fa-compass"></i></span>
+        <span class="app-brand-copy">
+          <strong>CoPiloto</strong>
+          <small>Seu painel de viagem</small>
+        </span>
+      </button>
+      <div class="app-topbar-actions">
+        <span class="app-version">2.2 Preview</span>
+        <div class="travel-badge hidden" id="travelModeBadge">✈ Na Viagem</div>
+        <button class="topbar-action tutorial-trigger-btn" id="tutorialBtn" title="Conhecer o aplicativo" type="button">
+          <i class="fa-regular fa-circle-question"></i><span>Ajuda</span>
+        </button>
+        <div class="user-profile hidden" id="userProfile">
+          <img src="" alt="Seu perfil" id="userAvatar" class="user-avatar">
+          <button class="topbar-action icon-only" id="toggleSettings" title="Configurações do aplicativo" type="button"><i class="fa-solid fa-sliders"></i></button>
+          <button class="topbar-action icon-only" id="logoutBtn" title="Sair" type="button"><i class="fa-solid fa-arrow-right-from-bracket"></i></button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Settings popover belongs to the global shell, not to the chat screen -->
+    <div class="settings-panel hidden" id="settingsPanel">
+      <div class="settings-panel-heading">
+        <div>
+          <span>Preferências</span>
+          <h3>Configurações do aplicativo</h3>
+        </div>
+        <i class="fa-solid fa-sliders"></i>
+      </div>
+      <p>Personalize a aparência ou limpe os dados salvos neste navegador.</p>
+      <div class="settings-buttons">
+        <button class="btn btn-secondary btn-sm" id="toggleThemeBtn" type="button"><i class="fa-solid fa-sun"></i> Tema Claro</button>
+        <button class="btn btn-secondary btn-sm danger-action" id="clearDataBtn" type="button"><i class="fa-solid fa-rotate-left"></i> Resetar dados locais</button>
+      </div>
+    </div>
 
 
     <nav class="bottom-nav" id="bottomNav">
@@ -695,40 +735,7 @@
 
     <!-- BOTTOM: AI TRAVEL CONSULTANT CHAT -->
     <aside class="chat-sidebar" id="chatSidebar">
-
-      <!-- Chat Top Bar: brand + tutorial + user -->
-      <div class="chat-header">
-        <div class="brand">
-          <div class="brand-icon"><i class="fa-solid fa-compass"></i></div>
-          <div class="brand-text">
-            <h2>CoPiloto <small style="font-size: 0.6rem; opacity: 0.5; font-weight: normal; vertical-align: middle; background: rgba(255,255,255,0.08); padding: 2px 6px; border-radius: 4px; margin-left: 4px;">v1.2.3</small></h2>
-            <span id="chatModeLabel">Planejar Roteiro</span>
-          </div>
-        </div>
-        <div class="header-actions">
-          <div class="travel-badge hidden" id="travelModeBadge">✈ Na Viagem</div>
-          <button class="btn btn-secondary btn-sm tutorial-trigger-btn" id="tutorialBtn" title="Tutorial do App" style="padding: 6px 12px; font-size: 0.78rem; display: flex; align-items: center; gap: 6px; border-radius: 20px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); color: var(--text-light); cursor: pointer;">
-            <i class="fa-solid fa-circle-question"></i> Tutorial
-          </button>
-          <div class="user-profile hidden" id="userProfile" style="display: flex; align-items: center; gap: 8px;">
-            <img src="" alt="Avatar" id="userAvatar" class="user-avatar" style="width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--border-color-glow); object-fit: cover;">
-            <button class="icon-btn" id="toggleSettings" title="Configurações do App"><i class="fa-solid fa-gear"></i></button>
-            <button class="icon-btn" id="logoutBtn" title="Sair"><i class="fa-solid fa-right-from-bracket"></i></button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Settings Dropdown (Collapsible) -->
-      <div class="settings-panel hidden" id="settingsPanel">
-        <h3><i class="fa-solid fa-sliders"></i> Configurações do App</h3>
-        <p>Gerencie seus dados locais salvos no navegador.</p>
-        <div class="settings-buttons" style="display: flex; flex-direction: column; gap: 10px;">
-          <button class="btn btn-secondary btn-sm" id="toggleThemeBtn" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;">
-            <i class="fa-solid fa-sun"></i> Tema Claro
-          </button>
-          <button class="btn btn-secondary btn-sm" id="clearDataBtn" style="width: 100%;">Resetar Todos os Dados</button>
-        </div>
-      </div>
+      <span id="chatModeLabel" class="sr-only">Planejar Roteiro</span>
 
       <!-- ── PLANNING CHAT (tab: chat) ─────────────────────────── -->
       <div class="chat-panel" id="planChatPanel">

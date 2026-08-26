@@ -1207,7 +1207,7 @@ async function loadTrips() {
     }
   }
 
-  if (!currentUser || !currentUser.id || !navigator.onLine) {
+  if (BYPASS_LOGIN || !currentUser || !currentUser.id || !navigator.onLine) {
     logDebug("trips_loaded_local", { count: tripsList.length });
     return tripsList;
   }
@@ -1259,7 +1259,7 @@ async function loadTripById(id) {
   let trip = tripsList.find(t => t.id === id);
   if (trip) return trip;
 
-  if (currentUser && currentUser.id && navigator.onLine) {
+  if (!BYPASS_LOGIN && currentUser && currentUser.id && navigator.onLine) {
     try {
       const { data, error } = await supabase
         .from('trips')
@@ -1329,7 +1329,7 @@ async function createTrip(destination, startDate, endDate) {
   const newTrip = normalizeTripState(rawTrip);
   newTrip.id = 'temp_' + Date.now();
 
-  if (currentUser && currentUser.id && navigator.onLine) {
+  if (!BYPASS_LOGIN && currentUser && currentUser.id && navigator.onLine) {
     try {
       const tripToSave = {
         user_id: currentUser.id,
@@ -1389,7 +1389,7 @@ async function archiveTrip(id) {
     trip.status = 'archived';
     localStorage.setItem(getUserStorageKey("gptViajante_trips"), JSON.stringify(tripsList));
     
-    if (currentUser && currentUser.id && navigator.onLine && !id.toString().startsWith('temp_')) {
+    if (!BYPASS_LOGIN && currentUser && currentUser.id && navigator.onLine && !id.toString().startsWith('temp_')) {
       try {
         await supabase
           .from('trips')
@@ -1637,7 +1637,7 @@ async function loadState() {
     }
 
     // Now query Supabase in the background asynchronously if online
-    if (navigator.onLine) {
+    if (!BYPASS_LOGIN && navigator.onLine) {
       setTimeout(async () => {
         try {
           console.log("Syncing state with Supabase in background...");
@@ -1813,7 +1813,7 @@ async function saveState() {
   localStorage.setItem(getTripStorageKey("gptViajante_tripData"), JSON.stringify(tripData));
   logDebug("trip_saved_local", { id: tripData.id, title: tripData.tripTitle });
 
-  if (!currentUser || !currentUser.id) return;
+  if (BYPASS_LOGIN || !currentUser || !currentUser.id) return;
   
   if (!navigator.onLine) {
     console.log("Device offline. State saved locally, skipping Supabase remote sync.");
@@ -4666,7 +4666,10 @@ async function handleUserLoggedIn(user, token) {
   }
 
   const cacheKey = `gptViajante_verified_${user.email}`;
-  const isCachedVerified = localStorage.getItem(cacheKey) === "true";
+  // Local previews use a dummy user and must never call the production
+  // entitlement endpoint. Production continues to require a cached or live
+  // verification exactly as before.
+  const isCachedVerified = BYPASS_LOGIN || localStorage.getItem(cacheKey) === "true";
 
   // Transition UI to authenticated dashboard view
   const transitionToApp = () => {
@@ -4708,24 +4711,26 @@ async function handleUserLoggedIn(user, token) {
     renderDashboard();
 
     // 2. Perform background access token verification
-    fetch("/api/verify", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`
-      }
-    }).then(async (res) => {
-      if (!res.ok) {
-        // Access revoked! Clear local cache and force logout
-        localStorage.removeItem(cacheKey);
-        await logout();
-        alert("⚠️ Seu acesso não está cadastrado ou foi revogado.");
-      } else {
-        localStorage.setItem(cacheKey, "true");
-      }
-    }).catch(err => {
-      console.warn("Background verification failed, keeping cached status:", err);
-    });
+    if (!BYPASS_LOGIN) {
+      fetch("/api/verify", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        }
+      }).then(async (res) => {
+        if (!res.ok) {
+          // Access revoked! Clear local cache and force logout
+          localStorage.removeItem(cacheKey);
+          await logout();
+          alert("⚠️ Seu acesso não está cadastrado ou foi revogado.");
+        } else {
+          localStorage.setItem(cacheKey, "true");
+        }
+      }).catch(err => {
+        console.warn("Background verification failed, keeping cached status:", err);
+      });
+    }
 
   } else {
     // 3. First-time login path: synchronous loading state with verifications
@@ -7487,7 +7492,7 @@ function saveProactiveState(state) {
 
 async function persistProactivePreference(insightId, status, snoozedUntil = null) {
   const tripId = activeTripId || tripData?.id;
-  if (!currentUser?.id || !tripId || String(tripId).startsWith('temp_') || !navigator.onLine) return;
+  if (BYPASS_LOGIN || !currentUser?.id || !tripId || String(tripId).startsWith('temp_') || !navigator.onLine) return;
   const { error } = await supabase.from('proactive_insight_preferences').upsert({
     user_id: currentUser.id,
     trip_id: tripId,
@@ -7501,7 +7506,7 @@ async function persistProactivePreference(insightId, status, snoozedUntil = null
 
 async function syncProactiveStateFromRemote() {
   const tripId = activeTripId || tripData?.id;
-  if (!FEATURES.proactiveCopilot || isSharedView || !currentUser?.id || !tripId || String(tripId).startsWith('temp_') || !navigator.onLine) return;
+  if (BYPASS_LOGIN || !FEATURES.proactiveCopilot || isSharedView || !currentUser?.id || !tripId || String(tripId).startsWith('temp_') || !navigator.onLine) return;
   const syncKey = `${currentUser.id}:${tripId}`;
   if (proactiveSyncRequested.has(syncKey)) return;
   proactiveSyncRequested.add(syncKey);
@@ -7657,12 +7662,19 @@ window.renderHomeDashboard = function() {
   
   const homeDateRange = document.getElementById('homeDateRange');
   let dateText = "Datas a definir";
+  const formatDateOnly = (value) => {
+    const match = typeof value === 'string' ? value.match(/^(\d{4})-(\d{2})-(\d{2})$/) : null;
+    const date = match
+      ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
+      : new Date(value);
+    return date.toLocaleDateString('pt-BR');
+  };
   if (tripData.start_date && tripData.end_date) {
-    const s = new Date(tripData.start_date).toLocaleDateString('pt-BR');
-    const e = new Date(tripData.end_date).toLocaleDateString('pt-BR');
+    const s = formatDateOnly(tripData.start_date);
+    const e = formatDateOnly(tripData.end_date);
     dateText = `${s} - ${e}`;
   } else if (tripData.start_date) {
-    dateText = "A partir de " + new Date(tripData.start_date).toLocaleDateString('pt-BR');
+    dateText = "A partir de " + formatDateOnly(tripData.start_date);
   } else if (tripData.infoDates) {
     dateText = tripData.infoDates;
   }

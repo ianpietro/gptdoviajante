@@ -223,7 +223,7 @@ async function runTests() {
     
     // Upcoming trip
     // Assuming now is "2026-08-22", start is "2026-08-25" (3 days)
-    const nowMs = new Date("2026-08-22T00:00:00Z").getTime();
+    const nowMs = new Date(2026, 7, 22).getTime();
     c = calculateCountdown("2026-08-25", "upcoming", nowMs);
     assert.strictEqual(c.value, "3");
     assert.strictEqual(c.label, "Dias");
@@ -232,6 +232,11 @@ async function runTests() {
     c = calculateCountdown("2026-08-23", "upcoming", nowMs);
     assert.strictEqual(c.value, "1");
     assert.strictEqual(c.label, "Dia");
+
+    // Date-only strings represent local calendar dates and must not move to
+    // the previous day in negative UTC offsets such as America/Sao_Paulo.
+    c = calculateCountdown("2026-09-12", "upcoming", new Date(2026, 7, 26).getTime());
+    assert.strictEqual(c.value, "17");
   }
 
     // Test 10: Manual reservation insertions & properties
@@ -585,6 +590,18 @@ async function runStep10Tests() {
   }
 
   // ── Test RC-4: Entitlement logic — free vs premium ─────────────────────────
+  {
+    console.log("Test RC-3c: Redesigned application shell is wired safely");
+    const appHtml = fs.readFileSync('app.html', 'utf-8');
+    const shellCss = fs.readFileSync('style.v2.css', 'utf-8');
+    assert.ok(appHtml.includes('href="/style.v2.css"'), "A camada visual v2 deve estar carregada");
+    assert.ok(appHtml.includes('class="app-topbar"'), "O shell deve ter cabeçalho persistente");
+    assert.ok(!appHtml.includes('v1.2.3'), "O selo visual legado não pode continuar no painel");
+    assert.strictEqual((appHtml.match(/id="userProfile"/g) || []).length, 1, "userProfile deve ser único");
+    assert.strictEqual((appHtml.match(/id="settingsPanel"/g) || []).length, 1, "settingsPanel deve ser único");
+    assert.ok(shellCss.includes('@media (prefers-reduced-motion: reduce)'), "Animações devem respeitar redução de movimento");
+  }
+
   {
     console.log("Test RC-3b: OAuth returns to the current production origin");
     const authText = fs.readFileSync('auth.js', 'utf-8');
