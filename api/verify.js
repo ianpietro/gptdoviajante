@@ -56,11 +56,6 @@ module.exports = async function handler(req, res) {
       return res.status(500).json({ authorized: false, error: 'Erro na verificação de identidade.' });
     }
   }
-    userEmail = user.email;
-  } catch (err) {
-    console.error('[verify] Supabase token verification error:', err.message);
-    return res.status(500).json({ authorized: false, error: 'Erro na verificação de identidade.' });
-  }
 
   // Verify user entitlement and return plan to the frontend
   const { checkUserEntitlement } = require('./_utils');
