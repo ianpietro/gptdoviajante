@@ -8804,59 +8804,68 @@ function setupVisualViewportListener() {
   let isKeyboardOpen = false;
 
   function updateLayout() {
-    if (window.innerWidth > 768) return;
+    if (window.innerWidth > 768) {
+      appContainer.style.top = "";
+      appContainer.style.height = "";
+      appContainer.style.bottom = "";
+      if (bottomNav) bottomNav.style.removeProperty("display");
+      if (chatSidebar) chatSidebar.classList.remove("keyboard-open");
+      isKeyboardOpen = false;
+      return;
+    }
 
     const vv = window.visualViewport;
-    if (!vv) return;
+    const windowH = window.innerHeight;
+    const vvH = vv ? vv.height : windowH;
+    const vvTop = vv ? vv.offsetTop : 0;
 
-    const screenH = window.screen.height;
-    const vvH = vv.height;
-    const vvTop = vv.offsetTop;
+    // Detect if virtual keyboard is open (visual viewport is smaller than layout viewport)
+    const keyboardH = windowH - vvH - vvTop;
+    const keyboardIsOpen = keyboardH > 80 || (vv && vvH < windowH - 80);
 
-    // Resize app-container to exactly the visual viewport (excludes keyboard)
-    appContainer.style.top = vvTop + "px";
-    appContainer.style.height = vvH + "px";
-    appContainer.style.bottom = "auto";
-
-    // Detect keyboard: if visual viewport is significantly smaller than screen
-    const keyboardH = window.innerHeight - vvH;
-    const keyboardIsOpen = keyboardH > 80;
-
-    if (keyboardIsOpen && !isKeyboardOpen) {
+    if (keyboardIsOpen) {
       isKeyboardOpen = true;
-      bottomNav.style.setProperty('display', 'none', 'important');
-      chatSidebar.classList.add("keyboard-open");
-      // Scroll messages to bottom after layout settles
+      if (bottomNav) bottomNav.style.setProperty("display", "none", "important");
+      if (chatSidebar) chatSidebar.classList.add("keyboard-open");
+
+      // Anchor fixed container to top 0 and exact visual viewport height above keyboard
+      window.scrollTo(0, 0);
+      appContainer.style.top = "0px";
+      appContainer.style.height = `${vvH}px`;
+      appContainer.style.bottom = "auto";
+
       requestAnimationFrame(() => {
         const msgs = document.querySelector(".chat-panel:not(.hidden) .chat-messages");
         if (msgs) msgs.scrollTop = msgs.scrollHeight;
       });
-    } else if (!keyboardIsOpen && isKeyboardOpen) {
+    } else {
       isKeyboardOpen = false;
-      bottomNav.style.setProperty('display', 'flex', 'important');
-      chatSidebar.classList.remove("keyboard-open");
-      // Reset app-container to full screen
-      appContainer.style.top = "0";
-      appContainer.style.height = "100%";
-      appContainer.style.bottom = "0";
+      if (bottomNav) bottomNav.style.removeProperty("display");
+      if (chatSidebar) chatSidebar.classList.remove("keyboard-open");
+
+      appContainer.style.top = "";
+      appContainer.style.height = "";
+      appContainer.style.bottom = "";
     }
   }
 
-  // visualViewport resize is the key event — fires when keyboard opens/closes on iOS
+  // visualViewport resize & scroll events — handles keyboard open/close on iOS & Android
   if (window.visualViewport) {
     window.visualViewport.addEventListener("resize", updateLayout, { passive: true });
     window.visualViewport.addEventListener("scroll", updateLayout, { passive: true });
   }
 
-  // focusin: give iOS time to animate keyboard open before measuring
+  // focusin: trigger layout update when input/textarea is focused
   document.addEventListener("focusin", (e) => {
     if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") {
+      window.scrollTo(0, 0);
       setTimeout(updateLayout, 50);
-      setTimeout(updateLayout, 250);
+      setTimeout(updateLayout, 150);
+      setTimeout(updateLayout, 300);
     }
   }, { passive: true });
 
-  // focusout: give keyboard time to close before measuring
+  // focusout: reset layout when input/textarea loses focus
   document.addEventListener("focusout", (e) => {
     if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") {
       setTimeout(() => {
@@ -8864,16 +8873,18 @@ function setupVisualViewportListener() {
         if (!focused || (focused.tagName !== "INPUT" && focused.tagName !== "TEXTAREA")) {
           updateLayout();
         }
-      }, 200);
+      }, 150);
     }
   }, { passive: true });
 
-  // Prevent page scroll (iOS sometimes scrolls even with overflow:hidden)
+  // Prevent unexpected document scroll during active keyboard focus
   window.addEventListener("scroll", () => {
-    if (window.innerWidth <= 768) window.scrollTo(0, 0);
+    if (window.innerWidth <= 768 && isKeyboardOpen) {
+      window.scrollTo(0, 0);
+    }
   }, { passive: true });
 
-  // Initial layout
+  // Initial layout check
   updateLayout();
 }
 
