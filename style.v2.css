@@ -4033,3 +4033,108 @@ body.light-theme #homeSection #homeCountdownLabel { color: rgba(255, 255, 255, .
   }
 }
 
+/* Orbia Brand Theme overrides for Empty Itinerary CTA Card */
+.chat-cta-card {
+  position: relative;
+  background: var(--orbia-branco, #ffffff) !important;
+  border: 1px solid var(--orbia-borda-neutra, #D5E1E4) !important;
+  border-radius: 24px;
+  padding: 48px 40px 44px;
+  max-width: 560px;
+  width: 100%;
+  margin: 20px auto;
+  text-align: center;
+  overflow: hidden;
+  box-shadow: 0 12px 36px rgba(38, 62, 73, 0.07) !important;
+  animation: ctaFadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.chat-cta-glow {
+  position: absolute;
+  top: -60px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 280px;
+  height: 280px;
+  background: radial-gradient(circle, rgba(112, 196, 208, 0.22) 0%, transparent 70%) !important;
+  pointer-events: none;
+  animation: ctaGlowPulse 3s ease-in-out infinite;
+}
+
+.chat-cta-icon {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(33, 111, 128, 0.08), rgba(112, 196, 208, 0.2)) !important;
+  border: 2px solid rgba(33, 111, 128, 0.25) !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 20px;
+  font-size: 1.8rem;
+  color: var(--orbia-berilo, #216F80) !important;
+  animation: ctaIconBounce 2.5s ease-in-out infinite;
+}
+
+.chat-cta-title {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--orbia-profundo, #263E49) !important;
+  margin: 0 0 12px;
+  letter-spacing: -0.02em;
+}
+
+.chat-cta-subtitle {
+  font-size: 0.95rem;
+  color: var(--orbia-texto-secundario, #607985) !important;
+  line-height: 1.6;
+  margin: 0 0 24px;
+  max-width: 420px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.chat-cta-examples span {
+  display: inline-block;
+  background: rgba(33, 111, 128, 0.05) !important;
+  border: 1px solid rgba(33, 111, 128, 0.16) !important;
+  border-radius: 10px;
+  padding: 8px 14px;
+  font-size: 0.82rem;
+  color: var(--orbia-oceano, #285668) !important;
+  font-style: italic;
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+  cursor: default;
+}
+
+.chat-cta-examples span:hover {
+  background: rgba(33, 111, 128, 0.1) !important;
+  border-color: rgba(33, 111, 128, 0.3) !important;
+  color: var(--orbia-profundo, #263E49) !important;
+}
+
+.chat-cta-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: linear-gradient(135deg, var(--orbia-laranja, #ED7542), #d96333) !important;
+  color: #ffffff !important;
+  border: none !important;
+  border-radius: 50px;
+  padding: 14px 28px;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 8px 22px rgba(237, 117, 66, 0.3) !important;
+  animation: ctaBtnPulse 2.5s ease-in-out infinite;
+  font-family: var(--font-main, sans-serif);
+}
+
+.chat-cta-btn:hover {
+  transform: translateY(-3px) scale(1.03);
+  box-shadow: 0 10px 30px rgba(237, 117, 66, 0.5) !important;
+  animation: none;
+}
+
+
