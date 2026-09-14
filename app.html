@@ -894,7 +894,7 @@
                   <span>Hospedagem &amp; Voos</span>
                   <span id="labelHospedagem">R$ 0</span>
                 </div>
-                <input type="range" class="budget-slider" id="slideHospedagem" aria-label="Orçamento de hospedagem" min="0" max="10000" step="100" value="0" oninput="updateBudget()">
+                <input type="range" class="budget-slider" id="slideHospedagem" aria-label="Orçamento de hospedagem" min="0" max="10000" step="100" value="0" oninput="updateBudget(false)" onchange="updateBudget(true)">
               </div>
               
               <div class="budget-input-group">
@@ -902,7 +902,7 @@
                   <span>Alimentação</span>
                   <span id="labelAlimentacao">R$ 0</span>
                 </div>
-                <input type="range" class="budget-slider" id="slideAlimentacao" aria-label="Orçamento de alimentação" min="0" max="5000" step="50" value="0" oninput="updateBudget()">
+                <input type="range" class="budget-slider" id="slideAlimentacao" aria-label="Orçamento de alimentação" min="0" max="5000" step="50" value="0" oninput="updateBudget(false)" onchange="updateBudget(true)">
               </div>
               
               <div class="budget-input-group">
@@ -910,7 +910,7 @@
                   <span>Passeios &amp; Atrações</span>
                   <span id="labelPasseios">R$ 0</span>
                 </div>
-                <input type="range" class="budget-slider" id="slidePasseios" aria-label="Orçamento de passeios" min="0" max="5000" step="50" value="0" oninput="updateBudget()">
+                <input type="range" class="budget-slider" id="slidePasseios" aria-label="Orçamento de passeios" min="0" max="5000" step="50" value="0" oninput="updateBudget(false)" onchange="updateBudget(true)">
               </div>
               
               <div class="budget-input-group">
@@ -918,7 +918,7 @@
                   <span>Compras &amp; Emergências</span>
                   <span id="labelCompras">R$ 0</span>
                 </div>
-                <input type="range" class="budget-slider" id="slideCompras" aria-label="Orçamento de compras" min="0" max="5000" step="50" value="0" oninput="updateBudget()">
+                <input type="range" class="budget-slider" id="slideCompras" aria-label="Orçamento de compras" min="0" max="5000" step="50" value="0" oninput="updateBudget(false)" onchange="updateBudget(true)">
               </div>
             </div>
           </div>

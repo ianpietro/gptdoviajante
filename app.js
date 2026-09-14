@@ -5409,31 +5409,56 @@ function renderBudgetFromState() {
 // Budget Conic-gradient calculator. Rendering saved state must never persist
 // the controls back over the source data; only direct user edits do that.
 function updateBudget(shouldPersist = true) {
-  const slideHospedagem = parseInt(document.getElementById("slideHospedagem").value);
-  const slideAlimentacao = parseInt(document.getElementById("slideAlimentacao").value);
-  const slidePasseios = parseInt(document.getElementById("slidePasseios").value);
-  const slideCompras = parseInt(document.getElementById("slideCompras").value);
+  if (typeof tripData === 'undefined' || !tripData) return;
+  tripData.budget = tripData.budget || { hospedagem: 0, alimentacao: 0, passeios: 0, compras: 0 };
+
+  const elHosp = document.getElementById("slideHospedagem");
+  const elAlim = document.getElementById("slideAlimentacao");
+  const elPass = document.getElementById("slidePasseios");
+  const elComp = document.getElementById("slideCompras");
+
+  if (!elHosp || !elAlim || !elPass || !elComp) return;
+
+  const slideHospedagem = parseInt(elHosp.value || "0", 10) || 0;
+  const slideAlimentacao = parseInt(elAlim.value || "0", 10) || 0;
+  const slidePasseios = parseInt(elPass.value || "0", 10) || 0;
+  const slideCompras = parseInt(elComp.value || "0", 10) || 0;
 
   // Update slider label texts
-  document.getElementById("labelHospedagem").textContent = `R$ ${slideHospedagem.toLocaleString("pt-BR")}`;
-  document.getElementById("labelAlimentacao").textContent = `R$ ${slideAlimentacao.toLocaleString("pt-BR")}`;
-  document.getElementById("labelPasseios").textContent = `R$ ${slidePasseios.toLocaleString("pt-BR")}`;
-  document.getElementById("labelCompras").textContent = `R$ ${slideCompras.toLocaleString("pt-BR")}`;
+  const lblHosp = document.getElementById("labelHospedagem");
+  if (lblHosp) lblHosp.textContent = `R$ ${slideHospedagem.toLocaleString("pt-BR")}`;
+
+  const lblAlim = document.getElementById("labelAlimentacao");
+  if (lblAlim) lblAlim.textContent = `R$ ${slideAlimentacao.toLocaleString("pt-BR")}`;
+
+  const lblPass = document.getElementById("labelPasseios");
+  if (lblPass) lblPass.textContent = `R$ ${slidePasseios.toLocaleString("pt-BR")}`;
+
+  const lblComp = document.getElementById("labelCompras");
+  if (lblComp) lblComp.textContent = `R$ ${slideCompras.toLocaleString("pt-BR")}`;
 
   // Sum total
   const total = slideHospedagem + slideAlimentacao + slidePasseios + slideCompras;
-  document.getElementById("budgetTotal").textContent = `R$ ${total.toLocaleString("pt-BR")}`;
+  const budgetTotal = document.getElementById("budgetTotal");
+  if (budgetTotal) budgetTotal.textContent = `R$ ${total.toLocaleString("pt-BR")}`;
 
   // Percentages
   const pctHospedagem = total > 0 ? Math.round((slideHospedagem / total) * 100) : 0;
   const pctAlimentacao = total > 0 ? Math.round((slideAlimentacao / total) * 100) : 0;
   const pctPasseios = total > 0 ? Math.round((slidePasseios / total) * 100) : 0;
-  const pctCompras = total > 0 ? 100 - (pctHospedagem + pctAlimentacao + pctPasseios) : 0;
+  const pctCompras = total > 0 ? Math.max(0, 100 - (pctHospedagem + pctAlimentacao + pctPasseios)) : 0;
 
-  document.getElementById("pctHospedagem").textContent = `${pctHospedagem}%`;
-  document.getElementById("pctAlimentacao").textContent = `${pctAlimentacao}%`;
-  document.getElementById("pctPasseios").textContent = `${pctPasseios}%`;
-  document.getElementById("pctCompras").textContent = `${pctCompras}%`;
+  const elPctHosp = document.getElementById("pctHospedagem");
+  if (elPctHosp) elPctHosp.textContent = `${pctHospedagem}%`;
+
+  const elPctAlim = document.getElementById("pctAlimentacao");
+  if (elPctAlim) elPctAlim.textContent = `${pctAlimentacao}%`;
+
+  const elPctPass = document.getElementById("pctPasseios");
+  if (elPctPass) elPctPass.textContent = `${pctPasseios}%`;
+
+  const elPctComp = document.getElementById("pctCompras");
+  if (elPctComp) elPctComp.textContent = `${pctCompras}%`;
 
   // Draw conic donut chart
   const deg1 = pctHospedagem;
@@ -5441,12 +5466,14 @@ function updateBudget(shouldPersist = true) {
   const deg3 = deg2 + pctPasseios;
 
   const donut = document.getElementById("budgetDonut");
-  donut.style.background = `conic-gradient(
-    var(--primary) 0% ${deg1}%,
-    var(--secondary) ${deg1}% ${deg2}%,
-    var(--accent) ${deg2}% ${deg3}%,
-    var(--text-muted) ${deg3}% 100%
-  )`;
+  if (donut) {
+    donut.style.background = `conic-gradient(
+      var(--primary) 0% ${deg1}%,
+      var(--secondary) ${deg1}% ${deg2}%,
+      var(--accent) ${deg2}% ${deg3}%,
+      var(--text-muted) ${deg3}% 100%
+    )`;
+  }
 
   // Dynamic budget thresholds and daily average calculations
   const thresholds = tripData.budgetThresholds || { economico: 150, intermediario: 450 };
@@ -5466,7 +5493,7 @@ function updateBudget(shouldPersist = true) {
   ];
   const mode = budgetModes.find(m => dailyAvg <= m.max);
   const modeEl = document.getElementById('budgetModeLabel');
-  if (modeEl) {
+  if (modeEl && mode) {
     modeEl.textContent = mode.label;
     modeEl.style.color = mode.color;
     modeEl.style.borderColor = mode.color + '44';
@@ -5481,14 +5508,20 @@ function updateBudget(shouldPersist = true) {
     if (hasItinerary) {
       analysisCard.classList.remove("hidden");
       
-      const numMembers = tripData.members ? tripData.members.length : 1;
+      const numMembers = Array.isArray(tripData.members) && tripData.members.length > 0 ? tripData.members.length : 1;
       const groupTotal = total * numMembers;
       
-      document.getElementById("budgetDailyAvg").textContent = `R$ ${Math.round(dailyAvg).toLocaleString("pt-BR")} / dia`;
-      document.getElementById("budgetDaysCount").textContent = numDays;
+      const elDailyAvg = document.getElementById("budgetDailyAvg");
+      if (elDailyAvg) elDailyAvg.textContent = `R$ ${Math.round(dailyAvg).toLocaleString("pt-BR")} / dia`;
+
+      const elDaysCount = document.getElementById("budgetDaysCount");
+      if (elDaysCount) elDaysCount.textContent = numDays;
       
-      document.getElementById("budgetGroupTotal").textContent = `R$ ${Math.round(groupTotal).toLocaleString("pt-BR")}`;
-      document.getElementById("budgetGroupCount").textContent = numMembers;
+      const elGroupTotal = document.getElementById("budgetGroupTotal");
+      if (elGroupTotal) elGroupTotal.textContent = `R$ ${Math.round(groupTotal).toLocaleString("pt-BR")}`;
+
+      const elGroupCount = document.getElementById("budgetGroupCount");
+      if (elGroupCount) elGroupCount.textContent = numMembers;
       
       // Handle AI budget analysis display
       const aiAnalysisBlock = document.getElementById("aiBudgetAnalysisBlock");
@@ -5497,7 +5530,7 @@ function updateBudget(shouldPersist = true) {
       if (aiAnalysisBlock && budgetAiAnalysisText) {
         if (tripData.budgetAnalysis) {
           aiAnalysisBlock.style.display = "flex";
-          budgetAiAnalysisText.innerHTML = formatSafeBoldText(tripData.budgetAnalysis);
+          budgetAiAnalysisText.innerHTML = typeof formatSafeBoldText === 'function' ? formatSafeBoldText(tripData.budgetAnalysis) : tripData.budgetAnalysis;
         } else {
           aiAnalysisBlock.style.display = "none";
         }
@@ -5515,7 +5548,10 @@ function updateBudget(shouldPersist = true) {
         feedback = `Você propôs um estilo **Premium / Luxo** para este destino (mais de R$ ${limInt.toLocaleString("pt-BR")}/dia). Excelente para aproveitar passeios exclusivos, gastronomia de alto nível e hotelaria diferenciada. Dica: lembre-se de reservar restaurantes renomados com bastante antecedência!`;
       }
       
-      document.getElementById("budgetFeedbackText").innerHTML = formatSafeBoldText(feedback);
+      const feedbackEl = document.getElementById("budgetFeedbackText");
+      if (feedbackEl) {
+        feedbackEl.innerHTML = typeof formatSafeBoldText === 'function' ? formatSafeBoldText(feedback) : feedback;
+      }
       
     } else {
       analysisCard.classList.add("hidden");
