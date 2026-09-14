@@ -49,6 +49,30 @@ function getPrimaryTransport(tripData) {
   };
 }
 
+export function isAccommodationItem(item) {
+  if (!item || typeof item !== 'object') return false;
+  const t = String(item.type || '').toLowerCase();
+  const c = String(item.category || '').toLowerCase();
+  const title = String(item.title || item.name || '').toLowerCase();
+  if (t === 'hospedagem' || c === 'hospedagem' || t === 'accommodation' || c === 'accommodation' || t === 'hotel' || c === 'hotel') return true;
+  return /hospedagem|hotel|pousada|hostel|airbnb|flat|resort|acomodação|acomodacao/i.test(t) ||
+         /hospedagem|hotel|pousada|hostel|airbnb|flat|resort|acomodação|acomodacao/i.test(c) ||
+         /hospedagem|hotel|pousada|hostel|airbnb|flat|resort|acomodação|acomodacao/i.test(title);
+}
+
+export function getPrimaryAccommodation(tripData) {
+  if (!tripData || typeof tripData !== 'object') return null;
+  if (Array.isArray(tripData.accommodations) && tripData.accommodations.length > 0) return tripData.accommodations[0];
+  if (tripData.infoHotel && tripData.infoHotel !== 'A definir' && tripData.infoHotel !== 'Não definido' && tripData.infoHotel.trim() !== '') {
+    return { name: tripData.infoHotel, title: tripData.infoHotel };
+  }
+  const res = (tripData.reservations || []).find(isAccommodationItem);
+  if (res) return res;
+  const doc = (tripData.documents || []).find(isAccommodationItem);
+  if (doc) return doc;
+  return null;
+}
+
 export function normalizeTripState(trip) {
   if (!trip || typeof trip !== 'object') {
     trip = {};
@@ -206,6 +230,26 @@ export function normalizeTripState(trip) {
   normalized.documents = normalized.documents.filter(item => item && typeof item === 'object');
   normalized.reservations = normalized.reservations.filter(item => item && typeof item === 'object');
   normalized.accommodations = normalized.accommodations.filter(item => item && typeof item === 'object');
+
+  // Auto-sync accommodations from reservations or documents if accommodations array is empty
+  if (normalized.accommodations.length === 0) {
+    const accItem = (normalized.reservations || []).find(isAccommodationItem) || (normalized.documents || []).find(isAccommodationItem);
+    if (accItem) {
+      const accName = accItem.title || accItem.name || accItem.provider || 'Hospedagem confirmada';
+      normalized.accommodations.push({
+        id: accItem.id || `acc_${Date.now()}`,
+        name: accName,
+        address: accItem.address || accItem.location || '',
+        checkIn: accItem.date || accItem.checkIn || accItem.start_datetime || normalized.start_date || '',
+        checkOut: accItem.checkOut || accItem.end_datetime || normalized.end_date || '',
+        source: 'carteira'
+      });
+      if (!normalized.infoHotel || normalized.infoHotel === 'A definir' || normalized.infoHotel === 'Não definido') {
+        normalized.infoHotel = accName;
+      }
+    }
+  }
+
   normalized.itinerary = normalized.itinerary
     .filter(day => day && typeof day === 'object')
     .map((day, dayIndex) => ({
@@ -526,10 +570,8 @@ export function calculateOperationalHealthScore(tripData) {
   const primaryTransport = getPrimaryTransport(tripData);
   const hasTransport = Boolean((tripData.flights && tripData.flights.length > 0) || primaryTransport);
 
-  const hasHotel = Boolean(
-    (tripData.accommodations && tripData.accommodations.length > 0) ||
-    (tripData.infoHotel && tripData.infoHotel !== 'A definir' && tripData.infoHotel !== 'Não definido')
-  );
+  const primaryAcc = getPrimaryAccommodation(tripData);
+  const hasHotel = Boolean(primaryAcc);
 
   const hasItinerary = Boolean(tripData.itinerary && tripData.itinerary.length > 0);
 
@@ -563,7 +605,7 @@ export function calculateOperationalHealthScore(tripData) {
       id: 'hotel',
       label: 'Hospedagem Principal',
       status: hasHotel ? 'OK' : 'Pendente',
-      currentValue: hasHotel ? (tripData.accommodations?.[0]?.name || tripData.infoHotel || 'Hospedagem salva') : 'Hospedagem a definir',
+      currentValue: hasHotel ? (primaryAcc?.title || primaryAcc?.name || primaryAcc?.provider || tripData.infoHotel || 'Hospedagem salva') : 'Hospedagem a definir',
       actionLabel: hasHotel ? 'Ver na Carteira' : 'Adicionar Hotel',
       tab: 'logistica'
     },
@@ -608,8 +650,8 @@ export function calculateReadinessScore(tripData) {
   let maxScore = 5; // Base: Dates, Transport, Accommodation, Itinerary, Budget
   
   const hasDates = tripData.start_date ? 1 : 0;
-  const hasTransport = ((tripData.flights && tripData.flights.length > 0) || getPrimaryTransport(tripData)) ? 1 : 0;
-  const hasHotel = (tripData.accommodations && tripData.accommodations.length > 0) || (tripData.infoHotel && tripData.infoHotel !== 'A definir' && tripData.infoHotel !== 'Não definido') ? 1 : 0;
+  const hasTransport = ((tripData.flights && tripData.flights.length > 0) || getPrimaryTransport(tripData) || (tripData.documents && tripData.documents.some(isTransportReservation))) ? 1 : 0;
+  const hasHotel = (getPrimaryAccommodation(tripData) || (tripData.accommodations && tripData.accommodations.length > 0) || (tripData.infoHotel && tripData.infoHotel !== 'A definir' && tripData.infoHotel !== 'Não definido')) ? 1 : 0;
   const hasItinerary = (tripData.itinerary && tripData.itinerary.length > 0) ? 1 : 0;
   const hasBudget = (tripData.budget && (tripData.budget.hospedagem > 0 || tripData.budget.alimentacao > 0)) ? 1 : 0;
   

@@ -255,6 +255,21 @@ async function runTests() {
     assert.strictEqual(score.score, 7);
     assert.strictEqual(score.max, 7);
     assert.strictEqual(score.percentage, 100);
+
+    // Test 8b: Reservation/Document of type Hospedagem (e.g. Airbnb) satisfies hasHotel
+    const reservationHotelTrip = {
+      start_date: "2026-09-14",
+      flights: [],
+      accommodations: [],
+      reservations: [{ type: "Hospedagem", title: "AIRBNB AV PARANÁ", date: "2026-09-14" }],
+      documents: [],
+      itinerary: [],
+      budget: {}
+    };
+    const resScore = calculateReadinessScore(reservationHotelTrip);
+    assert.strictEqual(resScore.hasHotel, 1, "Reservation of type Hospedagem must set hasHotel to 1");
+    const hotelItem = resScore.readinessItems.find(i => i.id === 'hotel');
+    assert.ok(hotelItem && hotelItem.complete, "Hospedagem readiness item must be marked complete");
   }
 
   // Test 9: calculateCountdown and lifecycle
