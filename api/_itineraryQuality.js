@@ -205,12 +205,13 @@ function extractItinerary(text = '') {
 
 function normalizePriceLevel(value = '') {
   const source = String(value || '').trim();
+  if (!source) return '';
   if (/^\${1,3}$/.test(source)) return source;
   const firstNumber = Number(source.match(/\d+/)?.[0]);
   if (Number.isFinite(firstNumber)) return firstNumber <= 12 ? '$' : (firstNumber <= 35 ? '$$' : '$$$');
   if (/econ[oô]mic|barat|baixo/i.test(source)) return '$';
   if (/alto|sofistic|premium|caro/i.test(source)) return '$$$';
-  return '$$';
+  return '';
 }
 
 function canonicalRestaurantOption(option = {}, researchBrief = {}) {

@@ -56,9 +56,9 @@ async function run() {
   localPhrases.forEach(phrase => assert.strictEqual(classifyTask('chat', phrase).useGrounding, false, phrase));
   const realtimePhrases = ['Meu voo atrasou?', 'Vai chover amanhã em Roma?', 'O Louvre abre amanhã?', 'Esse restaurante está aberto agora?'];
   realtimePhrases.forEach(phrase => assert.strictEqual(classifyTask('chat', phrase).useGrounding, true, phrase));
-  const operationalPhrases = ['Qual linha de metrô eu pego?', 'Como chegar do hotel ao aeroporto?', 'Precisa de visto para entrar?', 'O que faço agora por perto?'];
+  const operationalPhrases = ['Qual linha de metrô eu pego?', 'Como chegar do hotel ao aeroporto?', 'Precisa de visto para entrar?', 'O que faço agora por perto?', 'Qual o melhor deslocamento do centro ao aeroporto?'];
   operationalPhrases.forEach(phrase => assert.strictEqual(classifyTask('travel_mode', phrase).useGrounding, true, phrase));
-  const recommendationPhrases = ['Onde comer em Roma?', 'Qual é o prato típico de Campo Grande?', 'O que visitar em Lisboa?', 'Recomende um hotel em Paris', 'Sugira um bate-volta de Lisboa'];
+  const recommendationPhrases = ['Onde comer em Roma?', 'Qual é o prato típico de Campo Grande?', 'O que visitar em Lisboa?', 'Recomende um hotel em Paris', 'Sugira um bate-volta de Lisboa', 'Compare os bairros Alfama e Baixa', 'Como é o clima em Roma em maio?'];
   recommendationPhrases.forEach(phrase => assert.strictEqual(classifyTask('chat', phrase).useGrounding, true, phrase));
   assert.equal(classifyRecommendationIntent('Quanto já gastei?').required, false);
   assert.equal(classifyTask('itinerary', 'Crie um roteiro de 5 dias').thinkingBudget, 2048);

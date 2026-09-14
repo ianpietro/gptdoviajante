@@ -295,7 +295,7 @@ function restaurantOption(item = {}) {
     name: item.name || '',
     address: item.location || '',
     dish: item.dish || '',
-    price_level: item.price_level || '$$',
+    price_level: item.price_level || '',
     why: item.why || 'Casa incluída por sua relação concreta com a gastronomia do destino e pela localização no percurso.',
     verification_note: item.verification_note || 'Confirme horário e necessidade de reserva.',
     sourceUrl: item.sourceUrl || ''

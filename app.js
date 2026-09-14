@@ -25,7 +25,7 @@ import { detectTripRisks } from './modules/riskEngine.js';
 import { generateReplanningProposal, applyReplanningProposal } from './modules/replanningEngine.js';
 import { generatePublicItineraryModel, clonePublicItinerary, generateItineraryJsonLd } from './modules/publicItineraryEngine.js';
 import { generateReferralCode, parseAttributionParams, processAffiliateReward, calculateNorthStarMetrics } from './modules/growthEngine.js';
-import { INSPIRATIONS_DATA, getInspirations, getInspirationBySlug, getInspirationById, cloneInspirationToTrip } from './modules/inspirationsEngine.js';
+import { INSPIRATIONS_DATA, getInspirations, getInspirationBySlug, getInspirationById, cloneInspirationToTrip } from './modules/inspirationsEngine.js?v=20260914-inspiracoes-12';
 import { ensureAutoPackingList } from './modules/packingEngine.js?v=3.0.0-rc.20-calendar-aware';
 import { applyTripDateContext, applyForecastContext } from './modules/tripContextEngine.js?v=2.2.0-rc.19-localized-navigation';
 import { buildItineraryGenerationPrompt, extractGeneratedItinerary, validateAndNormalizeItinerary } from './modules/itineraryGenerationEngine.js?v=3.0.0-rc.20-calendar-aware';
@@ -2848,21 +2848,13 @@ function switchTab(tab) {
   if (tab === 'chat') {
     chatSidebar.style.display = 'flex';
     dashboardContent.style.display = 'none';
-    
-    // Determine which chat panel to show based on trip status
-    const isActive = tripData && getSuggestedTripStatus(tripData.start_date, tripData.end_date, tripData.status) === 'active';
-    
-    if (isActive) {
-      if (planPanel) planPanel.classList.add('hidden');
-      if (travelPanel) travelPanel.classList.remove('hidden');
-      if (modeLabel) modeLabel.textContent = 'Na Viagem';
-      setTravelMode(true);
-    } else {
-      if (planPanel) planPanel.classList.remove('hidden');
-      if (travelPanel) travelPanel.classList.add('hidden');
-      if (modeLabel) modeLabel.textContent = 'Planejar Roteiro';
-      setTravelMode(false);
-    }
+
+    // Um único chat e um único histórico ficam visíveis em todas as fases.
+    // O backend decide internamente, pelas datas, quando agir como copiloto em campo.
+    if (planPanel) planPanel.classList.remove('hidden');
+    if (travelPanel) travelPanel.classList.add('hidden');
+    if (modeLabel) modeLabel.textContent = 'Chat Orbia';
+    setTravelMode(false);
   } else {
     chatSidebar.style.display = 'none';
     dashboardContent.style.display = 'block';

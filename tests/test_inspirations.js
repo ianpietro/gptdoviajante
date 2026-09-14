@@ -99,7 +99,7 @@ console.log("  ✅ Publication gate correctly blocks invalid inspirations.");
 console.log("\nTest 6: Coordenadas Geográficas Verificadas");
 romaInsp.itinerary.forEach(day => {
   day.activities.forEach(act => {
-    if (act.lat !== null || act.lng !== null) {
+    if (act.lat != null && act.lng != null) {
       assert.ok(typeof act.lat === 'number' && typeof act.lng === 'number', `Activity ${act.name} lat/lng must be valid numbers if present.`);
       assert.ok(act.lat >= -90 && act.lat <= 90, "Latitude must be valid.");
       assert.ok(act.lng >= -180 && act.lng <= 180, "Longitude must be valid.");

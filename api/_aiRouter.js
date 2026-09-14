@@ -26,7 +26,7 @@ function classifyFreshDataIntent(message = '', explicit = false) {
   if (/(preco|tarifa|cotacao|disponibilidade)/.test(text) && /(atual|agora|hoje|neste momento)/.test(text)) {
     return { required: true, reason: 'live_price' };
   }
-  if (/(qual linha|linha de metro|linha de onibus|plataforma|baldeacao|como chegar|como vou|tempo de trajeto|quanto demora)/.test(text)) {
+  if (/(qual linha|linha de metro|linha de onibus|plataforma|baldeacao|como chegar|como vou|tempo de trajeto|quanto demora|melhor rota|melhor deslocamento|ir de .{1,40} para)/.test(text)) {
     return { required: true, reason: 'transport_logistics' };
   }
   if (/(visto|imigracao|documento|passaporte|vacina|regra de entrada|exigencia de entrada|seguro viagem)/.test(text) &&
@@ -45,7 +45,8 @@ function classifyRecommendationIntent(message = '') {
   if (/(onde comer|restaurante|prato tipico|comida tipica|gastronomia|o que pedir|cafe da manha|bar legal|cafe perto|mercado perto)/.test(text)) {
     return { required: true, reason: 'food_recommendation' };
   }
-  if (/(o que fazer|o que visitar|ponto turistico|atracao|passeio|lugar imperdivel|bate.?volta|qual regiao|qual bairro visitar|onde ir)/.test(text) ||
+  if (/(o que fazer|o que visitar|ponto turistico|atracao|passeio|lugar imperdivel|bate.?volta|qual regiao|qual bairro visitar|onde ir|melhor epoca|clima em)/.test(text) ||
+      /(?:compare|comparacao).{0,40}(?:bairro|regiao|destino|onde ficar)/.test(text) ||
       /(?:crie|monte|planeje|sugira|recomende|organize).{0,50}(?:roteiro|itinerario|programacao|dia)/.test(text)) {
     return { required: true, reason: 'destination_recommendation' };
   }

@@ -19,6 +19,30 @@ const MAX_REQUESTS_PER_MIN = 15;
 
 const STATE_ACTION_TYPES = new Set(['itinerary', 'packing', 'expenses', 'flights', 'reservations', 'documents', 'accommodations', 'budget', 'preferences']);
 
+function formatDateInTimezone(date, timezone) {
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone || 'UTC', year: 'numeric', month: '2-digit', day: '2-digit'
+    }).formatToParts(date);
+    const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+    return `${values.year}-${values.month}-${values.day}`;
+  } catch (_) {
+    return date.toISOString().slice(0, 10);
+  }
+}
+
+function isTripActiveByDate(tripContext = {}, now = new Date()) {
+  const startDate = String(tripContext?.dates?.start || tripContext?.start_date || '').slice(0, 10);
+  const endDate = String(tripContext?.dates?.end || tripContext?.end_date || startDate).slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(endDate)) return false;
+
+  const requestedAt = new Date(tripContext?.runtimeContext?.clientTimestamp || now);
+  const safeNow = Number.isNaN(requestedAt.getTime()) ? now : requestedAt;
+  const timezone = tripContext?.timezone || tripContext?.runtimeContext?.timezone || 'UTC';
+  const currentDate = formatDateInTimezone(safeNow, timezone);
+  return currentDate >= startDate && currentDate <= endDate;
+}
+
 function readActionEnvelope(text) {
   const source = String(text || '');
   const fenced = [...source.matchAll(/```\s*json\s*([\s\S]*?)```/gi)].map(match => match[1]);
@@ -233,7 +257,9 @@ module.exports = async function handler(req, res) {
     });
   }
 
-  const { travelMode } = req.body;
+  // Existe um único Chat Orbia. O comportamento de campo é ativado somente
+  // internamente quando a data atual cai dentro do período da viagem.
+  const travelMode = isTripActiveByDate(tripContext);
 
   // Optimize chat history by stripping older assistant JSON blocks to save tokens and prevent rate limits (TPM)
   let foundLatestJson = false;
@@ -389,7 +415,9 @@ Você é o amigo local que está caminhando junto. Não o guia que lê do script
   if (destinationKnowledge) {
     fullSystemPrompt += `\n\n${destinationKnowledge.brief}`;
   }
-  const chatType = travelMode ? 'travel' : 'plan';
+  // O histórico também é único. A fase operacional muda o comportamento,
+  // mas não cria outra memória de conversa.
+  const chatType = 'plan';
   const historyState = await getAIHistorySummary(userId, tripId, chatType);
 
   // ── Delegar execução de IA ao AI Router Central ────────────────────────────
@@ -628,3 +656,5 @@ ${destinationKnowledge.brief}`;
     return res.status(500).json({ error: error.message || "Erro interno do servidor." });
   }
 }
+
+module.exports.isTripActiveByDate = isTripActiveByDate;
