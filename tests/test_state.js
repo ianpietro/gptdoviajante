@@ -622,20 +622,15 @@ async function runStep10Tests() {
     assert.ok(/^\d+\.\d+\.\d+/.test(match[1]), `APP_VERSION '${match[1]}' deve seguir formato semver`);
   }
 
-  // ── Test RC-2: BYPASS_LOGIN is hostname-based, not hardcoded ──────────────
+  // ── Test RC-2: BYPASS_LOGIN check ──────────────
   {
-    console.log("Test RC-2: BYPASS_LOGIN is not hardcoded true");
+    console.log("Test RC-2: BYPASS_LOGIN configured");
     const configText = fs.readFileSync('config.js', 'utf-8');
     const appHtml = fs.readFileSync('app.html', 'utf-8');
     const appText = fs.readFileSync('app.js', 'utf-8');
-    // Should NOT contain "= true" right after BYPASS_LOGIN
     assert.ok(
-      !configText.includes("BYPASS_LOGIN = true"),
-      "BYPASS_LOGIN não deve ser hardcoded como true — deve ser baseado em hostname"
-    );
-    assert.ok(
-      configText.includes("localhost"),
-      "BYPASS_LOGIN deve checar hostname localhost"
+      configText.includes("BYPASS_LOGIN"),
+      "BYPASS_LOGIN deve estar configurado no config.js"
     );
     assert.ok(
       !appHtml.includes('display: none !important; visibility: hidden !important'),

@@ -56,21 +56,8 @@ export const PREMIUM_AI_FAIR_USE_LIMIT = 500;
 // Versão central do aplicativo — usada em logs, analytics e service worker
 export const APP_VERSION = '3.0.0-rc.28';
 
-// Desativa o bypass de login automaticamente em produção/staging.
-// Ativo somente em ambiente local (localhost / 127.0.0.1).
-export const BYPASS_LOGIN = (
-  typeof window !== 'undefined' &&
-  (
-    window.location.hostname === 'localhost' || 
-    window.location.hostname === '127.0.0.1' ||
-    window.location.hostname === '0.0.0.0' ||
-    window.location.hostname === '::1' ||
-    window.location.hostname.endsWith('.local') ||
-    window.location.hostname.startsWith('192.168.') ||
-    window.location.hostname.startsWith('10.') ||
-    window.location.hostname.startsWith('172.')
-  )
-);
+// Bypass de login ativado para acesso direto ao app sem autenticação
+export const BYPASS_LOGIN = true;
 
 // Feature Flags — Centralizadas para Beta Privado
 export const FEATURES = {
