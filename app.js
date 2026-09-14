@@ -2952,9 +2952,10 @@ function openTutorial() {
   modal.classList.remove('hidden');
   goToSlide(0);
   document.body.style.overflow = 'hidden';
-  document.getElementById('tutorialClose')?.focus();
+  (document.getElementById('tutorialCloseBtn') || document.getElementById('tutorialClose'))?.focus();
 }
 window.openTutorial = openTutorial;
+window.closeTutorial = closeTutorial;
 window.showMyTripsScreen = showMyTripsScreen;
 
 function closeTutorial() {
@@ -2963,6 +2964,7 @@ function closeTutorial() {
   modal.classList.add('hidden');
   document.body.style.overflow = '';
 }
+window.closeTutorial = closeTutorial;
 
 function goToSlide(n) {
   currentTutorialSlide = Math.max(0, Math.min(n, TUTORIAL_TOTAL_SLIDES - 1));
@@ -3010,7 +3012,7 @@ function goToSlide(n) {
 
 // Wire tutorial controls (called after DOM is ready)
 function setupTutorialListeners() {
-  const closeBtn = document.getElementById('tutorialClose');
+  const closeBtn = document.getElementById('tutorialCloseBtn') || document.getElementById('tutorialClose');
   const prevBtn = document.getElementById('tutPrev');
   const nextBtn = document.getElementById('tutNext');
   const finishBtn = document.getElementById('tutFinish');
@@ -3021,6 +3023,7 @@ function setupTutorialListeners() {
   overlay.dataset.tutorialReady = 'true';
 
   if (closeBtn) closeBtn.addEventListener('click', closeTutorial);
+  document.querySelectorAll('.tutorial-close-btn').forEach(btn => btn.addEventListener('click', closeTutorial));
   if (finishBtn) finishBtn.addEventListener('click', closeTutorial);
   if (prevBtn) prevBtn.addEventListener('click', () => goToSlide(currentTutorialSlide - 1));
   if (nextBtn) nextBtn.addEventListener('click', () => goToSlide(currentTutorialSlide + 1));
