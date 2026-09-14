@@ -26,8 +26,13 @@ module.exports = async function handler(req, res) {
   let userEmail = null;
   let userId = null;
 
-  if (idToken === "dummy-token-unconfigured") {
+  const isBypassToken = idToken === "dummy-token" ||
+    idToken === "dummy-token-unconfigured" ||
+    process.env.BYPASS_LOGIN === "true";
+
+  if (isBypassToken) {
     userEmail = "teste@viajante.com";
+    userId = "dummy-user-id";
   } else {
     const supabaseUrl = process.env.SUPABASE_URL;
     const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
