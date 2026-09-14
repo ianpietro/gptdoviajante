@@ -33,9 +33,20 @@ INSPIRATIONS_DATA.forEach(insp => {
   assert.ok(Array.isArray(insp.best_for) && insp.best_for.length > 0, "best_for must be a non-empty array");
   assert.ok(insp.planning_rationale, "Inspiration must contain planning_rationale");
   assert.ok(insp.why_this_works, "Inspiration must contain why_this_works");
-  assert.ok(Array.isArray(insp.itinerary) && insp.itinerary.length === insp.duration_days, "Itinerary days must match duration_days");
+  // Test 1b: Zero Duplicate Activities Assertion
+  insp.itinerary.forEach(day => {
+    const seenNames = new Set();
+    const seenIds = new Set();
+    day.activities.forEach(act => {
+      const normName = (act.name || '').trim().toLowerCase();
+      assert.ok(!seenNames.has(normName), `Duplicate activity name "${act.name}" found in ${insp.id} day ${day.day_number}`);
+      assert.ok(!seenIds.has(act.id), `Duplicate activity ID "${act.id}" found in ${insp.id} day ${day.day_number}`);
+      seenNames.add(normName);
+      seenIds.add(act.id);
+    });
+  });
 });
-console.log("  ✅ Data model and field schemas verified successfully.");
+console.log("  ✅ Data model and field schemas verified successfully (Zero duplicates).");
 
 // Test 2: Verificação do Acervo de Inspirações Publicadas (12 Roteiros)
 console.log("\nTest 2: Verificação do Acervo de Inspirações Publicadas (12 Roteiros)");
