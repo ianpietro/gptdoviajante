@@ -26,16 +26,27 @@ function classifyFreshDataIntent(message = '', explicit = false) {
   if (/(preco|tarifa|cotacao|disponibilidade)/.test(text) && /(atual|agora|hoje|neste momento)/.test(text)) {
     return { required: true, reason: 'live_price' };
   }
+  if (/(qual linha|linha de metro|linha de onibus|plataforma|baldeacao|como chegar|como vou|tempo de trajeto|quanto demora)/.test(text)) {
+    return { required: true, reason: 'transport_logistics' };
+  }
+  if (/(visto|imigracao|documento|passaporte|vacina|regra de entrada|exigencia de entrada|seguro viagem)/.test(text) &&
+      /(precisa|obrigatori|exige|necessari|posso entrar|para viajar|regra)/.test(text)) {
+    return { required: true, reason: 'travel_rules' };
+  }
+  if (/(o que faco|pra onde ir|onde ir|o que tem|por perto|perto daqui|agora)/.test(text) &&
+      /(agora|hoje|por perto|perto daqui|aqui|neste momento)/.test(text)) {
+    return { required: true, reason: 'in_trip_context' };
+  }
   return { required: false, reason: 'none' };
 }
 
 function classifyRecommendationIntent(message = '') {
   const text = normalizeText(message);
-  if (/(onde comer|restaurante|prato tipico|comida tipica|gastronomia|o que pedir|cafe da manha|bar legal)/.test(text)) {
+  if (/(onde comer|restaurante|prato tipico|comida tipica|gastronomia|o que pedir|cafe da manha|bar legal|cafe perto|mercado perto)/.test(text)) {
     return { required: true, reason: 'food_recommendation' };
   }
-  if (/(o que fazer|o que visitar|ponto turistico|atracao|passeio|lugar imperdivel)/.test(text) ||
-      /(?:crie|monte|planeje|sugira|recomende).{0,40}(?:roteiro|itinerario)/.test(text)) {
+  if (/(o que fazer|o que visitar|ponto turistico|atracao|passeio|lugar imperdivel|bate.?volta|qual regiao|qual bairro visitar|onde ir)/.test(text) ||
+      /(?:crie|monte|planeje|sugira|recomende|organize).{0,50}(?:roteiro|itinerario|programacao|dia)/.test(text)) {
     return { required: true, reason: 'destination_recommendation' };
   }
   if (/(onde ficar|qual bairro|hotel|pousada|hostel|hospedagem)/.test(text) && /(recomend|melhor|onde|sugir)/.test(text)) {
@@ -50,6 +61,9 @@ function selectContextSections(task, userMessage = '') {
   if (task === 'trip_brain') {
     ['budget', 'expenses', 'packing', 'flights', 'itinerary', 'reservations', 'preferences'].forEach(s => sections.add(s));
     return sections;
+  }
+  if (task === 'travel_mode') {
+    ['itinerary', 'reservations', 'preferences', 'flights', 'accommodations'].forEach(s => sections.add(s));
   }
   if (task === 'budget_analysis') ['budget', 'expenses'].forEach(s => sections.add(s));
   if (task === 'itinerary') ['itinerary', 'reservations', 'preferences'].forEach(s => sections.add(s));
@@ -98,7 +112,11 @@ function buildAIContext(task, trip, userMessage = '') {
     dates: trip.dates || trip.infoDates || { start: trip.start_date, end: trip.end_date },
     hotel: trip.hotel || trip.infoHotel || null,
     primaryTransport: trip.primaryTransport || null,
-    transportPlan: trip.transportPlan || null
+    transportPlan: trip.transportPlan || null,
+    tripStatus: trip.status || null,
+    timezone: trip.timezone || trip.runtimeContext?.timezone || null,
+    currentContext: trip.runtimeContext || trip.currentContext || null,
+    weather: trip.climate || trip.weather || trip.infoWeather || null
   };
   if (sections.has('budget')) context.budget = trip.budget || {};
   if (sections.has('expenses')) context.recentExpenses = (trip.expenses || []).slice(-MAX_CONTEXT_ITEMS);

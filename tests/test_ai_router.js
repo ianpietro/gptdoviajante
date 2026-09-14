@@ -56,7 +56,9 @@ async function run() {
   localPhrases.forEach(phrase => assert.strictEqual(classifyTask('chat', phrase).useGrounding, false, phrase));
   const realtimePhrases = ['Meu voo atrasou?', 'Vai chover amanhã em Roma?', 'O Louvre abre amanhã?', 'Esse restaurante está aberto agora?'];
   realtimePhrases.forEach(phrase => assert.strictEqual(classifyTask('chat', phrase).useGrounding, true, phrase));
-  const recommendationPhrases = ['Onde comer em Roma?', 'Qual é o prato típico de Campo Grande?', 'O que visitar em Lisboa?', 'Recomende um hotel em Paris'];
+  const operationalPhrases = ['Qual linha de metrô eu pego?', 'Como chegar do hotel ao aeroporto?', 'Precisa de visto para entrar?', 'O que faço agora por perto?'];
+  operationalPhrases.forEach(phrase => assert.strictEqual(classifyTask('travel_mode', phrase).useGrounding, true, phrase));
+  const recommendationPhrases = ['Onde comer em Roma?', 'Qual é o prato típico de Campo Grande?', 'O que visitar em Lisboa?', 'Recomende um hotel em Paris', 'Sugira um bate-volta de Lisboa'];
   recommendationPhrases.forEach(phrase => assert.strictEqual(classifyTask('chat', phrase).useGrounding, true, phrase));
   assert.equal(classifyRecommendationIntent('Quanto já gastei?').required, false);
   assert.equal(classifyTask('itinerary', 'Crie um roteiro de 5 dias').thinkingBudget, 2048);
@@ -70,7 +72,9 @@ async function run() {
     flights: [{ number: 'AZ123' }], budget: { spent: 300 }, expenses: [{ description: 'Museu', amount: 50 }],
     packing: [{ category: 'Roupas', items: [{ name: 'Casaco', checked: false }] }],
     itinerary: [{ day: 'terça', activities: [{ title: 'Museu' }] }], reservations: [{ title: 'Museu', date: 'terça' }],
-    documents: [{ file_url: 'secret' }]
+    documents: [{ file_url: 'secret' }],
+    weather: 'chuva leve', timezone: 'Europe/Rome',
+    runtimeContext: { clientTimestamp: '2026-09-14T18:30:00.000Z', knownLocation: 'Piazza Navona' }
   };
   const spend = buildAIContext('chat', trip, 'Quanto já gastei?');
   assert.match(spend, /recentExpenses/); assert.doesNotMatch(spend, /packingRemaining|documents|secret/);
@@ -80,6 +84,9 @@ async function run() {
   assert.match(flight, /AZ123/); assert.doesNotMatch(flight, /recentExpenses|itinerary|secret/);
   const itinerary = buildAIContext('chat', trip, 'Troque o museu para terça');
   assert.match(itinerary, /itinerary/); assert.match(itinerary, /reservations/); assert.doesNotMatch(itinerary, /secret/);
+  const inTrip = buildAIContext('travel_mode', trip, 'O que faço agora por perto?');
+  assert.match(inTrip, /Piazza Navona/); assert.match(inTrip, /chuva leve/); assert.match(inTrip, /Europe\/Rome/);
+  assert.match(inTrip, /itinerary/); assert.match(inTrip, /reservations/);
 
   let calls = 0;
   fetchHandler = async () => { calls += 1; return geminiSuccess('resumo'); };

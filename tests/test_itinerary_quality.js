@@ -68,7 +68,12 @@ const researchPrompt = buildDestinationResearchPrompt({
 });
 assert.match(researchPrompt, /ponto mais importante/i);
 assert.match(researchPrompt, /sabor mais simbólico/i);
-assert.match(researchPrompt, /Pesquisa Google/i);
+assert.match(researchPrompt, /Sites oficiais/i);
+assert.match(researchPrompt, /Google Maps ou equivalente confiável/i);
+assert.match(researchPrompt, /Booking ou outra plataforma consolidada/i);
+assert.match(researchPrompt, /Guias editoriais reconhecidos/i);
+assert.match(researchPrompt, /fonte oficial atual prevalece/i);
+assert.match(researchPrompt, /secondarySourceUrl/);
 
 const brief = parseDestinationResearchBrief(JSON.stringify({
   destination: 'Campo Grande, MS',

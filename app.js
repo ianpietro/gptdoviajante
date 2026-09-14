@@ -4076,7 +4076,16 @@ async function handleUserSendMessage() {
           preferences: tripData.preferences,
           members: tripData.members,
           accommodations: tripData.accommodations,
-          ai_context: tripData.ai_context
+          ai_context: tripData.ai_context,
+          weather: tripData.infoWeather,
+          climate: tripData.date_context || null,
+          timezone: tripData.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
+          status: tripData.status || null,
+          runtimeContext: {
+            clientTimestamp: new Date().toISOString(),
+            timezone: tripData.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
+            knownLocation: tripData.currentLocation || tripData.lastKnownLocation || null
+          }
         }
       })
     });
@@ -4246,7 +4255,16 @@ async function handleTravelSendMessage() {
           preferences: tripData.preferences,
           members: tripData.members,
           accommodations: tripData.accommodations,
-          ai_context: tripData.ai_context
+          ai_context: tripData.ai_context,
+          weather: tripData.infoWeather,
+          climate: tripData.date_context || null,
+          timezone: tripData.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
+          status: tripData.status || null,
+          runtimeContext: {
+            clientTimestamp: new Date().toISOString(),
+            timezone: tripData.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
+            knownLocation: tripData.currentLocation || tripData.lastKnownLocation || null
+          }
         }
       })
     });

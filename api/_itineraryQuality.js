@@ -135,7 +135,13 @@ INTERESSES: ${Array.isArray(interests) && interests.length ? interests.join(', '
 CONTRATO DO VIAJANTE: ${JSON.stringify(planningBrief || {})}
 ROTEIRO ATUAL A SER CONFERIDO: ${JSON.stringify(currentItinerary || [])}
 
-Use a Pesquisa Google para confirmar fatos. Priorize fontes oficiais de turismo, sites oficiais das atrações, patrimônio cultural, imprensa local reconhecida e páginas oficiais dos estabelecimentos.
+Use a pesquisa na web para confirmar fatos atuais e registre apenas fontes que realmente aparecerem na pesquisa. Siga esta hierarquia:
+1. Sites oficiais da atração, instituição, governo e operador para horários, preços, regras, reservas, acessibilidade, fechamentos e transporte.
+2. Google Maps ou equivalente confiável para localização, distância, lógica geográfica, tempo indicativo de deslocamento, existência do estabelecimento e avaliações recentes. Nunca decida apenas pela nota média.
+3. Booking ou outra plataforma consolidada para localização, estrutura, adequação ao perfil e avaliações recentes de hospedagem. Disponibilidade, regra e preço final precisam do canal de reserva.
+4. Guias editoriais reconhecidos e imprensa local apenas como apoio para relevância cultural, gastronomia, bairros e duração típica de visita.
+
+Quando houver conflito, a fonte oficial atual prevalece. Para um fato operacional importante, cruze duas fontes de naturezas diferentes quando possível. Não afirme ter consultado Google Maps, Booking ou outra fonte nominal se ela não apareceu nos resultados acessíveis.
 
 Sua missão é descobrir o que uma resposta genérica normalmente omite:
 1. Os pontos turísticos incontornáveis, inclusive o principal símbolo do destino.
@@ -143,31 +149,31 @@ Sua missão é descobrir o que uma resposta genérica normalmente omite:
 3. Outros sabores identitários que só fazem sentido naquele lugar ou região.
 4. Restaurantes reais e atuais onde esses pratos podem ser pedidos pelo nome.
 5. Alternativas cobertas reais para clima desfavorável.
-6. Restrições práticas, necessidade de reserva e possíveis fechamentos sazonais.
+6. Restrições práticas, acessibilidade, necessidade de reserva, horários e possíveis fechamentos sazonais.
 7. Cada evento, casa de show ou programação nominal pedida pelo viajante, cruzando a data real com o dia da semana.
-8. Tempos e meios de deslocamento entre os compromissos fixos, aeroporto, bagagem e hospedagem.
+8. Tempos e meios de deslocamento entre os compromissos fixos, aeroporto, bagagem e hospedagem, distinguindo estimativa de mapa de horário oficial do operador.
 9. Agrupamentos por bairro que evitem zigue-zague e protejam pausas, check-in e encontros pessoais.
 
-Não invente endereços, restaurantes, pratos, horários ou títulos. Se um dado não puder ser confirmado, não o inclua. Não use listas genéricas copiáveis para qualquer cidade.
+Não invente endereços, restaurantes, hotéis, pratos, horários, preços, avaliações, linhas de transporte, tempos de trajeto, regras ou títulos. Se um dado não puder ser confirmado, não o inclua. Diferencie claramente fato confirmado de estimativa. Não use listas genéricas copiáveis para qualquer cidade.
 
 Retorne SOMENTE JSON válido, sem markdown, com este formato:
 {
   "destination":"Cidade, região/país",
   "researchedAt":"AAAA-MM-DD",
   "mustSee":[
-    {"name":"Nome oficial","reason":"Por que é indispensável e o que observar","location":"Bairro ou endereço pesquisável","priority":"essential|important","verification_note":"Reserva, horário ou cuidado atual","sourceUrl":"https://fonte-oficial"}
+    {"name":"Nome oficial","reason":"Por que é indispensável e o que observar","location":"Bairro ou endereço pesquisável","priority":"essential|important","verification_note":"Reserva, horário ou cuidado atual","sourceType":"official|map|editorial","sourceUrl":"https://fonte-principal","secondarySourceUrl":"https://segunda-fonte-ou-vazio"}
   ],
   "signatureFoods":[
     {"name":"Nome do prato ou bebida","why_symbolic":"Vínculo cultural concreto com o destino","where_to_try":"Mercado, bairro ou tradição associada","priority":"essential|important"}
   ],
   "restaurants":[
-    {"name":"Nome real","location":"Endereço ou bairro pesquisável","dish":"Prato específico","price_level":"$|$$|$$$","why":"Motivo concreto e relação com o destino","verification_note":"O que confirmar antes de ir","sourceUrl":"https://fonte-confiável"}
+    {"name":"Nome real","location":"Endereço ou bairro pesquisável","dish":"Prato específico","price_level":"$|$$|$$$ ou vazio se não confirmado","why":"Motivo concreto e relação com o destino","verification_note":"O que confirmar antes de ir","sourceType":"official|map|editorial","sourceUrl":"https://fonte-principal","secondarySourceUrl":"https://segunda-fonte-ou-vazio"}
   ],
   "events":[
-    {"name":"Evento ou programação nominal","venue":"Local real","dateISO":"AAAA-MM-DD","startTime":"HH:MM ou null","location":"Endereço confirmado","verification_note":"O que foi confirmado e o que ainda exige reconfirmação","sourceUrl":"https://fonte-oficial"}
+    {"name":"Evento ou programação nominal","venue":"Local real","dateISO":"AAAA-MM-DD","startTime":"HH:MM ou null","location":"Endereço confirmado","verification_note":"O que foi confirmado e o que ainda exige reconfirmação","sourceType":"official","sourceUrl":"https://fonte-oficial","secondarySourceUrl":"https://segunda-fonte-ou-vazio"}
   ],
   "mobility":[
-    {"from":"Origem","to":"Destino","mode":"Modal","duration":"Tempo estimado","practical_note":"Bilhete, baldeação, trânsito ou acessibilidade","sourceUrl":"https://fonte-confiável"}
+    {"from":"Origem","to":"Destino","mode":"Modal","duration":"Tempo estimado ou vazio","practical_note":"Bilhete, baldeação, trânsito ou acessibilidade","sourceType":"official|map","sourceUrl":"https://fonte-principal","secondarySourceUrl":"https://segunda-fonte-ou-vazio"}
   ],
   "neighborhoodClusters":[
     {"name":"Eixo geográfico","places":["Locais próximos"],"why":"Por que funciona no mesmo bloco"}
@@ -178,7 +184,7 @@ Retorne SOMENTE JSON válido, sem markdown, com este formato:
   "localWarnings":["Cuidados práticos e verificáveis"]
 }
 
-Inclua de 3 a 6 atrações em mustSee, marque as realmente incontornáveis como essential, inclua de 2 a 5 itens gastronômicos e pelo menos ${restaurantTarget} restaurantes quando a duração exigir. O primeiro item de mustSee deve ser o ponto mais importante; o primeiro signatureFoods deve ser o sabor mais simbólico. Todo fato atual ou endereço exato precisa de sourceUrl; omita o que não puder ser confirmado.`;
+Inclua de 3 a 6 atrações em mustSee, marque as realmente incontornáveis como essential, inclua de 2 a 5 itens gastronômicos e até ${restaurantTarget} restaurantes confirmados, sem completar a quantidade com nomes fracos ou incertos. O primeiro item de mustSee deve ser o ponto mais importante; o primeiro signatureFoods deve ser o sabor mais simbólico. Todo fato atual ou endereço exato precisa de sourceUrl; fatos operacionais importantes devem trazer secondarySourceUrl quando houver uma segunda fonte acessível. Omita o que não puder ser confirmado.`;
 }
 
 function readActionEnvelope(text = '') {
