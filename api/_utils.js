@@ -314,43 +314,88 @@ async function saveAIHistorySummary(userId, tripId, chatType, state) {
 }
 
 /**
- * Gerencia a lógica estrita de CORS por ambiente.
+ * Gerencia a lógica estrita e segura de CORS por ambiente.
  */
 function handleCors(req, res) {
-  const origin = req.headers.origin;
+  const rawOrigin = req.headers && req.headers.origin;
+  const origin = rawOrigin ? rawOrigin.toLowerCase().trim() : null;
+  const host = (req.headers && (req.headers['x-forwarded-host'] || req.headers.host) || '').toLowerCase().trim();
   const isProd = process.env.NODE_ENV === 'production' || process.env.APP_ENV === 'production';
-  const allowedOriginsEnv = process.env.ALLOWED_ORIGINS || process.env.ALLOWED_ORIGIN;
 
-  let allowedOrigins = [];
-  if (allowedOriginsEnv) {
-    allowedOrigins = allowedOriginsEnv.split(',').map(o => o.trim().toLowerCase());
-  }
+  // 1. Origens permitidas padrão (Domínio do app em produção + domínios padrão + localhost)
+  const defaultAllowed = [
+    'https://orbia-gilt-xi.vercel.app',
+    'https://copilotodeviagem.com.br',
+    'https://www.copilotodeviagem.com.br',
+    'http://localhost:3000',
+    'http://localhost:5173',
+    'http://localhost:5500',
+    'http://127.0.0.1:3000',
+    'http://127.0.0.1:5173',
+    'http://127.0.0.1:5500'
+  ];
 
-  if (!isProd) {
-    if (origin) {
-      res.setHeader('Access-Control-Allow-Origin', origin);
-    } else {
-      res.setHeader('Access-Control-Allow-Origin', '*');
+  // 2. Origens adicionais configuradas em variáveis de ambiente
+  const envOrigins = [
+    process.env.ALLOWED_ORIGINS,
+    process.env.ALLOWED_ORIGIN,
+    process.env.FRONTEND_URL,
+    process.env.APP_URL,
+    process.env.SITE_URL,
+    process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null
+  ].filter(Boolean);
+
+  const extraAllowed = [];
+  for (const envVal of envOrigins) {
+    for (const item of String(envVal).split(',')) {
+      const trimmed = item.trim().toLowerCase();
+      if (trimmed) {
+        extraAllowed.push(trimmed.startsWith('http') ? trimmed : `https://${trimmed}`);
+      }
     }
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Webhook-Secret');
-    return true;
   }
 
-  if (allowedOrigins.length === 0) {
-    console.error('[CORS] Erro: Produção ativa mas ALLOWED_ORIGIN/ALLOWED_ORIGINS não configurada no servidor. Fail closed.');
+  const allowedOrigins = Array.from(new Set([...defaultAllowed, ...extraAllowed]));
+
+  // 3. Validação da origem da requisição
+  let targetOrigin = null;
+
+  if (origin) {
+    let hostname = '';
+    try {
+      hostname = new URL(origin).hostname;
+    } catch (_) {}
+
+    if (allowedOrigins.includes(origin)) {
+      targetOrigin = rawOrigin;
+    } else if (hostname && (hostname.endsWith('.vercel.app') || hostname.endsWith('-ianpietros-projects.vercel.app'))) {
+      targetOrigin = rawOrigin;
+    } else if (host && (origin === `https://${host}` || origin === `http://${host}`)) {
+      targetOrigin = rawOrigin;
+    } else if (!isProd) {
+      targetOrigin = rawOrigin;
+    }
+  } else {
+    // Requisição Same-Origin (sem header Origin explícito)
+    targetOrigin = host ? `https://${host}` : 'https://orbia-gilt-xi.vercel.app';
+  }
+
+  // 4. Se não autorizada, bloqueia e registra aviso
+  if (!targetOrigin) {
+    console.warn(`[CORS] Acesso bloqueado. Origem não autorizada: ${origin || 'N/A'}`);
+    res.setHeader('Access-Control-Allow-Origin', allowedOrigins[0]);
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Webhook-Secret, X-Requested-With');
     return false;
   }
 
-  if (origin && allowedOrigins.includes(origin.toLowerCase())) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Webhook-Secret');
-    return true;
-  }
+  // 5. Aplicar headers autorizados
+  res.setHeader('Access-Control-Allow-Origin', targetOrigin);
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Webhook-Secret, X-Requested-With');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
 
-  console.warn(`[CORS] Acesso bloqueado. Origem não autorizada: ${origin || 'N/A'}`);
-  return false;
+  return true;
 }
 
 /**

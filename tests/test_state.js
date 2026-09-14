@@ -1019,12 +1019,33 @@ async function runPreCycle2Tests() {
   {
     console.log("Test I: CORS real em endpoint");
     
-    // Whitelistado
+    // Whitelistado produção principal
     const reqOk = { headers: { origin: 'https://copilotodeviagem.com.br' } };
     const resOk = makeMockRes();
     const resultOk = handleCors(reqOk, resOk);
     assert.strictEqual(resultOk, true, "Origem whitelistada deve ser aceita");
     assert.strictEqual(resOk.headers['Access-Control-Allow-Origin'], 'https://copilotodeviagem.com.br');
+
+    // Orbia Vercel URL
+    const reqOrbia = { headers: { origin: 'https://orbia-gilt-xi.vercel.app' } };
+    const resOrbia = makeMockRes();
+    const resultOrbia = handleCors(reqOrbia, resOrbia);
+    assert.strictEqual(resultOrbia, true, "https://orbia-gilt-xi.vercel.app deve ser aceita");
+    assert.strictEqual(resOrbia.headers['Access-Control-Allow-Origin'], 'https://orbia-gilt-xi.vercel.app');
+
+    // Vercel Preview URL
+    const reqPreview = { headers: { origin: 'https://orbia-59tajawyz-ianpietros-projects.vercel.app' } };
+    const resPreview = makeMockRes();
+    const resultPreview = handleCors(reqPreview, resPreview);
+    assert.strictEqual(resultPreview, true, "Preview vercel deve ser aceito");
+    assert.strictEqual(resPreview.headers['Access-Control-Allow-Origin'], 'https://orbia-59tajawyz-ianpietros-projects.vercel.app');
+
+    // Same-origin sem header origin
+    const reqSame = { headers: { host: 'orbia-gilt-xi.vercel.app' } };
+    const resSame = makeMockRes();
+    const resultSame = handleCors(reqSame, resSame);
+    assert.strictEqual(resultSame, true, "Same-origin sem header origin deve ser aceita");
+    assert.strictEqual(resSame.headers['Access-Control-Allow-Origin'], 'https://orbia-gilt-xi.vercel.app');
 
     // Não whitelistado (Acesso negado)
     const reqBad = { headers: { origin: 'https://hacker.com' } };
