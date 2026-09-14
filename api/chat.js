@@ -170,8 +170,8 @@ module.exports = async function handler(req, res) {
   }
 
   // Rate Limiting distribuído e persistente no banco de dados (IP-based)
-  const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '127.0.0.1';
-  const isRateLimited = isTrustedLocalPreview ? false : await checkDatabaseRateLimit(clientIp);
+  const clientIp = (req.headers && req.headers['x-forwarded-for']) || (req.socket && req.socket.remoteAddress) || '127.0.0.1';
+  const isRateLimited = isBypassToken ? false : await checkDatabaseRateLimit(clientIp);
   if (isRateLimited) {
     console.warn(`[chat] Rate limit distribuído excedido para IP=${clientIp}`);
     return res.status(429).json({ 
@@ -214,12 +214,12 @@ module.exports = async function handler(req, res) {
     return res.status(400).json({ error: 'Messages array is required' });
   }
 
-  if (!isTrustedLocalPreview && !(await checkTripOwnership(userId, tripId))) {
+  if (!isBypassToken && !(await checkTripOwnership(userId, tripId))) {
     return res.status(403).json({ error: 'Você não possui acesso a esta viagem.' });
   }
 
   // Verificar e reservar atonicamente a cota de consumo de IA no servidor (FOR UPDATE)
-  const aiQuota = isTrustedLocalPreview
+  const aiQuota = isBypassToken
     ? { allowed: true, plan: 'local-preview', messagesUsed: 0, limit: 500 }
     : await checkAIEntitlement(userEmail, userId, tripId);
   if (!aiQuota.allowed) {
@@ -602,7 +602,7 @@ ${destinationKnowledge.brief}`;
   } catch (error) {
     console.error("[chat] Handler error via AI Router:", error.message);
     // Se a chamada da IA falhar, realiza o reembolso/estorno imediato no banco (rollback atômico)
-    if (!isTrustedLocalPreview && userId && tripId) {
+    if (!isBypassToken && userId && tripId) {
       try {
         await refundAIUsage(userId, tripId);
         console.log(`[chat] Cota reembolsada com sucesso para o usuário ${userId} na viagem ${tripId}`);
