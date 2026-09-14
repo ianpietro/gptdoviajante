@@ -1,0 +1,51 @@
+1107:  <div class="modal-overlay hidden" id="expenseModal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 100000; padding: 20px; box-sizing: border-box;">
+1108-    <div class="modal-card glass-panel" style="max-width: 440px; width: 100%; max-height: 90vh; overflow-y: auto; padding: 30px; border-radius: var(--border-radius-lg); box-shadow: var(--shadow-lg);">
+1109-      <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--border-color); padding-bottom: 12px;">
+1110-        <h3 id="expenseModalTitle" style="margin: 0; font-size: 1.2rem; font-weight: 700; color: var(--text-main);"><i class="fa-solid fa-receipt" style="color: var(--primary); margin-right: 8px;"></i> Adicionar Despesa</h3>
+1111-        <button class="modal-close" id="closeExpenseModal" style="background: transparent; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.2rem;"><i class="fa-solid fa-xmark"></i></button>
+1112-      </div>
+1113-      
+1114-      <form class="modal-form" id="expenseForm" style="display: flex; flex-direction: column; gap: 14px;">
+1115-        <input type="hidden" id="editExpenseIndex" value="">
+1116-        
+1117-        <div class="input-group" style="display: flex; flex-direction: column; gap: 6px;">
+1118-          <label for="expenseDescInput" style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: var(--text-light); letter-spacing: 0.05em;">Descrição *</label>
+1119-          <input type="text" id="expenseDescInput" placeholder="Ex: Jantar, Gasolina, Pedágio" required style="background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 10px 12px; color: white; outline: none; font-size: 0.9rem;">
+1120-        </div>
+1121-
+1122-        <div style="display: flex; gap: 12px;">
+1123-          <div class="input-group" style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
+1124-            <label for="expenseAmountInput" style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: var(--text-light); letter-spacing: 0.05em;">Valor (R$) *</label>
+1125-            <input type="number" id="expenseAmountInput" step="0.01" min="0.01" placeholder="0.00" required style="background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 10px 12px; color: white; outline: none; font-size: 0.9rem;">
+1126-          </div>
+1127-          <div class="input-group" style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
+1128-            <label for="expensePayerSelect" style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: var(--text-light); letter-spacing: 0.05em;">Quem Pagou? *</label>
+1129-            <select id="expensePayerSelect" required style="background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 10px 12px; color: white; outline: none; font-size: 0.9rem; height: 40px;">
+1130-              <!-- Dynamic members list options -->
+1131-            </select>
+1132-          </div>
+1133-        </div>
+1134-
+1135-        <!-- Participantes Checklist -->
+1136-        <div class="input-group" style="display: flex; flex-direction: column; gap: 6px; border-top: 1px solid var(--border-color); padding-top: 14px; margin-top: 5px;">
+1137-          <label style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: var(--text-light); letter-spacing: 0.05em; margin-bottom: 4px;">Dividir com quem? *</label>
+1138-          <div id="expenseParticipantsChecklist" style="display: flex; flex-direction: column; gap: 10px; max-height: 150px; overflow-y: auto; background: rgba(0, 0, 0, 0.2); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 12px;">
+1139-            <!-- Dynamic checkboxes injected here -->
+1140-          </div>
+1141-        </div>
+1142-
+1143-        <!-- Como dividir -->
+1144-        <div class="input-group" style="display: flex; flex-direction: column; gap: 6px; border-top: 1px solid var(--border-color); padding-top: 14px; margin-top: 5px;">
+1145-          <label style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: var(--text-light); letter-spacing: 0.05em; margin-bottom: 4px;">Como dividir? *</label>
+1146-          <div style="display: flex; background: rgba(0, 0, 0, 0.3); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 3px; gap: 4px;">
+1147-            <button type="button" id="btnSplitEqual" class="active" style="flex: 1; border: none; background: var(--primary); color: white; padding: 6px 12px; font-size: 0.8rem; font-weight: 600; border-radius: var(--border-radius-sm); cursor: pointer; transition: all 0.2s;">Igual</button>
+1148-            <button type="button" id="btnSplitCustom" style="flex: 1; border: none; background: transparent; color: var(--text-muted); padding: 6px 12px; font-size: 0.8rem; font-weight: 600; border-radius: var(--border-radius-sm); cursor: pointer; transition: all 0.2s;">Personalizado</button>
+1149-          </div>
+1150-        </div>
+1151-
+1152-        <!-- Valores Individuais (Custom Shares) -->
+1153-        <div id="customSharesWrapper" class="hidden" style="display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--border-color); padding-top: 14px;">
+1154-          <label style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: var(--text-light); letter-spacing: 0.05em; margin-bottom: 4px;">Valores individuais (R$)</label>
+1155-          <div id="customSharesList" style="display: flex; flex-direction: column; gap: 8px; max-height: 180px; overflow-y: auto; background: rgba(0, 0, 0, 0.2); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 12px;">
+1156-            <!-- Dynamic inputs injected here -->
+1157-          </div>

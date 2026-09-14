@@ -12,6 +12,8 @@
     }
   ],
   "rewrites": [
+    { "source": "/inspiracoes", "destination": "/api/inspiracoes" },
+    { "source": "/inspiracoes/(.*)", "destination": "/api/inspiracoes?slug=$1" },
     { "source": "/api/(.*)", "destination": "/api/$1" },
     { "source": "/v/(.*)", "destination": "/app.html?shared=$1" }
   ]

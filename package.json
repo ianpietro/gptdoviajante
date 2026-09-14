@@ -7,7 +7,7 @@
     "node": ">=18"
   },
   "scripts": {
-    "test": "node tests/test_state.js && node tests/test_ai_router.js && node tests/test_proactive_engine.js",
+    "test": "node tests/test_orbia_visual_identity.js && node tests/test_map_context.js && node tests/test_transport_reservations.js && node tests/test_chat_transport_sync.js && node tests/test_planning_context.js && node tests/test_plan_trip_selector.js && node tests/test_readiness_checklist.js && node tests/test_trip_context_engine.js && node tests/test_calendar_engine.js && node tests/test_itinerary_generation_engine.js && node tests/test_state.js && node tests/test_ai_router.js && node tests/test_destination_knowledge.js && node tests/test_itinerary_quality.js && node tests/test_trip_planning_intelligence.js && node tests/test_proactive_engine.js && node tests/test_packing_engine.js && node tests/test_inspirations.js && node tests/test_pdf_export.js",
     "dev": "npx -y serve .",
     "deploy": "vercel --prod"
   },

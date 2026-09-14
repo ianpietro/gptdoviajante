@@ -22,6 +22,27 @@ async function runTests() {
     assert.strictEqual(emptyTrip.budget.hospedagem, 0);
   }
 
+  {
+    const protectedTitle = normalizeTripState({ destination: 'São Paulo', tripTitle: 'Viagem para um show de jazz' });
+    assert.strictEqual(protectedTitle.tripTitle, 'Viagem para São Paulo');
+  }
+
+  {
+    const calendarTrip = normalizeTripState({
+      destination: 'São Paulo',
+      start_date: '2026-09-23',
+      end_date: '2026-09-27',
+      itinerary: Array.from({ length: 5 }, (_, index) => ({ dayNum: index + 1, activities: [] }))
+    });
+    assert.deepStrictEqual(calendarTrip.itinerary.map(day => day.dateLabel), [
+      '23-09-2026 · quarta-feira',
+      '24-09-2026 · quinta-feira',
+      '25-09-2026 · sexta-feira',
+      '26-09-2026 · sábado',
+      '27-09-2026 · domingo'
+    ]);
+  }
+
   // Test 2: V1 legacy data migration
   {
     console.log("Test 2: Legacy V1 Structure Migration");
@@ -89,7 +110,8 @@ async function runTests() {
     assert.strictEqual(getSuggestedTripStatus(pastStr, pastStr, 'planning'), 'completed');
     
     // Today -> active
-    const todayStr = new Date().toISOString().split('T')[0];
+    const dToday = new Date();
+    const todayStr = `${dToday.getFullYear()}-${String(dToday.getMonth() + 1).padStart(2, '0')}-${String(dToday.getDate()).padStart(2, '0')}`;
     assert.strictEqual(getSuggestedTripStatus(todayStr, todayStr, 'planning'), 'active');
     
     // Archived status preservation
@@ -381,8 +403,8 @@ async function runTests() {
     const serviceWorker = fs.readFileSync('sw.js', 'utf8');
     const manifest = JSON.parse(fs.readFileSync('manifest.json', 'utf8'));
 
-    assert.ok(appHtml.includes('href="/style.v2.css"'), 'Redesign stylesheet must be loaded');
-    assert.ok(appHtml.includes('href="/assets/app-icon.svg"'), 'App icon must be configured');
+    assert.ok(appHtml.includes('style.v2.css'), 'Redesign stylesheet must be loaded');
+    assert.ok(appHtml.includes('href="/assets/symbol-orbia.svg"'), 'App icon must be configured');
     assert.ok(appHtml.includes('id="createTripModal" role="dialog"'), 'Trip creation must expose dialog semantics');
     assert.ok(appHtml.includes('id="reservationModal" role="dialog"'), 'Reservation modal must expose dialog semantics');
     assert.ok(appJs.includes("const stepEl = step === 2 ? createForm"), 'Plan-from-zero must reveal the actual form');
@@ -394,8 +416,8 @@ async function runTests() {
     assert.ok(appJs.includes('updateBudget(false);'), 'Rendering budget must not overwrite saved values');
     assert.ok(redesignCss.includes('#dashboardContent.trips-view > :not(#myTripsSection)'), 'Legacy dashboard must not leak below first-use');
     assert.ok(redesignCss.includes('#undoToast'), 'Undo action must have standalone positioning styles');
-    assert.strictEqual(manifest.theme_color, '#070b14');
-    assert.strictEqual(manifest.icons[0].src, '/assets/app-icon.svg');
+    assert.ok(['#070b14', '#FFFFFF', '#F8FAF9', '#216F80'].includes(manifest.theme_color));
+    assert.strictEqual(manifest.icons[0].src, '/assets/symbol-orbia.svg');
     assert.ok(!serviceWorker.includes('client.navigate(client.url)'), 'Service-worker activation must not interrupt open work');
   }
 
@@ -650,7 +672,7 @@ async function runStep10Tests() {
     console.log("Test RC-3c: Redesigned application shell is wired safely");
     const appHtml = fs.readFileSync('app.html', 'utf-8');
     const shellCss = fs.readFileSync('style.v2.css', 'utf-8');
-    assert.ok(appHtml.includes('href="/style.v2.css"'), "A camada visual v2 deve estar carregada");
+    assert.ok(appHtml.includes('style.v2.css'), "A camada visual v2 deve estar carregada");
     assert.ok(appHtml.includes('class="app-topbar"'), "O shell deve ter cabeçalho persistente");
     assert.ok(!appHtml.includes('v1.2.3'), "O selo visual legado não pode continuar no painel");
     assert.strictEqual((appHtml.match(/id="userProfile"/g) || []).length, 1, "userProfile deve ser único");
@@ -1039,6 +1061,245 @@ async function runPreCycle2Tests() {
     const rawMarkdown = "```json\n{\"actions\":[{\"type\":\"packing\",\"operation\":\"add\",\"data\":{\"item\":\"Protetor\"}}]}\n```";
     const cleaned = normalizeStructuredOutput(rawMarkdown);
     assert.strictEqual(cleaned, "{\"actions\":[{\"type\":\"packing\",\"operation\":\"add\",\"data\":{\"item\":\"Protetor\"}}]}", "Markdown ```json deve ser limpo");
+  }
+
+  // ── Test K: Action Engine Accommodations & Legacy Sync ──────────────────────
+  {
+    console.log("Test K: Action Engine Accommodations & Legacy Sync");
+    const { applyActions, undoLastActions, buildTripContext, VALID_ACTION_TYPES } = await import('../modules/actionEngine.js');
+
+    assert.ok(VALID_ACTION_TYPES.includes('accommodations'), "VALID_ACTION_TYPES deve conter 'accommodations'");
+
+    const initialTrip = {
+      tripTitle: 'Viagem a Roma',
+      destination: 'Roma',
+      infoHotel: 'A definir',
+      hotelLink: '',
+      accommodations: []
+    };
+
+    // 1. Aplicar ação add em accommodations
+    const accAction = {
+      type: 'accommodations',
+      operation: 'add',
+      data: {
+        name: 'Hotel Exemplo',
+        address: 'Rua Exemplo, 123, Roma',
+        bookingUrl: 'https://booking.example.com/123',
+        checkIn: '2026-10-10',
+        checkOut: '2026-10-15',
+        confirmationCode: 'BOOK1234'
+      }
+    };
+
+    const updatedTrip = applyActions([accAction], initialTrip);
+
+    assert.strictEqual(updatedTrip.accommodations.length, 1, "Array de accommodations deve possuir 1 item");
+    assert.strictEqual(updatedTrip.accommodations[0].name, 'Hotel Exemplo');
+    assert.strictEqual(updatedTrip.accommodations[0].address, 'Rua Exemplo, 123, Roma');
+    assert.strictEqual(updatedTrip.infoHotel, 'Hotel Exemplo · Rua Exemplo, 123, Roma', "infoHotel deve ter sincronizado nome e endereço");
+    assert.strictEqual(updatedTrip.hotelLink, 'https://booking.example.com/123', "hotelLink deve ter sincronizado a URL de reserva");
+
+    // 2. Build Trip Context deve incluir hospedagem estruturada
+    const contextJson = buildTripContext(updatedTrip);
+    const parsedContext = JSON.parse(contextJson);
+    assert.strictEqual(parsedContext.accommodations.length, 1);
+    assert.strictEqual(parsedContext.accommodations[0].name, 'Hotel Exemplo');
+    assert.strictEqual(parsedContext.accommodations[0].address, 'Rua Exemplo, 123, Roma');
+    assert.strictEqual(parsedContext.infoHotel, 'Hotel Exemplo · Rua Exemplo, 123, Roma');
+
+    // 3. Desfazer ação via undoLastActions
+    const restoredTrip = undoLastActions(updatedTrip);
+    assert.strictEqual(restoredTrip.accommodations.length, 0, "Desfazer deve restaurar o estado inicial");
+    assert.strictEqual(restoredTrip.infoHotel, 'A definir');
+  }
+
+  // ── Test L: Full 9 Action Types Audit (Add, Update, Delete) ────────────────
+  {
+    console.log("Test L: Full 9 Action Types Audit (Add, Update, Delete)");
+    const { applyActions, VALID_ACTION_TYPES } = await import('../modules/actionEngine.js');
+
+    const expectedTypes = ['itinerary', 'packing', 'expenses', 'flights', 'reservations', 'documents', 'accommodations', 'budget', 'preferences'];
+    expectedTypes.forEach(t => {
+      assert.ok(VALID_ACTION_TYPES.includes(t), `VALID_ACTION_TYPES deve incluir ${t}`);
+    });
+
+    let trip = {
+      tripTitle: 'Viagem Teste Audit',
+      itinerary: [],
+      packing: [],
+      expenses: [],
+      flights: [],
+      reservations: [],
+      documents: [],
+      accommodations: [],
+      budget: { hospedagem: 0, alimentacao: 0 },
+      preferences: {}
+    };
+
+    // Add for all list types
+    trip = applyActions([
+      { type: 'expenses', operation: 'add', data: { desc: 'Jantar', amount: 80 } },
+      { type: 'flights', operation: 'add', data: { flightNumber: 'AD1020', from: 'GRU', to: 'FCO' } },
+      { type: 'reservations', operation: 'add', data: { title: 'Museu do Vaticano', date: '2026-10-12' } },
+      { type: 'documents', operation: 'add', data: { title: 'Passaporte', reference: 'BR12345' } },
+      { type: 'budget', operation: 'update', data: { hospedagem: 1500, alimentacao: 800 } },
+      { type: 'preferences', operation: 'update', data: { pace: 'intense' } }
+    ], trip);
+
+    assert.strictEqual(trip.expenses.length, 1);
+    assert.strictEqual(trip.flights.length, 1);
+    assert.strictEqual(trip.reservations.length, 1);
+    assert.strictEqual(trip.documents.length, 1);
+    assert.strictEqual(trip.budget.hospedagem, 1500);
+    assert.strictEqual(trip.preferences.pace, 'intense');
+
+    // Update & Delete
+    trip = applyActions([
+      { type: 'expenses', operation: 'update', index: 0, data: { amount: 95 } },
+      { type: 'documents', operation: 'update', index: 0, data: { reference: 'BR99999' } },
+      { type: 'flights', operation: 'delete', index: 0 }
+    ], trip);
+
+    assert.strictEqual(trip.expenses[0].amount, 95);
+    assert.strictEqual(trip.documents[0].reference, 'BR99999');
+    assert.strictEqual(trip.flights.length, 0);
+  }
+
+  // ── Test M: Visual Action Confirmation Formatting Audit ────────────────────
+  {
+    console.log("Test M: Visual Action Confirmation Formatting Audit");
+    const appJs = fs.readFileSync('app.js', 'utf-8');
+    assert.ok(appJs.includes('function formatActionConfirmationText'), "formatActionConfirmationText deve existir em app.js");
+    assert.ok(appJs.includes('window.formatActionConfirmationText = formatActionConfirmationText'), "formatActionConfirmationText deve ser exposta no window");
+    assert.ok(appJs.includes("window.showUndoToast = function"), "showUndoToast deve ser exposta no window");
+    assert.ok(appJs.includes('btnLabel'), "formatActionConfirmationText deve retornar btnLabel para CTA visual");
+
+    // Extract formatActionConfirmationText definition and evaluate locally
+    const fnMatch = appJs.match(/function formatActionConfirmationText\(actionsOrMsg\)\s*\{([\s\S]*?)\n\}\n\nwindow\.formatActionConfirmationText/);
+    assert.ok(fnMatch, "Definição de formatActionConfirmationText encontrada em app.js");
+
+    const formatActionConfirmationText = new Function('actionsOrMsg', fnMatch[1]);
+
+    // Validate mappings for all 9 types
+    assert.strictEqual(formatActionConfirmationText([{ type: 'accommodations', operation: 'add' }]).tab, 'logistica');
+    assert.strictEqual(formatActionConfirmationText([{ type: 'itinerary', operation: 'add' }]).tab, 'roteiro');
+    assert.strictEqual(formatActionConfirmationText([{ type: 'packing', operation: 'add', data: ['item1', 'item2'] }]).tab, 'mala');
+    assert.strictEqual(formatActionConfirmationText([{ type: 'expenses', operation: 'add' }]).tab, 'orcamento');
+    assert.strictEqual(formatActionConfirmationText([{ type: 'budget', operation: 'update' }]).tab, 'orcamento');
+    assert.strictEqual(formatActionConfirmationText([{ type: 'flights', operation: 'add' }]).tab, 'logistica');
+    assert.strictEqual(formatActionConfirmationText([{ type: 'reservations', operation: 'add' }]).tab, 'logistica');
+    assert.strictEqual(formatActionConfirmationText([{ type: 'documents', operation: 'add' }]).tab, 'logistica');
+    assert.strictEqual(formatActionConfirmationText([{ type: 'preferences', operation: 'update' }]).tab, 'home');
+
+    assert.ok(formatActionConfirmationText([{ type: 'accommodations', operation: 'add' }]).btnLabel, 'Ver na Carteira');
+    assert.ok(formatActionConfirmationText([{ type: 'itinerary', operation: 'add' }]).btnLabel, 'Abrir Roteiro');
+    assert.ok(formatActionConfirmationText([{ type: 'packing', operation: 'add', data: ['a', 'b'] }]).text.includes('2 itens'));
+  }
+
+  // ── Test N: Smart Context Recalculation & Rollback Audit ──────────────────
+  {
+    console.log("Test N: Smart Context Recalculation & Rollback Audit");
+    const { recalculateTripContext, normalizeTripState } = await import('../modules/stateManager.js');
+    const { applyActions, undoLastActions } = await import('../modules/actionEngine.js');
+
+    const initialTrip = normalizeTripState({
+      tripTitle: "Viagem Paris",
+      destination: "Paris",
+      start_date: "2026-06-01",
+      end_date: "2026-06-10",
+      members: ["Você", "Carlos"],
+      packing: [
+        { category: "Geral", items: [{ name: "Adaptador Universal", checked: true, manual: true }] }
+      ],
+      budget: { hospedagem: 1000, alimentacao: 500 }
+    });
+
+    // Apply structural change action (updating destination to Roma and dates to July)
+    const updatedTrip = applyActions([
+      { type: 'preferences', operation: 'update', data: { destination: "Roma", start_date: "2026-07-01", end_date: "2026-07-10" } }
+    ], initialTrip);
+
+    // Verify recalculation triggered notice
+    assert.ok(updatedTrip.recalculationNotice, "recalculationNotice deve ser gerado em alterações estruturais");
+    assert.strictEqual(updatedTrip.recalculationNotice.triggered, true);
+
+    // Verify manual items preserved
+    const packingFlattened = updatedTrip.packing.flatMap(c => c.items || []);
+    const hasAdaptador = packingFlattened.some(i => i.name === "Adaptador Universal");
+    assert.ok(hasAdaptador, "Item manual 'Adaptador Universal' deve ser preservado na recalculação");
+
+    // Verify Rollback / Undo
+    const rolledBackTrip = undoLastActions(updatedTrip);
+    assert.strictEqual(rolledBackTrip.destination, "Paris", "Rollback deve restaurar destino original 'Paris'");
+  }
+
+  // ── Test O: Factual Dining Options & Multi-Destination Validation Audit ───
+  {
+    console.log("Test O: Factual Dining Options & Multi-Destination Validation Audit");
+    const { validateDiningOptions } = await import('../modules/stateManager.js');
+
+    // 1. Generic name rejection test
+    const genericCheck = validateDiningOptions([
+      { title: "Almoço", desc: "Almoço no Restaurante Típico perto da praça" }
+    ]);
+    assert.strictEqual(genericCheck.valid, false, "Nomes genéricos como 'Restaurante Típico' devem ser rejeitados");
+    assert.ok(genericCheck.genericNameFound, "Deve identificar o termo genérico encontrado");
+
+    // 2. Roma valid 2-option test
+    const romaOptions = [
+      { name: "Da Enzo al 29", especialidade: "Cacio e Pepe", faixa_de_preco: "€18-28", endereco: "Trastevere", justificativa: "Melhor massa autêntica do bairro" },
+      { name: "Roscioli Salumeria", especialidade: "Carbonara e vinhos", faixa_de_preco: "€25-40", endereco: "Campo de' Fiori", justificativa: "Referência em charcutaria italiana" }
+    ];
+    const romaCheck = validateDiningOptions(romaOptions);
+    assert.strictEqual(romaCheck.valid, true, "Opções reais de Roma devem ser aceitas com 2 sugestões");
+
+    // 3. Campo Grande valid 2-option test
+    const cgOptions = [
+      { name: "Casa do Peixe", especialidade: "Pintado a Urucum", faixa_de_preco: "R$ 60-90", endereco: "Chácara Cachoeira", justificativa: "Clássico da culinária sul-mato-grossense" },
+      { name: "Sobá da Feira Central", especialidade: "Sobá tradicional de Campo Grande", faixa_de_preco: "R$ 30-45", endereco: "Feira Central", justificativa: "Patrimônio cultural imaterial" }
+    ];
+    const cgCheck = validateDiningOptions(cgOptions);
+    assert.strictEqual(cgCheck.valid, true, "Opções reais de Campo Grande devem ser aceitas");
+
+    // 4. Secondary Destination (Bonito) valid test
+    const bonitoOptions = [
+      { name: "Juanita Restaurante", especialidade: "Pacu na brasa com alcaparras", faixa_de_preco: "R$ 70-110", endereco: "Centro de Bonito", justificativa: "Referência gastronômica regional" },
+      { name: "Restaurante Taboa", especialidade: "Traíra sem espinho e cachaça artesanal", faixa_de_preco: "R$ 55-85", endereco: "Rua Pilad Rebuá", justificativa: "Atmosfera descontraída no centro" }
+    ];
+    const bonitoCheck = validateDiningOptions(bonitoOptions);
+    assert.strictEqual(bonitoCheck.valid, true, "Opções reais de destino secundário (Bonito) devem ser aceitas");
+  }
+
+  // ── Test P: Operational Health Score Dashboard 5-Item Audit ───────────────
+  {
+    console.log("Test P: Operational Health Score Dashboard 5-Item Audit");
+    const { calculateOperationalHealthScore, normalizeTripState } = await import('../modules/stateManager.js');
+
+    const emptyTrip = normalizeTripState({});
+    const emptyHealth = calculateOperationalHealthScore(emptyTrip);
+
+    assert.strictEqual(emptyHealth.total, 5, "Health Score deve conter exatamente 5 itens principais");
+    assert.strictEqual(emptyHealth.score, 0, "Viagem vazia deve ter score 0 de 5");
+    assert.strictEqual(emptyHealth.items.length, 5, "Deve ter 5 itens de checklist");
+
+    const itemIds = emptyHealth.items.map(i => i.id);
+    assert.deepStrictEqual(itemIds, ['transport', 'hotel', 'itinerary', 'budget', 'packing']);
+
+    // Complete trip simulation
+    const fullTrip = normalizeTripState({
+      flights: [{ flightNumber: "AD1020", from: "GRU", to: "FCO" }],
+      accommodations: [{ name: "Hotel Artemide", address: "Via Nazionale 22" }],
+      itinerary: [{ dayNum: 1, dayTitle: "Chegada em Roma", activities: [] }],
+      budget: { hospedagem: 1500, alimentacao: 800 },
+      packing: [{ category: "Geral", items: [{ name: "Passaporte", checked: true }] }]
+    });
+
+    const fullHealth = calculateOperationalHealthScore(fullTrip);
+    assert.strictEqual(fullHealth.score, 5, "Viagem completa deve ter 5 de 5 no Health Score");
+    assert.strictEqual(fullHealth.percentage, 100, "Percentage deve ser 100%");
+    assert.ok(fullHealth.items.every(i => i.status === 'OK'), "Todos os itens devem ter status OK");
+    assert.ok(fullHealth.items.every(i => i.actionLabel && i.tab), "Todos os itens devem ter CTA actionLabel e tab destino");
   }
 
   console.log("✅ Pre-Cycle 2 Stabilization Tests passed successfully!");

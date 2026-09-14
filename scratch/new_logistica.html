@@ -1,0 +1,39 @@
+      <section class="container section-padding hidden" id="logisticaSection">
+        <div class="section-title-wrapper">
+          <span class="badge badge-primary"><i class="fa-solid fa-wallet"></i> Logística</span>
+          <h2 class="section-title">Carteira de Viagem</h2>
+          <p class="section-subtitle">Gerencie suas passagens aéreas, hospedagens, ingressos e documentos em um só lugar.</p>
+        </div>
+
+        <div style="display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap;">
+          <input type="text" id="documentSearchInput" placeholder="🔍 Buscar reservas ou documentos..." style="flex: 1; min-width: 200px; background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 10px 14px; color: white; outline: none; font-size: 0.9rem;">
+          <button class="btn btn-primary" id="openReservationModalBtn" style="white-space: nowrap;"><i class="fa-solid fa-plus"></i> Nova Reserva</button>
+        </div>
+
+        <div class="sub-tab-bar category-filters" style="display: flex; gap: 8px; margin-bottom: 24px; border-bottom: 1px solid var(--border-color); padding-bottom: 12px; overflow-x: auto;">
+          <button class="btn btn-sm btn-sub-tab active" data-category="Todos">Todos</button>
+          <button class="btn btn-sm btn-sub-tab" data-category="Passagem Aérea">Passagens</button>
+          <button class="btn btn-sm btn-sub-tab" data-category="Hospedagem">Hospedagem</button>
+          <button class="btn btn-sm btn-sub-tab" data-category="Ingresso">Ingressos</button>
+          <button class="btn btn-sm btn-sub-tab" data-category="Seguro Viagem">Seguro</button>
+          <button class="btn btn-sm btn-sub-tab" data-category="Outros">Outros</button>
+        </div>
+
+        <!-- Document Upload Area (kept for generic uploads if needed) -->
+        <div id="documentUploadArea" style="display: flex; flex-direction: column; align-items: center; justify-content: center; border: 2px dashed var(--border-color); border-radius: var(--border-radius-md); padding: 20px; text-align: center; cursor: pointer; position: relative; background: rgba(255, 255, 255, 0.01); transition: background 0.2s, border-color 0.2s; margin-bottom: 24px;">
+          <input type="file" id="documentFileInput" accept="application/pdf,image/*" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer;">
+          <i class="fa-solid fa-cloud-arrow-up" style="font-size: 1.8rem; color: var(--primary); margin-bottom: 8px;"></i>
+          <h4 style="font-size: 0.85rem; font-weight: 700; margin-bottom: 4px; color: var(--text-main);">Arraste ou clique para enviar um arquivo</h4>
+          <p style="font-size: 0.72rem; color: var(--text-muted); margin: 0;">PDF ou Imagem (Máx. 4MB)</p>
+        </div>
+
+        <div id="documentsEmpty" style="font-size: 0.85rem; color: var(--text-muted); padding: 30px 0; text-align: center;">
+          <i class="fa-solid fa-folder-open" style="font-size: 2rem; margin-bottom: 12px; display: block; opacity: 0.5;"></i>
+          Nenhuma reserva ou documento encontrado.
+        </div>
+        
+        <div id="documentsList" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px;">
+          <!-- Documents injected dynamically -->
+        </div>
+
+      </section>

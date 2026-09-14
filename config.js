@@ -54,16 +54,25 @@ export const FREE_AI_LIMIT = 40;
 export const PREMIUM_AI_FAIR_USE_LIMIT = 500;
 
 // Versão central do aplicativo — usada em logs, analytics e service worker
-export const APP_VERSION = '2.2.0-rc.1';
+export const APP_VERSION = '3.0.0-rc.28';
 
 // Desativa o bypass de login automaticamente em produção/staging.
 // Ativo somente em ambiente local (localhost / 127.0.0.1).
 export const BYPASS_LOGIN = (
   typeof window !== 'undefined' &&
-  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+  (
+    window.location.hostname === 'localhost' || 
+    window.location.hostname === '127.0.0.1' ||
+    window.location.hostname === '0.0.0.0' ||
+    window.location.hostname === '::1' ||
+    window.location.hostname.endsWith('.local') ||
+    window.location.hostname.startsWith('192.168.') ||
+    window.location.hostname.startsWith('10.') ||
+    window.location.hostname.startsWith('172.')
+  )
 );
 
-// Feature Flags — todas ativas no Release Candidate
+// Feature Flags — Centralizadas para Beta Privado
 export const FEATURES = {
   multiTrip: true,
   newHome: true,
@@ -73,4 +82,17 @@ export const FEATURES = {
   premium: true,
   analytics: true,
   proactiveCopilot: true
+};
+
+export const FEATURE_FLAGS = {
+  LIVE_WEATHER_ENABLED: true,
+  LIVE_FLIGHT_ENABLED: true,
+  COLLABORATION_ENABLED: false, // Desativado para Beta Privado até sync multi-user relacional
+  PUBLIC_ITINERARIES_ENABLED: true,
+  PROGRAMMATIC_SEO_ENABLED: true,
+  REFERRAL_ENABLED: true,
+  INSPIRATIONS_ENABLED: true,
+  INSPIRATIONS_PUBLIC_ENABLED: true,
+  INSPIRATIONS_INDEXING_ENABLED: true,
+  BETA_MODE: true
 };

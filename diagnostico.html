@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VEROA Diagnostico</title>
+  <style>
+    body{font-family:monospace;background:#0f172a;color:#e2e8f0;padding:20px;}
+    .ok{background:#14532d;color:#4ade80;padding:6px 10px;margin:3px 0;border-radius:4px;display:block;}
+    .err{background:#450a0a;color:#f87171;padding:6px 10px;margin:3px 0;border-radius:4px;display:block;}
+    .warn{background:#451a03;color:#fb923c;padding:6px 10px;margin:3px 0;border-radius:4px;display:block;}
+    button{background:#2563eb;color:white;border:none;padding:12px 24px;border-radius:6px;cursor:pointer;margin:4px;font-size:1rem;font-weight:700;}
+  </style>
+</head>
+<body>
+<h1 style="color:#60a5fa">VEROA Diagnostico de Cliques</h1>
+<p>Clique no botao abaixo e aguarde 5 segundos:</p>
+<button onclick="runDiag()">RODAR DIAGNOSTICO</button>
+<div id="res" style="margin-top:20px"></div>
+<script>
+function add(msg,type){var d=document.getElementById("res");var s=document.createElement("div");s.className=type||"ok";s.textContent=msg;d.appendChild(s);}
+function runDiag(){
+  document.getElementById("res").innerHTML="";
+  var iframe=document.createElement("iframe");
+  iframe.style.cssText="position:fixed;left:-9999px;top:0;width:1280px;height:800px;border:none;";
+  var port=window.location.port||"80";
+  var url="http://localhost:"+port+"/app.html";
+  add("Carregando: "+url,"warn");
+  iframe.src=url;
+  document.body.appendChild(iframe);
+  iframe.onload=function(){setTimeout(function(){
+    try{
+      var win=iframe.contentWindow;
+      var doc=iframe.contentDocument;
+      if(typeof win.switchTab==="function"){add("OK switchTab definido","ok");}
+      else{add("ERRO switchTab indefinido - app.js falhou!","err");}
+      var ls=doc.getElementById("loginScreen");
+      if(ls){var lss=win.getComputedStyle(ls);add((lss.display==="none"?"OK":"ERRO")+" loginScreen display="+lss.display,(lss.display==="none"?"ok":"err"));}
+      var gl=doc.getElementById("galleryLightbox");
+      if(gl){var gls=win.getComputedStyle(gl);add((gls.display==="none"?"OK":"ERRO")+" galleryLightbox display="+gls.display,(gls.display==="none"?"ok":"err"));}
+      var navBtns=doc.querySelectorAll(".bottom-nav-btn");
+      add("Botoes encontrados: "+navBtns.length,navBtns.length>0?"ok":"err");
+      navBtns.forEach(function(btn){
+        var rect=btn.getBoundingClientRect();
+        var cx=rect.left+rect.width/2;var cy=rect.top+rect.height/2;
+        var topEl=doc.elementFromPoint(cx,cy);
+        var isBtn=topEl===btn||btn.contains(topEl);
+        var topDesc=topEl?(topEl.tagName+(topEl.id?"#"+topEl.id:"")+" "+String(topEl.className||"").substring(0,40)):"null";
+        add((isBtn?"OK":"BLOQUEADO")+" btn["+btn.dataset.tab+"] top:"+topDesc,isBtn?"ok":"err");
+      });
+      var all=doc.querySelectorAll("*");
+      var blockers=[];
+      for(var i=0;i<all.length;i++){var el=all[i];var st=win.getComputedStyle(el);var zi=parseInt(st.zIndex)||0;if((st.position==="fixed"||st.position==="absolute")&&st.display!=="none"&&zi>500&&st.pointerEvents!=="none"){blockers.push(el.tagName+(el.id?"#"+el.id:"")+" z="+zi+" display="+st.display);}}
+      if(blockers.length===0){add("OK: Nenhum bloqueador fixed z>500","ok");}
+      else{blockers.forEach(function(b){add("BLOQUEADOR: "+b,"err");});}
+    }catch(e){add("EXCECAO: "+e.message,"err");}
+  },5000);};
+}
+</script>
+</body>
+</html>

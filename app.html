@@ -3,51 +3,188 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>CoPiloto de Viagem - Painel Interativo</title>
-  <meta name="description" content="Seu painel pessoal para planejar a viagem perfeita. Roteiro interativo, mala inteligente e orçamento reativo.">
-  <meta name="theme-color" content="#070b14">
-  <meta name="color-scheme" content="dark light">
-  <link rel="icon" href="/assets/app-icon.svg" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="/assets/logo.jpeg">
+  <title>Orbia Travel — Seu copiloto de viagem</title>
+  <meta name="description" content="Planeje, organize e viva sua viagem com tudo em um só lugar. Roteiro interativo, mala inteligente, carteira de documentos e copiloto de viagem.">
+  <meta name="theme-color" content="#216F80">
+  <meta name="color-scheme" content="light">
+  <link rel="icon" href="/assets/symbol-orbia.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/assets/symbol-orbia.svg">
   
-  <!-- Modern Typography (Google Fonts) -->
+  <!-- Orbia Travel Typography (Nunito, Sora & Inter) -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Nunito:wght@600;700;800;900&family=Sora:wght@400;600;700;800&display=swap" rel="stylesheet">
   
   <!-- FontAwesome Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   
   <!-- Stylesheet -->
   <link rel="stylesheet" href="/style.v123.css">
-  <link rel="stylesheet" href="/style.v2.css">
+  <link rel="stylesheet" href="/style.v2.css?v=3.0.0-rc.28-full-day">
   
-  <!-- Web App Manifest for PWA -->
-  <link rel="manifest" href="/manifest.json">
+  <!-- Leaflet Maps CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+  <!-- Supabase JS Client -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <!-- VEROA NAV CORE — runs before app.js, works even if app.js fails completely -->
+  <script>
+  (function() {
+    var SECTION_MAP = {
+      home:       'homeSection',
+      inspiracoes:'inspirationsSection',
+      roteiro:    'itinerarySection',
+      orcamento:  'budgetSection',
+      mala:       'packingSection',
+      logistica:  'logisticaSection'
+    };
+
+    function _navTo(tab) {
+      document.body.dataset.activeTab = tab;
+      /* 1. call the real app.js handler if available */
+      if (window._appSwitchTab) { window._appSwitchTab(tab); return; }
+
+      /* 2. Fallback: navigate ourselves directly */
+      var chat = document.getElementById('chatSidebar');
+      var dash = document.getElementById('dashboardContent');
+      var allBtns = document.querySelectorAll('.bottom-nav-btn');
+
+      allBtns.forEach(function(b) { b.classList.remove('active'); });
+      var activeBtn = document.querySelector('.bottom-nav-btn[data-tab="' + tab + '"]');
+      if (activeBtn) activeBtn.classList.add('active');
+
+      if (tab === 'chat') {
+        if (chat) chat.style.cssText = 'display:flex !important';
+        if (dash) dash.style.cssText = 'display:none !important';
+      } else {
+        if (chat) chat.style.cssText = 'display:none !important';
+        if (dash) dash.style.cssText = 'display:block !important';
+
+        /* hide ALL named sections */
+        Object.values(SECTION_MAP).forEach(function(id) {
+          var el = document.getElementById(id);
+          if (el) el.classList.add('hidden');
+        });
+
+        /* hide hero and info-section (only shown on roteiro tab) */
+        var hero = document.querySelector('.hero');
+        var infoSection = document.querySelector('.info-section');
+        if (tab === 'roteiro') {
+          if (hero) hero.classList.remove('hidden');
+          if (infoSection) infoSection.classList.remove('hidden');
+        } else {
+          if (hero) { hero.classList.add('hidden'); hero.style.setProperty('display','none','important'); }
+          if (infoSection) { infoSection.classList.add('hidden'); infoSection.style.setProperty('display','none','important'); }
+        }
+
+        /* show target section */
+        var targetId = SECTION_MAP[tab];
+        if (targetId) {
+          var el = document.getElementById(targetId);
+          if (el) {
+            el.classList.remove('hidden');
+            el.style.removeProperty('display');
+          }
+        }
+      }
+      window._pendingTab = tab;
+    }
+
+    /* expose globally — app.js will overwrite _appSwitchTab when ready */
+    window.switchTab = _navTo;
+    window._pendingTab = null;
+
+    window.showMyTripsScreen = function() {
+      if (window._appShowMyTrips) { window._appShowMyTrips(); return; }
+      window._pendingShowMyTrips = true;
+    };
+    window.openTutorial = function() {
+      if (window._appOpenTutorial) { window._appOpenTutorial(); return; }
+      window._pendingOpenTutorial = true;
+    };
+
+    /* wire up nav buttons as soon as DOM exists */
+    function wireNav() {
+      /* 1. Nav buttons — make them clickable */
+      document.querySelectorAll('.bottom-nav-btn[data-tab]').forEach(function(btn) {
+        btn.removeAttribute('onclick');
+        if (!btn._veroaWired) {
+          btn._veroaWired = true;
+          btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            _navTo(btn.getAttribute('data-tab'));
+          });
+        }
+        btn.style.setProperty('pointer-events', 'auto', 'important');
+        btn.style.setProperty('cursor', 'pointer', 'important');
+        btn.style.setProperty('z-index', '99999', 'important');
+        btn.style.setProperty('position', 'relative', 'important');
+      });
+
+      /* 2. Nav bar */
+      var nav = document.getElementById('bottomNav');
+      if (nav) {
+        nav.style.setProperty('pointer-events', 'auto', 'important');
+        nav.style.setProperty('z-index', '99999', 'important');
+        nav.style.setProperty('position', 'fixed', 'important');
+      }
+
+      /* 3. Topbar brand */
+      var brand = document.querySelector('.app-brand');
+      if (brand && !brand._veroaWired) {
+        brand._veroaWired = true;
+        brand.removeAttribute('onclick');
+        brand.addEventListener('click', function(e) { e.preventDefault(); e.stopPropagation(); _navTo('home'); });
+      }
+
+      /* 4. Tutorial button */
+      var tutBtn = document.getElementById('tutorialBtn');
+      if (tutBtn && !tutBtn._veroaWired) {
+        tutBtn._veroaWired = true;
+        tutBtn.removeAttribute('onclick');
+        tutBtn.addEventListener('click', function(e) { e.preventDefault(); e.stopPropagation(); window.openTutorial(); });
+      }
+    }
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', wireNav);
+    } else {
+      wireNav();
+    }
+    setTimeout(wireNav, 800);
+    setTimeout(wireNav, 2000);
+  })();
+  </script>
 
 </head>
-<body>
+<body class="light-theme" data-active-tab="home">
 
   <!-- Lightbox for Gallery or PDF views -->
-  <div class="lightbox" id="galleryLightbox">
+  <div class="lightbox hidden" id="galleryLightbox">
     <div class="lightbox-content">
       <button type="button" class="lightbox-close" id="closeLightbox" aria-label="Fechar visualização"><i class="fa-solid fa-xmark"></i></button>
       <img src="" alt="" id="lightboxImg">
       <div class="lightbox-caption" id="lightboxCaption">Legenda da Imagem</div>
     </div>
-  </div>  <!-- Login Screen Overlay -->
+  </div>
+
+  <!-- Login Screen Overlay Orbia Travel -->
   <div class="login-screen hidden" id="loginScreen">
-    <div class="login-card glass-panel">
+    <div class="login-card glass-panel" style="background: var(--orbia-branco); border: 1px solid var(--border-color);">
       <div class="login-header">
-        <div class="brand-icon" style="width: 50px; height: 50px; font-size: 1.5rem; margin: 0 auto 12px; display: flex; align-items: center; justify-content: center;"><i class="fa-solid fa-compass"></i></div>
-        <h2>CoPiloto de Viagem</h2>
-        <p>Acesse seu painel inteligente de viagem</p>
+        <div class="brand-icon" style="width: 54px; height: 54px; margin: 0 auto 12px; display: flex; align-items: center; justify-content: center;">
+          <img src="/assets/symbol-orbia.svg" alt="Orbia Travel" style="width: 44px; height: 44px;">
+        </div>
+        <h2 style="font-family: 'Sora', sans-serif; color: var(--orbia-oceano); font-weight: 800; letter-spacing: 2px;">ORBIA TRAVEL</h2>
+        <p style="color: var(--orbia-texto-secundario);">Seu copiloto de viagem. Sua viagem inteira. Sob controle.</p>
       </div>
       
       <!-- Tabs for toggling Login / Registration -->
       <div class="login-tabs" style="display: flex; border-bottom: 1px solid var(--border-color); margin-bottom: 24px; position: relative;">
-        <button type="button" class="login-tab active" id="tabLogin" style="flex: 1; text-align: center; padding: 12px; background: none; border: none; color: white; font-weight: 700; font-size: 0.95rem; cursor: pointer; border-bottom: 2px solid var(--primary); transition: all 0.2s; outline: none;">
-          Já tenho senha
+        <button type="button" class="login-tab active" id="tabLogin" style="flex: 1; text-align: center; padding: 12px; background: none; border: none; color: var(--orbia-oceano); font-weight: 700; font-size: 0.95rem; cursor: pointer; border-bottom: 2px solid var(--orbia-laranja); transition: all 0.2s; outline: none;">
+          Já tenho acesso
         </button>
         <button type="button" class="login-tab" id="tabRegister" style="flex: 1; text-align: center; padding: 12px; background: none; border: none; color: var(--text-muted); font-weight: 600; font-size: 0.95rem; cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.2s; outline: none;">
           Primeiro acesso
@@ -55,9 +192,9 @@
       </div>
       
       <!-- Helper Banner for onboarding -->
-      <div class="auth-helper-banner" id="authHelperBanner" style="margin-bottom: 16px; padding: 10px 12px; background: rgba(46, 148, 168, 0.08); border: 1px solid rgba(46, 148, 168, 0.2); border-radius: var(--border-radius-md); font-size: 0.8rem; color: #a5f3fc; text-align: center; line-height: 1.4; display: flex; align-items: center; gap: 8px; justify-content: center;">
-        <i class="fa-solid fa-circle-info" style="color: #2e94a8; font-size: 0.9rem;"></i>
-        <span id="authHelperText">Se você já criou sua senha, faça login abaixo.</span>
+      <div class="auth-helper-banner" id="authHelperBanner" style="margin-bottom: 16px; padding: 10px 12px; background: var(--orbia-ceu); border: 1px solid rgba(33, 111, 128, 0.2); border-radius: var(--border-radius-md); font-size: 0.8rem; color: var(--orbia-profundo); text-align: center; line-height: 1.4; display: flex; align-items: center; gap: 8px; justify-content: center;">
+        <i class="fa-solid fa-circle-info" style="color: var(--orbia-berilo); font-size: 0.9rem;"></i>
+        <span id="authHelperText">Faça login com seu e-mail para acessar suas viagens no Orbia Travel.</span>
       </div>
       
       <div class="login-error hidden" id="loginError">E-mail ou senha incorretos.</div>
@@ -77,8 +214,8 @@
           </div>
         </div>
         
-        <button type="submit" class="btn btn-primary" id="loginSubmitBtn" style="width: 100%; margin-top: 10px; padding: 12px;">
-          Entrar
+        <button type="submit" class="btn btn-primary" id="loginSubmitBtn" style="width: 100%; margin-top: 10px; padding: 12px; background: var(--orbia-laranja); color: white; font-weight: 700;">
+          Entrar no Orbia Travel
         </button>
       </form>
       
@@ -98,19 +235,19 @@
 
       <!-- Oferta de Compra para não cadastrados -->
       <div class="purchase-offer" id="loginPurchaseOffer" style="margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--border-color); text-align: center;">
-        <span style="font-size: 0.82rem; color: var(--text-light); display: block; margin-bottom: 10px; font-weight: 500;">Não tem acesso ao CoPiloto de Viagem?</span>
-        <a href="https://pay.kirvano.com/8c50a730-069a-40e8-bed3-078c03089d1d" target="_blank" class="btn btn-accent buy-btn" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px; font-weight: 700; border-radius: var(--border-radius-md); text-decoration: none; box-sizing: border-box;">
-          <i class="fa-solid fa-plane-departure"></i> Adquirir CoPiloto
+        <span style="font-size: 0.82rem; color: var(--text-light); display: block; margin-bottom: 10px; font-weight: 500;">Ainda não possui sua conta Orbia Travel?</span>
+        <a href="https://pay.kirvano.com/8c50a730-069a-40e8-bed3-078c03089d1d" target="_blank" class="btn btn-accent buy-btn" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px; font-weight: 800; background: var(--orbia-laranja); color: #FFFFFF; border-radius: var(--border-radius-md); text-decoration: none; box-sizing: border-box;">
+          <i class="fa-solid fa-arrow-right"></i> Adquirir Orbia Travel
         </a>
       </div>
 
       <div id="inAppBrowserWarning" class="in-app-warning hidden" style="margin-top: 12px; padding: 10px; background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.25); border-radius: var(--border-radius-sm); font-size: 0.78rem; color: #fbd38d; text-align: center; line-height: 1.4;">
-        ⚠️ <strong>Atenção:</strong> O navegador interno do WhatsApp/Instagram bloqueia o login do Google. Clique nos 3 pontinhos (ou ícone de bússola) no rodapé/topo e selecione <strong>"Abrir no Safari/Chrome"</strong> para usar o Google, ou acesse com <strong>E-mail e Senha</strong> acima.
+        ⚠️ <strong>Atenção:</strong> O navegador interno do WhatsApp/Instagram bloqueia o login do Google. Clique nos 3 pontinhos no topo e selecione <strong>"Abrir no Safari/Chrome"</strong>.
       </div>
 
       <div class="login-toggle" style="text-align: center; margin-top: 16px; font-size: 0.82rem; color: var(--text-light);">
         <span id="loginToggleText">Não tem uma conta?</span>
-        <a href="#" id="toggleRegisterLink" style="color: var(--primary); font-weight: 600; margin-left: 4px;">Cadastre-se</a>
+        <a href="#" id="toggleRegisterLink" style="color: var(--orbia-berilo); font-weight: 600; margin-left: 4px;">Cadastre-se</a>
       </div>
     </div>
   </div>
@@ -119,24 +256,23 @@
   <div class="app-container hidden">
 
     <!-- Persistent application shell -->
-    <header class="app-topbar">
-      <button class="app-brand" type="button" aria-label="Ir para a página inicial" onclick="switchTab('home')">
-        <span class="app-brand-mark"><i class="fa-solid fa-compass"></i></span>
-        <span class="app-brand-copy">
-          <strong>CoPiloto</strong>
-          <small>Seu painel de viagem</small>
+    <header class="app-topbar" style="background: var(--orbia-berilo); color: white;">
+      <button class="app-brand" type="button" aria-label="Ir para o início do Orbia Travel" onclick="switchTab('home')" style="display: flex; align-items: center; gap: 10px; background: none; border: none; cursor: pointer;">
+        <img src="/assets/symbol-orbia.svg" style="width: 28px; height: 28px;" alt="Orbia">
+        <span class="app-brand-copy" style="text-align: left;">
+          <strong>ORBIA TRAVEL</strong>
+          <small style="color: rgba(255, 255, 255, 0.85); font-size: 0.72rem; display: block;">Seu copiloto de viagem</small>
         </span>
       </button>
       <div class="app-topbar-actions">
-        <span class="app-version">2.2 RC</span>
-        <div class="travel-badge hidden" id="travelModeBadge">✈ Na Viagem</div>
-        <button class="topbar-action tutorial-trigger-btn" id="tutorialBtn" title="Conhecer o aplicativo" type="button">
-          <i class="fa-regular fa-circle-question"></i><span>Ajuda</span>
+        <span class="app-version" style="background: rgba(255,255,255,0.18); color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.72rem; font-weight: 600;">Orbia Travel</span>
+        <div class="travel-badge hidden" id="travelModeBadge" style="background: var(--orbia-sucesso); color: #FFFFFF; font-weight: 800;">✈ Na Viagem</div>
+        <button class="topbar-action tutorial-trigger-btn" id="tutorialBtn" title="Abrir tutorial do Orbia Travel" type="button" style="color: white; border-color: rgba(237, 117, 66, 0.5); background: var(--orbia-laranja);">
+          <i class="fa-solid fa-graduation-cap"></i><span>Tutorial</span>
         </button>
         <div class="user-profile hidden" id="userProfile">
-          <img src="" alt="Seu perfil" id="userAvatar" class="user-avatar">
-          <button class="topbar-action icon-only" id="toggleSettings" title="Configurações do aplicativo" type="button"><i class="fa-solid fa-sliders"></i></button>
-          <button class="topbar-action icon-only" id="logoutBtn" title="Sair" type="button"><i class="fa-solid fa-arrow-right-from-bracket"></i></button>
+          <button class="topbar-action icon-only" id="toggleSettings" title="Configurações do Orbia Travel" type="button" style="color: white;"><i class="fa-solid fa-sliders"></i></button>
+          <button class="topbar-action icon-only" id="logoutBtn" title="Sair" type="button" style="color: white;"><i class="fa-solid fa-arrow-right-from-bracket"></i></button>
         </div>
       </div>
     </header>
@@ -146,42 +282,45 @@
       <div class="settings-panel-heading">
         <div>
           <span>Preferências</span>
-          <h3>Configurações do aplicativo</h3>
+          <h3>Configurações do Orbia Travel</h3>
         </div>
         <i class="fa-solid fa-sliders"></i>
       </div>
-      <p>Personalize a aparência ou limpe os dados salvos neste navegador.</p>
+      <p>Gerencie os dados salvos neste navegador.</p>
       <div class="settings-buttons">
-        <button class="btn btn-secondary btn-sm" id="toggleThemeBtn" type="button"><i class="fa-solid fa-sun"></i> Tema Claro</button>
         <button class="btn btn-secondary btn-sm danger-action" id="clearDataBtn" type="button"><i class="fa-solid fa-rotate-left"></i> Resetar dados locais</button>
       </div>
     </div>
 
 
-    <nav class="bottom-nav" id="bottomNav">
-      <button class="bottom-nav-btn active" data-tab="home">
-        <i class="fa-solid fa-home"></i>
-        <span>Home</span>
+    <nav class="bottom-nav" id="bottomNav" style="background: var(--veroa-white); border-top: 1px solid var(--border-color);">
+      <button class="bottom-nav-btn active" data-tab="home" onclick="switchTab('home')">
+        <i class="fa-solid fa-clock"></i>
+        <span>Hoje</span>
       </button>
-      <button class="bottom-nav-btn" data-tab="roteiro">
+      <button class="bottom-nav-btn" data-tab="inspiracoes" onclick="switchTab('inspiracoes')">
+        <i class="fa-solid fa-compass"></i>
+        <span>Inspirações</span>
+      </button>
+      <button class="bottom-nav-btn" data-tab="roteiro" onclick="switchTab('roteiro')">
         <i class="fa-solid fa-route"></i>
         <span>Roteiro</span>
       </button>
-      <button class="bottom-nav-btn" data-tab="orcamento">
+      <button class="bottom-nav-btn" data-tab="orcamento" onclick="switchTab('orcamento')">
         <i class="fa-solid fa-wallet"></i>
         <span>Orçamento</span>
       </button>
-      <button class="bottom-nav-btn" data-tab="mala">
+      <button class="bottom-nav-btn" data-tab="mala" onclick="switchTab('mala')">
         <i class="fa-solid fa-suitcase"></i>
         <span>Mala</span>
       </button>
-      <button class="bottom-nav-btn" data-tab="logistica">
-        <i class="fa-solid fa-plane-departure"></i>
-        <span>Logística</span>
+      <button class="bottom-nav-btn" data-tab="logistica" onclick="switchTab('logistica')">
+        <i class="fa-solid fa-folder-open"></i>
+        <span>Carteira</span>
       </button>
-      <button class="bottom-nav-btn" data-tab="chat">
+      <button class="bottom-nav-btn" data-tab="chat" onclick="switchTab('chat')">
         <i class="fa-solid fa-comments"></i>
-        <span>CoPiloto</span>
+        <span>Orbia</span>
       </button>
     </nav>
 
@@ -193,6 +332,7 @@
         <div class="section-title-wrapper" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 24px;">
           <div>
             <span class="badge badge-primary"><i class="fa-solid fa-compass"></i> CoPiloto</span>
+            <span class="beta-badge" style="font-size: 0.65rem; background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.4); border-radius: 4px; padding: 2px 6px; font-weight: 700; margin-left: 6px; text-transform: uppercase;">Beta</span>
             <h2 class="section-title" style="margin-top: 4px; margin-bottom: 2px;">Minhas Viagens</h2>
             <p class="section-subtitle" style="margin: 0;">Gerencie e planeje todos os seus roteiros em um só lugar.</p>
           </div>
@@ -205,8 +345,76 @@
           <!-- Categorias (EM ANDAMENTO, PRÓXIMAS, PLANEJAMENTO, VIAGENS PASSADAS) injetadas por JS -->
         </div>
       </section>
+
+      <!-- SEÇÃO INSPIRAÇÕES -->
+      <section class="container section-padding hidden" id="inspirationsSection" style="padding-top: 20px; padding-bottom: 40px;">
+        <div class="section-title-wrapper" style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px; margin-bottom: 24px;">
+          <div>
+            <span class="badge badge-orange"><i class="fa-solid fa-compass" style="color: var(--veroa-orange);"></i> Biblioteca CoPiloto</span>
+            <h2 class="section-title" style="margin-top: 4px; margin-bottom: 4px;">Inspirações para sua próxima <span class="highlight-orange">viagem</span></h2>
+            <p class="section-subtitle" style="margin: 0;">Explore roteiros prontos e personalize tudo para o seu jeito de viajar.</p>
+          </div>
+          <button type="button" class="btn btn-secondary hidden" id="openInspirationsAdminBtn" style="border-radius: 50px; padding: 8px 16px; font-size: 0.8rem; font-weight: 700; border: 1px solid #fee2e2; color: #991b1b; background: #fff5f5;">
+            <i class="fa-solid fa-user-shield"></i> Painel Admin
+          </button>
+        </div>
+
+        <!-- Filtros e Coleções de Inspiração -->
+        <div class="inspirations-filter-bar" style="margin-bottom: 24px; display: flex; flex-direction: column; gap: 14px;">
+          <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+            <div style="position: relative; flex: 1; min-width: 240px;">
+              <i class="fa-solid fa-magnifying-glass" style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 0.9rem;"></i>
+              <input type="text" id="inspirationSearchInput" placeholder="Buscar destino ou cidade (ex: Roma, Paris...)" style="width: 100%; padding: 10px 14px 10px 38px; border-radius: 50px; background: var(--bg-card); border: 1px solid var(--border-color); color: var(--text-main); font-size: 0.88rem; outline: none;">
+            </div>
+            <select id="inspirationPaceFilter" style="padding: 10px 16px; border-radius: 50px; background: var(--bg-card); border: 1px solid var(--border-color); color: var(--text-main); font-size: 0.85rem; font-weight: 600; outline: none;">
+              <option value="all">Todos os Ritmos</option>
+              <option value="light">Leve</option>
+              <option value="balanced">Equilibrado</option>
+              <option value="intense">Intenso</option>
+            </select>
+          </div>
+
+          <!-- Coleções / Tags Pills -->
+          <div class="inspiration-pills-row" style="display: flex; gap: 8px; overflow-x: auto; padding-bottom: 6px; -webkit-overflow-scrolling: touch;">
+            <button class="insp-pill active" data-category="all">Todas</button>
+            <button class="insp-pill" data-category="copilot_pick"><i class="fa-solid fa-star" style="color: var(--veroa-sun);"></i> Escolha do CoPiloto</button>
+            <button class="insp-pill" data-category="first_trip">Primeira viagem</button>
+            <button class="insp-pill" data-category="food">Gastronômicas</button>
+            <button class="insp-pill" data-category="culture">Cultura e História</button>
+            <button class="insp-pill" data-category="budget">Econômicas</button>
+            <button class="insp-pill" data-category="couple">Românticas</button>
+          </div>
+        </div>
+
+        <!-- Grid de Cards de Inspiração -->
+        <div id="inspirationsGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 24px;">
+          <!-- Cards injetados dinamicamente por JS -->
+        </div>
+      </section>
+
       <!-- NOVA SEÇÃO HOME CONTEXTUAL -->
       <section class="container section-padding hidden" id="homeSection" style="padding-top: 16px;">
+        <div class="plan-trip-switcher" id="planTripSwitcher" aria-labelledby="planTripSwitcherLabel">
+          <div class="plan-trip-switcher-copy">
+            <span class="plan-trip-switcher-icon" aria-hidden="true"><i class="fa-solid fa-plane-departure"></i></span>
+            <div>
+              <span class="plan-trip-switcher-label" id="planTripSwitcherLabel">Viagem ativa</span>
+              <strong id="activePlanTripName">Minha viagem</strong>
+              <small id="planTripSwitcherMeta"></small>
+            </div>
+          </div>
+          <div class="plan-trip-switcher-actions">
+            <label class="sr-only" for="planTripSelect">Escolha a viagem usada em todas as abas</label>
+            <div class="plan-trip-select-wrap">
+              <select id="planTripSelect" aria-label="Escolha a viagem usada em todas as abas"></select>
+              <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
+            </div>
+            <button type="button" class="btn btn-secondary btn-sm" id="manageTripsFromPlanBtn">
+              <i class="fa-solid fa-suitcase-rolling"></i> Todas as viagens
+            </button>
+          </div>
+        </div>
+
         <!-- Header da Viagem -->
         <div class="home-header" style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; flex-wrap: wrap; gap: 12px;">
           <div>
@@ -217,7 +425,7 @@
             <h2 id="homeTripTitle" style="margin: 0; font-size: 1.8rem; font-weight: 800; background: var(--primary-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Minha Próxima Viagem</h2>
           </div>
           <div id="homeCountdown" class="countdown-minimal" style="background: var(--bg-card); padding: 12px 16px; border-radius: 12px; border: 1px solid var(--border-color); text-align: center; min-width: 100px;">
-             <span id="homeCountdownValue" style="font-size: 1.5rem; font-weight: 800; display: block; color: var(--primary-color);">--</span>
+             <span id="homeCountdownValue" style="font-size: 1.5rem; font-weight: 800; display: block; color: var(--veroa-orange);">--</span>
              <span id="homeCountdownLabel" style="font-size: 0.75rem; text-transform: uppercase; font-weight: 600; color: var(--text-muted);">Dias</span>
           </div>
         </div>
@@ -247,6 +455,7 @@
             <div id="readinessBar" class="progress-bar-fill" style="height: 100%; width: 0%; background: var(--primary-gradient); border-radius: 5px; transition: width 0.5s ease;"></div>
           </div>
           <p id="readinessDescription" style="margin: 0; font-size: 0.8rem; color: var(--text-muted);">Complete os itens essenciais para viajar com tranquilidade.</p>
+          <div id="readinessChecklist" class="readiness-checklist" aria-label="Itens essenciais da viagem"></div>
         </div>
 
         <!-- CoPiloto Proativo: percepções derivadas somente dos dados salvos -->
@@ -262,17 +471,52 @@
           <div id="proactiveInsightsList" style="display: grid; gap: 10px;"></div>
         </section>
 
-        <!-- Próximo Passo Dinâmico -->
-        <div id="homeNextStepBanner" class="next-step-banner" style="background: linear-gradient(135deg, rgba(63, 131, 248, 0.15), rgba(63, 131, 248, 0.05)); border: 1px solid rgba(63, 131, 248, 0.3); border-radius: 12px; padding: 16px; margin-bottom: 24px; display: flex; align-items: center; gap: 16px; cursor: pointer;" onclick="switchTab('chat')">
-          <div style="background: rgba(63, 131, 248, 0.2); width: 40px; height: 40px; border-radius: 50%; display: flex; justify-content: center; align-items: center; color: var(--primary-color);">
-            <i class="fa-solid fa-wand-magic-sparkles"></i>
+        <!-- MODO HOJE (OPERACIONAL) - Visível quando viagem está ativa ou no campo -->
+        <section id="todayModeContainer" class="hidden" style="margin-bottom: 24px;">
+          <div style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(63, 131, 248, 0.08)); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 16px; padding: 20px;">
+            <!-- Header Operacional -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+              <div>
+                <span class="badge" style="background: #10b981; color: white; font-weight: 800; font-size: 0.72rem; letter-spacing: 0.05em;"><i class="fa-solid fa-location-dot"></i> MODO HOJE</span>
+                <h3 style="margin: 4px 0 0; font-size: 1.25rem; font-weight: 800; color: var(--text-light);">O que eu preciso saber agora?</h3>
+              </div>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="openQuickExpenseModal()" style="font-weight: 700; background: rgba(16, 185, 129, 0.2); border: 1px solid #10b981; color: #10b981; display: inline-flex; align-items: center; gap: 6px;">
+                <i class="fa-solid fa-plus"></i> Gasto
+              </button>
+            </div>
+
+            <!-- NOW CARD (Em Destaque Mobile-First) -->
+            <div id="todayNowCard" class="glass-panel" style="padding: 16px; background: rgba(0, 0, 0, 0.3); border-left: 4px solid #10b981; border-radius: 12px; margin-bottom: 16px;">
+              <!-- Injetado por renderTodayMode() -->
+            </div>
+
+            <!-- PRÓXIMOS ITENS (NEXT 2-3) -->
+            <div style="margin-bottom: 16px;">
+              <h4 style="margin: 0 0 8px; font-size: 0.8rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.05em;">Depois Hoje</h4>
+              <div id="todayNextList" style="display: flex; flex-direction: column; gap: 8px;">
+                <!-- Injetado por renderTodayMode() -->
+              </div>
+            </div>
+
+            <!-- LOGÍSTICA & DESLOCAMENTO -->
+            <div id="todayLogisticsCard" class="hidden" style="background: rgba(255,255,255,0.04); border: 1px solid var(--border-color); padding: 12px; border-radius: 10px; margin-bottom: 16px;">
+              <!-- Injetado se houver deslocamento previsto -->
+            </div>
+
+            <!-- ATALHOS RÁPIDOS EM 1 TOQUE -->
+            <div id="todayQuickActions" style="display: flex; gap: 8px; flex-wrap: wrap;">
+              <button type="button" class="btn btn-secondary btn-sm" onclick="switchTab('logistica')" style="flex: 1; min-width: 120px; font-size: 0.78rem; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 10px;">
+                <i class="fa-solid fa-passport" style="color: var(--primary-color);"></i> Vouchers & QR
+              </button>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="openQuickExpenseModal()" style="flex: 1; min-width: 120px; font-size: 0.78rem; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 10px;">
+                <i class="fa-solid fa-receipt" style="color: #f59e0b;"></i> + Registrar Gasto
+              </button>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="switchTab('chat')" style="flex: 1; min-width: 120px; font-size: 0.78rem; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 10px;">
+                <i class="fa-solid fa-wand-magic-sparkles" style="color: #8b5cf6;"></i> Perguntar ao CoPiloto
+              </button>
+            </div>
           </div>
-          <div style="flex: 1;">
-            <h4 style="margin: 0 0 4px 0; font-size: 0.95rem; color: var(--text-light);">Próximo Passo</h4>
-            <p id="homeNextStepText" style="margin: 0; font-size: 0.85rem; color: var(--text-muted);">Definir as datas da viagem.</p>
-          </div>
-          <i class="fa-solid fa-chevron-right" style="color: var(--text-muted);"></i>
-        </div>
+        </section>
 
         <!-- Contextual Cards Grid -->
         <div class="home-context-grid" id="homeContextGrid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px;">
@@ -280,30 +524,35 @@
         </div>
       </section>
 
-      <!-- Banner global para visualização de viagem compartilhada (gatilho de venda) -->
-      <div id="sharedViewSalesBanner" class="hidden shared-view-sales-banner">
+      <!-- Banner global para visualização de viagem compartilhada (gatilho de venda e clonagem) -->
+      <div id="sharedViewSalesBanner" class="hidden shared-view-sales-banner" style="gap: 10px;">
         <div class="shared-view-banner-content">
-          <i class="fa-solid fa-plane-departure banner-icon"></i>
-          <span class="banner-text">Você está vendo o roteiro de outro viajante. Crie o seu roteiro inteligente agora!</span>
+          <img src="/assets/symbol-orbia.svg" alt="" class="shared-veroa-symbol">
+          <span class="banner-text"><strong>Recebeu este roteiro?</strong> Crie sua própria viagem personalizada com o Orbia Travel.</span>
         </div>
-        <a href="https://pay.kirvano.com/8c50a730-069a-40e8-bed3-078c03089d1d" target="_blank" class="banner-btn">
-          <i class="fa-solid fa-wand-magic-sparkles"></i> Criar Meu Roteiro
-        </a>
+        <div class="shared-view-banner-actions">
+          <button type="button" class="banner-btn banner-btn-secondary" id="cloneItineraryBtn" onclick="cloneCurrentPublicItinerary()">
+            <i class="fa-solid fa-copy"></i> Usar este Roteiro
+          </button>
+          <a href="https://pay.kirvano.com/8c50a730-069a-40e8-bed3-078c03089d1d" target="_blank" rel="noopener noreferrer" class="banner-btn banner-btn-primary">
+            <i class="fa-solid fa-plane-departure"></i> Quero meu Orbia Travel
+          </a>
+        </div>
       </div>
 
-      <!-- Banner compacto global para induzir ao chat em todas as abas -->
+      <!-- Banner compacto global para gerar o primeiro roteiro -->
       <div id="noItineraryBannerGlobal" class="hidden no-itinerary-banner-compact">
         <div class="no-itinerary-compact-content">
           <i class="fa-solid fa-wand-magic-sparkles no-itinerary-compact-icon"></i>
-          <span class="no-itinerary-compact-text">Você ainda não criou um roteiro. Use o chat para planejar!</span>
+          <span class="no-itinerary-compact-text">Destino e datas definidos? Gere seu roteiro completo em um toque.</span>
         </div>
-        <button class="no-itinerary-compact-btn" onclick="switchTab('chat')">
-          <i class="fa-solid fa-comments"></i> Ir ao Chat
+        <button class="no-itinerary-compact-btn" onclick="openItineraryGeneratorModal()">
+          <i class="fa-solid fa-route"></i> Gerar roteiro
         </button>
       </div>
 
       <!-- Hero Banner Section -->
-      <header class="hero">
+      <header class="hero hidden">
         <div class="hero-bg" id="heroBg"></div>
         <div class="hero-overlay"></div>
         <div class="hero-content">
@@ -336,22 +585,22 @@
             </div>
           </div>
 
-          <!-- Banner para induzir ao chat caso não tenha roteiro -->
+          <!-- Banner para gerar o primeiro roteiro -->
           <div id="noItineraryBannerHero" class="hidden no-itinerary-square-box">
             <div class="no-itinerary-square-icon">
               <i class="fa-solid fa-wand-magic-sparkles"></i>
             </div>
-            <h4 class="no-itinerary-square-title">Comece a planejar!</h4>
-            <p class="no-itinerary-square-text">Você ainda não criou um roteiro. Use o chat inteligente em segundos.</p>
-            <button class="no-itinerary-square-btn" onclick="switchTab('chat')">
-              <i class="fa-solid fa-comments"></i> Ir ao Chat
+            <h4 class="no-itinerary-square-title">Seu roteiro começa aqui</h4>
+            <p class="no-itinerary-square-text">O Orbia Travel transforma seu destino, suas datas e seu estilo em um plano completo.</p>
+            <button class="no-itinerary-square-btn" onclick="openItineraryGeneratorModal()">
+              <i class="fa-solid fa-route"></i> Gerar roteiro
             </button>
           </div>
         </div>
       </header>
 
       <!-- Dashboard Cards Section -->
-      <section class="container info-section">
+      <section class="container info-section hidden">
         <div class="info-grid">
           <div class="glass-panel info-card">
             <div class="info-card-icon"><i class="fa-solid fa-calendar-days"></i></div>
@@ -390,7 +639,7 @@
         <div class="section-title-wrapper">
           <span class="badge badge-primary"><i class="fa-solid fa-wallet"></i> Logística</span>
           <h2 class="section-title">Carteira de Viagem</h2>
-          <p class="section-subtitle">Gerencie suas passagens aéreas, hospedagens, ingressos e documentos em um só lugar.</p>
+          <p class="section-subtitle">Registre como você vai chegar, circular e voltar — além de hospedagens, ingressos e documentos.</p>
         </div>
 
         <!-- Affiliate Banner Logistics --> 
@@ -403,7 +652,7 @@
 
         <div class="sub-tab-bar category-filters" style="display: flex; gap: 8px; margin-bottom: 24px; border-bottom: 1px solid var(--border-color); padding-bottom: 12px; overflow-x: auto;">
           <button class="btn btn-sm btn-sub-tab active" data-category="Todos">Todos</button>
-          <button class="btn btn-sm btn-sub-tab" data-category="Passagem Aérea">Passagens</button>
+          <button class="btn btn-sm btn-sub-tab" data-category="Transporte">Transportes</button>
           <button class="btn btn-sm btn-sub-tab" data-category="Hospedagem">Hospedagem</button>
           <button class="btn btn-sm btn-sub-tab" data-category="Ingresso">Ingressos</button>
           <button class="btn btn-sm btn-sub-tab" data-category="Seguro Viagem">Seguro</button>
@@ -456,6 +705,34 @@
             <button type="button" id="closeItineraryOptimizationBanner" aria-label="Dispensar aviso de otimização" style="background: transparent; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.1rem; padding: 4px; line-height: 1; display: flex; align-items: center; justify-content: center; transition: color 0.2s;"><i class="fa-solid fa-xmark"></i></button>
           </div>
         </div>
+        <div id="itineraryClimateContext" class="trip-context-card hidden" aria-live="polite"></div>
+        <!-- SMART MAP & LOGISTICS ENGINE CONTAINER -->
+        <div id="smartMapSection" class="glass-panel" style="margin-bottom: 24px; padding: 16px; border-radius: 12px; border: 1px solid var(--border-color);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+            <div>
+              <h3 style="margin: 0; font-size: 1rem; font-weight: 800; color: var(--text-light); display: flex; align-items: center; gap: 8px;">
+                <i class="fa-solid fa-map-location-dot" style="color: var(--primary-color);"></i> Rota Inteligente & Qualidade do Dia
+              </h3>
+              <p style="margin: 2px 0 0; font-size: 0.78rem; color: var(--text-muted);">Visualização sequencial das atrações e cálculo de deslocamento.</p>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span id="routeQualityBadge" class="route-quality-badge route-quality-unavailable" role="status">
+                <i class="fa-solid fa-spinner fa-spin"></i> Calculando rota
+              </span>
+              <button type="button" id="optimizeRouteBtn" class="btn btn-secondary btn-sm hidden" style="font-size: 0.75rem; padding: 4px 10px; border-color: #3b82f6; color: #3b82f6;" onclick="triggerRouteOptimization()">
+                <i class="fa-solid fa-wand-magic-sparkles"></i> Otimizar Ordem
+              </button>
+            </div>
+          </div>
+
+          <!-- Mapa Visual Interativo com Pins Sequenciais -->
+          <div id="dayMapVisual" class="day-map-visual">
+            <!-- Renderizado por renderDayRouteMap() -->
+          </div>
+
+          <!-- Recomendações Logísticas da IA -->
+          <div id="logisticsRecommendations" style="margin-top: 10px; font-size: 0.78rem; color: var(--text-muted);"></div>
+        </div>
 
         <div class="timeline-empty" id="timelineEmpty">
           <div class="chat-cta-card" id="chatCtaCard">
@@ -496,14 +773,25 @@
           <!-- Timeline cards dynamically injected by JS -->
         </div>
 
-        <!-- Footer & Export Panel -->
-        <footer style="margin-top: 40px; border-radius: var(--border-radius-md);">
-          <div class="footer-brand">CoPiloto de Viagem</div>
-          <p>Desenvolvido para transformar conversas em painéis dinâmicos e fáceis de usar.</p>
-          <div class="footer-actions">
-            <button class="btn btn-accent" id="exportPdfBtn"><i class="fa-solid fa-file-pdf"></i> Baixar Roteiro em PDF</button>
+        <section id="sharedItineraryCta" class="hidden shared-itinerary-cta" aria-labelledby="sharedItineraryCtaTitle">
+          <div class="shared-itinerary-cta-copy">
+            <span class="shared-itinerary-eyebrow">SUA PRÓXIMA VIAGEM COMEÇA AQUI</span>
+            <h2 id="sharedItineraryCtaTitle">Gostou deste roteiro? Tenha um feito para você.</h2>
+            <p>O Orbia Travel organiza roteiro, mala, orçamento e documentos conforme o seu destino, suas datas e o seu estilo de viagem.</p>
           </div>
-          <p class="footer-note" style="margin: 0 auto;">Gere o arquivo offline para mandar no WhatsApp de familiares. Abre interativamente e sem internet em qualquer celular!</p>
+          <a href="https://pay.kirvano.com/8c50a730-069a-40e8-bed3-078c03089d1d" target="_blank" rel="noopener noreferrer" class="shared-itinerary-cta-button">
+            Quero planejar minha viagem <i class="fa-solid fa-arrow-right"></i>
+          </a>
+        </section>
+
+        <!-- Footer & Export Panel -->
+        <footer class="itinerary-export-footer" style="margin-top: 40px; border-radius: var(--border-radius-md);">
+          <div class="footer-brand">ORBIA TRAVEL</div>
+          <p>Seu roteiro organizado para consultar e compartilhar onde estiver.</p>
+          <div class="footer-actions">
+            <button type="button" class="btn btn-accent" id="exportPdfBtn" onclick="exportAsPdf()"><i class="fa-solid fa-file-arrow-down"></i> Baixar roteiro em PDF</button>
+          </div>
+          <p class="footer-note" style="margin: 0 auto;">Gere um arquivo offline para guardar ou enviar pelo WhatsApp.</p>
         </footer>
       </section>
 
@@ -530,39 +818,40 @@
           </div>
 
           <div class="glass-panel budget-grid" id="myBudgetPanel">
+            <div id="budgetDateContext" class="budget-date-context hidden" aria-live="polite"></div>
             
             <!-- Interactive Budget Analysis Card (Appears only after itinerary is built) -->
             <div id="budgetAnalysisCard" class="budget-analysis-card hidden" style="margin-bottom: 24px; padding-bottom: 20px; border-bottom: 1px dashed var(--border-color); display: flex; flex-direction: column; gap: 12px; text-align: left; width: 100%;">
-              <h4 style="font-size: 0.9rem; font-weight: 700; color: white; display: flex; align-items: center; gap: 8px; margin: 0;">
+              <h4 style="font-size: 0.9rem; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 8px; margin: 0;">
                 <i class="fa-solid fa-calculator" style="color: var(--primary);"></i>
                 Análise do Custo Médio da Viagem
               </h4>
               <div class="analysis-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-top: 6px;">
-                <div class="analysis-item" style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); padding: 12px;">
+                <div class="analysis-item" style="background: #f8fafc; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); padding: 12px;">
                   <span style="font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700; display: block; letter-spacing: 0.05em;">Custo Médio Diário</span>
                   <strong id="budgetDailyAvg" style="font-size: 1.25rem; font-weight: 800; color: var(--accent); display: block; margin-top: 4px;">R$ 0 / dia</strong>
                   <span style="font-size: 0.68rem; color: var(--text-muted); display: block; margin-top: 2px;">Com base em <span id="budgetDaysCount">0</span> dias de roteiro</span>
                 </div>
-                <div class="analysis-item" style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); padding: 12px;">
+                <div class="analysis-item" style="background: #f8fafc; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); padding: 12px;">
                   <span style="font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700; display: block; letter-spacing: 0.05em;">Total para o Grupo</span>
                   <strong id="budgetGroupTotal" style="font-size: 1.25rem; font-weight: 800; color: #10b981; display: block; margin-top: 4px;">R$ 0</strong>
                   <span style="font-size: 0.68rem; color: var(--text-muted); display: block; margin-top: 2px;">Para <span id="budgetGroupCount">1</span> viajante(s)</span>
                 </div>
               </div>
               <!-- AI Feedback message based on the budget proposal -->
-              <div class="analysis-feedback-box" style="background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.2); border-radius: var(--border-radius-sm); padding: 12px 16px; display: flex; flex-direction: column; gap: 12px; margin-top: 8px;">
-                <div id="aiBudgetAnalysisBlock" style="display: none; flex-direction: column; gap: 4px; text-align: left; padding-bottom: 10px; border-bottom: 1px dashed rgba(255, 255, 255, 0.08);">
-                  <strong style="font-size: 0.78rem; font-weight: 700; color: #60a5fa; display: flex; align-items: center; gap: 6px;">
+              <div class="analysis-feedback-box" style="background: rgba(2, 132, 199, 0.08); border: 1px solid rgba(2, 132, 199, 0.2); border-radius: var(--border-radius-sm); padding: 12px 16px; display: flex; flex-direction: column; gap: 12px; margin-top: 8px;">
+                <div id="aiBudgetAnalysisBlock" style="display: none; flex-direction: column; gap: 4px; text-align: left; padding-bottom: 10px; border-bottom: 1px dashed rgba(17, 24, 39, 0.1);">
+                  <strong style="font-size: 0.78rem; font-weight: 700; color: #0284c7; display: flex; align-items: center; gap: 6px;">
                     <i class="fa-solid fa-earth-americas"></i> Custos do Destino (Análise da IA)
                   </strong>
-                  <p id="budgetAiAnalysisText" style="font-size: 0.74rem; color: var(--text-light); line-height: 1.45; margin: 0; text-align: left;"></p>
+                  <p id="budgetAiAnalysisText" style="font-size: 0.74rem; color: var(--text-secondary); line-height: 1.45; margin: 0; text-align: left;"></p>
                 </div>
                 
                 <div style="display: flex; gap: 10px; align-items: flex-start; text-align: left;">
                   <div style="font-size: 1rem; color: #10b981; padding-top: 2px; flex-shrink: 0;"><i class="fa-solid fa-sliders"></i></div>
                   <div style="display: flex; flex-direction: column; gap: 4px;">
-                    <strong style="font-size: 0.78rem; font-weight: 700; color: white;">Perfil do Seu Ajuste</strong>
-                    <p id="budgetFeedbackText" style="font-size: 0.74rem; color: var(--text-light); line-height: 1.4; margin: 0; text-align: left;">Mova os sliders abaixo para ajustar sua estimativa de gastos.</p>
+                    <strong style="font-size: 0.78rem; font-weight: 700; color: var(--text-primary);">Perfil do Seu Ajuste</strong>
+                    <p id="budgetFeedbackText" style="font-size: 0.74rem; color: var(--text-secondary); line-height: 1.4; margin: 0; text-align: left;">Mova os sliders abaixo para ajustar sua estimativa de gastos.</p>
                   </div>
                 </div>
               </div>
@@ -738,7 +1027,7 @@
     </main>
 
     <!-- BOTTOM: AI TRAVEL CONSULTANT CHAT -->
-    <aside class="chat-sidebar" id="chatSidebar">
+    <aside class="chat-sidebar" id="chatSidebar" style="display: none;">
       <span id="chatModeLabel" class="sr-only">Planejar Roteiro</span>
 
       <!-- ── PLANNING CHAT (tab: chat) ─────────────────────────── -->
@@ -953,7 +1242,7 @@
 
   <!-- Text Import Modal (Native Dialog with Light-Dismiss) -->
   <dialog id="textImportModal" closedby="any" class="modal-dialog-native" style="border: none; background: transparent; padding: 0; outline: none; z-index: 100000; max-width: 520px; width: calc(100% - 40px); border-radius: var(--border-radius-lg); box-shadow: var(--shadow-lg); margin: auto;">
-    <div class="modal-card glass-panel text-import-modal-card" style="padding: 30px; display: flex; flex-direction: column; gap: 20px; width: 100%; box-sizing: border-box; background: rgba(15, 23, 42, 0.95); border: 1.5px solid rgba(255, 255, 255, 0.1); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);">
+    <div class="modal-card glass-panel text-import-modal-card" style="padding: 30px; display: flex; flex-direction: column; gap: 20px; width: 100%; box-sizing: border-box;">
       <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 12px; margin-bottom: 4px;">
         <h3 class="text-import-title" style="margin: 0; font-size: 1.25rem; font-weight: 800; color: white; display: flex; align-items: center; gap: 10px;">
           <i class="fa-solid fa-paste" style="color: #10b981;"></i> Importar por Texto
@@ -1050,171 +1339,263 @@
   
   </div>
 
+      <!-- Banner global para visualização de viagem compartilhada (gatilho de venda e clonagem) -->
+      <div id="sharedViewSalesBanner" class="hidden shared-view-sales-banner" style="gap: 10px;">
+        <div class="shared-view-banner-content">
+          <img src="/assets/symbol-orbia.svg" alt="Orbia Travel" class="shared-veroa-symbol">
+          <span class="banner-text"><strong>Recebeu este roteiro?</strong> Crie sua própria viagem personalizada com o Orbia Travel.</span>
+        </div>
+        <div class="shared-view-banner-actions">
+          <button type="button" class="banner-btn banner-btn-secondary" id="cloneItineraryBtn" onclick="cloneCurrentPublicItinerary()">
+            <i class="fa-solid fa-copy"></i> Usar este Roteiro
+          </button>
+          <a href="https://pay.kirvano.com/8c50a730-069a-40e8-bed3-078c03089d1d" target="_blank" rel="noopener noreferrer" class="banner-btn banner-btn-primary">
+            <i class="fa-solid fa-plane-departure"></i> Quero meu Orbia Travel
+          </a>
+        </div>
+      </div>
+
+      <!-- Banner compacto global para gerar o primeiro roteiro -->
+      <div id="noItineraryBannerGlobal" class="hidden no-itinerary-banner-compact">
+        <div class="no-itinerary-compact-content">
+          <div class="no-itinerary-compact-copy">
+            <i class="fa-solid fa-wand-magic-sparkles"></i>
+            <div>
+              <strong>Monte o seu roteiro completo</strong>
+              <span>Defina ritmo, interesses e a IA cria a programação ideal.</span>
+            </div>
+          </div>
+          <button class="no-itinerary-compact-btn" onclick="openItineraryGeneratorModal()">
+            <i class="fa-solid fa-route"></i> Gerar roteiro
+          </button>
+        </div>
+      </div>
+
+      <!-- SEÇÃO ROTEIRO -->
+      <section class="section-padding hidden" id="itinerarySection">
+        <!-- Banner para gerar o primeiro roteiro -->
+        <div id="noItineraryBannerHero" class="hidden no-itinerary-square-box">
+          <div class="no-itinerary-square-icon">
+            <i class="fa-solid fa-wand-magic-sparkles"></i>
+          </div>
+          <h4 class="no-itinerary-square-title">Seu roteiro começa aqui</h4>
+          <p class="no-itinerary-square-text">O Orbia Travel transforma seu destino, suas datas e seu estilo em um plano completo.</p>
+          <button class="no-itinerary-square-btn" onclick="openItineraryGeneratorModal()">
+            <i class="fa-solid fa-route"></i> Gerar roteiro
+          </button>
+        </div>
+      </section>
+
+      <!-- Shared Itinerary CTA -->
+      <section id="sharedItineraryCta" class="hidden shared-itinerary-cta" aria-labelledby="sharedItineraryCtaTitle">
+        <div class="shared-itinerary-cta-copy">
+          <span class="shared-itinerary-eyebrow">SUA PRÓXIMA VIAGEM COMEÇA AQUI</span>
+          <h2 id="sharedItineraryCtaTitle">Gostou deste roteiro? Tenha um feito para você.</h2>
+          <p>O Orbia Travel organiza roteiro, mala, orçamento e documentos conforme o seu destino, suas datas e o seu estilo de viagem.</p>
+        </div>
+        <a href="https://pay.kirvano.com/8c50a730-069a-40e8-bed3-078c03089d1d" target="_blank" rel="noopener noreferrer" class="shared-itinerary-cta-button">
+          Quero planejar minha viagem <i class="fa-solid fa-arrow-right"></i>
+        </a>
+      </section>
+
+      <!-- Footer & Export Panel -->
+      <footer class="itinerary-export-footer" style="margin-top: 40px; border-radius: var(--border-radius-md);">
+        <div class="footer-brand">ORBIA TRAVEL</div>
+        <p>Seu copiloto de viagem. Planeje, organize e viva sua viagem com tudo em um só lugar.</p>
+        <div class="footer-actions">
+          <button type="button" class="btn btn-accent" id="exportPdfBtn" onclick="exportAsPdf()"><i class="fa-solid fa-file-arrow-down"></i> Baixar roteiro em PDF</button>
+        </div>
+        <p class="footer-note" style="margin: 0 auto;">Gere um arquivo offline para guardar ou enviar pelo WhatsApp.</p>
+      </footer>
+
   <!-- ════════════════════════════════════════════════════════════
        TUTORIAL MODAL
   ═══════════════════════════════════════════════════════════════ -->
-  <div class="tutorial-overlay hidden" id="tutorialModal" role="dialog" aria-modal="true" aria-label="Tutorial do CoPiloto de Viagem">
-    <div class="tutorial-card">
-
-      <!-- Close -->
-      <button class="tutorial-close" id="tutorialClose" aria-label="Fechar tutorial">
+  <div class="tutorial-overlay hidden" id="tutorialModal" role="dialog" aria-modal="true" aria-labelledby="tutorialTitle">
+    <div class="tutorial-card glass-panel" data-testid="tutorial-card">
+      <button class="tutorial-close-btn" id="tutorialCloseBtn" type="button" aria-label="Fechar tutorial">
         <i class="fa-solid fa-xmark"></i>
       </button>
 
-      <!-- Slides wrapper -->
+      <header class="tutorial-heading">
+        <div class="tutorial-heading-copy">
+          <span class="tutorial-eyebrow"><i class="fa-solid fa-graduation-cap"></i> Tutorial Orbia Travel</span>
+          <strong id="tutorialStepLabel">Comece por aqui · 1 de 8</strong>
+        </div>
+        <div class="tutorial-progress-track" aria-hidden="true"><span id="tutorialProgressBar"></span></div>
+      </header>
+
       <div class="tutorial-slides" id="tutorialSlides">
-
-        <!-- Slide 1: Welcome -->
         <div class="tutorial-slide active" data-slide="0">
-          <div class="slide-icon slide-icon--blue"><i class="fa-solid fa-compass"></i></div>
-          <h2>Bem-vindo ao<br><span class="slide-brand">CoPiloto de Viagem</span></h2>
-          <p>Seu painel pessoal de viagem. Do planejamento até a experiência no destino, tudo em um só lugar.</p>
-          <ul class="slide-list">
-            <li><i class="fa-solid fa-check"></i> Roteiro gerado automaticamente, do seu jeito</li>
-            <li><i class="fa-solid fa-check"></i> Orçamento e divisão de despesas</li>
-            <li><i class="fa-solid fa-check"></i> Lista de mala personalizada</li>
-            <li><i class="fa-solid fa-check"></i> Guia em tempo real durante a viagem</li>
-          </ul>
+          <div class="tutorial-visual tutorial-visual--welcome" aria-hidden="true">
+            <div class="tutorial-orbit"><i class="fa-solid fa-location-dot"></i></div>
+            <div class="tutorial-journey">
+              <span><i class="fa-solid fa-calendar-days"></i> Datas</span><b></b>
+              <span><i class="fa-solid fa-route"></i> Roteiro</span><b></b>
+              <span><i class="fa-solid fa-suitcase"></i> Mala</span><b></b>
+              <span><i class="fa-solid fa-plane-departure"></i> Viagem</span>
+            </div>
+          </div>
+          <div class="tutorial-copy">
+            <span class="tutorial-step-chip">COMECE POR AQUI</span>
+            <h2 id="tutorialTitle">Sua viagem inteira,<br><em>conectada.</em></h2>
+            <p>O Orbia Travel usa uma viagem ativa como contexto. Destino e datas alimentam roteiro, clima, restaurantes, mala e orçamento sem você repetir tudo em cada aba.</p>
+            <div class="tutorial-rule"><i class="fa-solid fa-bolt"></i><span><strong>A lógica mais importante:</strong> primeiro escolha a viagem; depois, tudo acompanha essa escolha.</span></div>
+          </div>
         </div>
 
-        <!-- Slide 2: Chat Planejamento -->
         <div class="tutorial-slide" data-slide="1">
-          <div class="slide-icon slide-icon--blue"><i class="fa-solid fa-map-location-dot"></i></div>
-          <h2>Chat de <span class="slide-accent-blue">Planejamento</span></h2>
-          <p>Use o Chat principal para planejar toda a sua viagem conversando naturalmente.</p>
-          <img src="/assets/tutorial_chat_plan.png" alt="Chat de Planejamento" class="slide-screenshot">
-          <ul class="slide-list">
-            <li><i class="fa-solid fa-comments"></i> <strong>Destino e datas:</strong> "Quero ir a Lisboa em julho"</li>
-            <li><i class="fa-solid fa-comments"></i> <strong>Roteiro:</strong> "Monte um roteiro de 7 dias"</li>
-            <li><i class="fa-solid fa-comments"></i> <strong>Orçamento:</strong> "Qual o custo médio por dia?"</li>
-            <li><i class="fa-solid fa-comments"></i> <strong>Mala:</strong> "Crie uma lista de mala para praia"</li>
-          </ul>
-          <div class="slide-tip"><i class="fa-solid fa-lightbulb"></i> Quanto mais detalhes você der, melhor o roteiro!</div>
+          <div class="tutorial-visual" aria-hidden="true">
+            <div class="tutorial-phone-top"><span>VIAGEM ATIVA</span><i class="fa-solid fa-chevron-down"></i></div>
+            <div class="tutorial-trip-preview"><small>PRÓXIMA</small><strong>Roma</strong><span>10 a 15 de maio</span></div>
+            <div class="tutorial-context-tabs"><span>Roteiro</span><span>Mala</span><span>Orçamento</span></div>
+          </div>
+          <div class="tutorial-copy">
+            <span class="tutorial-step-chip">PASSO 1</span>
+            <h2>Escolha a <em>viagem ativa</em></h2>
+            <p>Na aba Hoje, toque no nome da viagem no alto da tela. A viagem escolhida passa a abastecer todas as outras abas.</p>
+            <ol class="tutorial-checklist">
+              <li><b>1</b><span>Escolha uma viagem existente ou crie uma nova.</span></li>
+              <li><b>2</b><span>Defina ida e volta pelo calendário.</span></li>
+              <li><b>3</b><span>Confira se destino e período estão corretos.</span></li>
+            </ol>
+            <button class="tutorial-open-tab" type="button" data-tutorial-tab="home"><i class="fa-solid fa-clock"></i> Ir para Hoje</button>
+          </div>
         </div>
 
-        <!-- Slide 3: Chat Na Viagem -->
         <div class="tutorial-slide" data-slide="2">
-          <div class="slide-icon slide-icon--green"><i class="fa-solid fa-compass"></i></div>
-          <h2>Chat <span class="slide-accent-green">Na Viagem</span></h2>
-          <p>Quando estiver no destino, mude para o Chat Na Viagem (aba inferior). O CoPiloto vira seu guia em tempo real.</p>
-          <img src="/assets/tutorial_chat_travel.png" alt="Chat Na Viagem" class="slide-screenshot">
-          <ul class="slide-list">
-            <li><i class="fa-solid fa-utensils"></i> <strong>Restaurantes:</strong> "Onde comer perto do Bairro Alto?"</li>
-            <li><i class="fa-solid fa-language"></i> <strong>Traduções:</strong> "Como peço a conta em português?"</li>
-            <li><i class="fa-solid fa-map-pin"></i> <strong>Pontos turísticos:</strong> "O que fazer hoje à tarde?"</li>
-            <li><i class="fa-solid fa-shield-halved"></i> <strong>Emergências:</strong> "Qual o número da polícia aqui?"</li>
-          </ul>
-          <div class="slide-tip slide-tip--green"><i class="fa-solid fa-lightbulb"></i> Cada chat tem histórico separado!</div>
+          <div class="tutorial-visual" aria-hidden="true">
+            <div class="tutorial-inspiration-card"><i class="fa-solid fa-image"></i><span>ROMA EM 5 DIAS</span><strong>História, bairros e sabores</strong><button>Ver roteiro</button></div>
+          </div>
+          <div class="tutorial-copy">
+            <span class="tutorial-step-chip">PASSO 2</span>
+            <h2>Use uma inspiração<br>ou comece <em>do zero</em></h2>
+            <p>Inspirações mostra roteiros prontos para explorar ideias. Você pode visualizar um roteiro e adaptá-lo para a sua viagem.</p>
+            <ol class="tutorial-checklist">
+              <li><b><i class="fa-solid fa-eye"></i></b><span><strong>Ver roteiro</strong> abre todos os dias e detalhes.</span></li>
+              <li><b><i class="fa-solid fa-wand-magic-sparkles"></i></b><span>Use como ponto de partida e personalize depois em Roteiro.</span></li>
+            </ol>
+            <button class="tutorial-open-tab" type="button" data-tutorial-tab="inspiracoes"><i class="fa-solid fa-compass"></i> Ver inspirações</button>
+          </div>
         </div>
 
-        <!-- Slide 4: Roteiro -->
         <div class="tutorial-slide" data-slide="3">
-          <div class="slide-icon slide-icon--purple"><i class="fa-solid fa-route"></i></div>
-          <h2>Aba <span class="slide-accent-purple">Roteiro</span></h2>
-          <p>Visualize o itinerário completo gerado, organizado por dia com horários e atividades.</p>
-          <img src="/assets/tutorial_itinerary.png" alt="Aba Roteiro" class="slide-screenshot">
-          <ul class="slide-list">
-            <li><i class="fa-solid fa-calendar-days"></i> Dias e atividades em ordem cronológica</li>
-            <li><i class="fa-solid fa-clock"></i> Horários sugeridos para cada atividade</li>
-            <li><i class="fa-solid fa-circle-info"></i> Informações de clima, hotel e datas no topo</li>
-            <li><i class="fa-solid fa-file-pdf"></i> Exportar roteiro como PDF</li>
-          </ul>
-          <div class="slide-tip slide-tip--purple"><i class="fa-solid fa-lightbulb"></i> Se não tiver roteiro ainda, inicie uma conversa no Chat de Planejamento!</div>
+          <div class="tutorial-visual" aria-hidden="true">
+            <div class="tutorial-route-day"><small>DIA 1 · CENTRO HISTÓRICO</small><span><b>09:00</b> Coliseu Romano</span><span><b>12:30</b> Almoço romano</span></div>
+            <div class="tutorial-restaurant-preview"><small>ONDE COMER</small><strong>La Carbonara</strong><span>Carbonara · $$ · Ver no mapa</span></div>
+          </div>
+          <div class="tutorial-copy">
+            <span class="tutorial-step-chip">PASSO 3</span>
+            <h2>Gere um roteiro<br><em>pronto para usar</em></h2>
+            <p>Na aba Roteiro, toque em Gerar roteiro. Escolha ritmo, interesses e orçamento; o Orbia Travel cruza isso com datas e clima.</p>
+            <ol class="tutorial-checklist">
+              <li><b><i class="fa-solid fa-cloud-sun-rain"></i></b><span>Plano B para chuva, frio ou calor fora do padrão.</span></li>
+              <li><b><i class="fa-solid fa-utensils"></i></b><span>Duas sugestões reais de restaurante por refeição, com prato, preço, endereço e mapa.</span></li>
+              <li><b><i class="fa-solid fa-file-pdf"></i></b><span>Baixe o roteiro completo em PDF. Para mudar tudo, use <strong>Refazer roteiro</strong>.</span></li>
+            </ol>
+            <button class="tutorial-open-tab" type="button" data-tutorial-tab="roteiro"><i class="fa-solid fa-route"></i> Abrir Roteiro</button>
+          </div>
         </div>
 
-        <!-- Slide 5: Orçamento -->
         <div class="tutorial-slide" data-slide="4">
-          <div class="slide-icon slide-icon--amber"><i class="fa-solid fa-wallet"></i></div>
-          <h2>Aba <span class="slide-accent-amber">Orçamento</span></h2>
-          <p>Acompanhe os gastos estimados da viagem e divida as despesas entre os participantes do grupo.</p>
-          <img src="/assets/tutorial_budget.png" alt="Aba Orçamento" class="slide-screenshot">
-          <ul class="slide-list">
-            <li><i class="fa-solid fa-chart-pie"></i> Gráfico de orçamento por categoria</li>
-            <li><i class="fa-solid fa-users"></i> Adicionar membros do grupo</li>
-            <li><i class="fa-solid fa-receipt"></i> Registrar despesas e dividir entre todos</li>
-            <li><i class="fa-solid fa-scale-balanced"></i> Ver quem deve quanto para quem</li>
-          </ul>
-          <div class="slide-tip slide-tip--amber"><i class="fa-solid fa-lightbulb"></i> O orçamento é preenchido automaticamente durante o planejamento.</div>
+          <div class="tutorial-visual" aria-hidden="true">
+            <div class="tutorial-budget-ring"><strong>62%</strong><span>do orçamento</span></div>
+            <div class="tutorial-budget-bars"><span style="--fill:82%">Hospedagem</span><span style="--fill:56%">Alimentação</span><span style="--fill:38%">Passeios</span></div>
+          </div>
+          <div class="tutorial-copy">
+            <span class="tutorial-step-chip">PASSO 4</span>
+            <h2>Saiba quanto vai gastar<br><em>antes e durante</em></h2>
+            <p>O Orçamento começa com estimativas da viagem e fica mais preciso conforme você registra os gastos reais.</p>
+            <ol class="tutorial-checklist">
+              <li><b><i class="fa-solid fa-chart-pie"></i></b><span>Compare categorias e veja onde o dinheiro está indo.</span></li>
+              <li><b><i class="fa-solid fa-receipt"></i></b><span>Adicione despesas e divida entre os viajantes.</span></li>
+              <li><b><i class="fa-solid fa-scale-balanced"></i></b><span>Acompanhe saldos sem fazer conta por fora.</span></li>
+            </ol>
+            <button class="tutorial-open-tab" type="button" data-tutorial-tab="orcamento"><i class="fa-solid fa-wallet"></i> Abrir Orçamento</button>
+          </div>
         </div>
 
-        <!-- Slide 6: Mala -->
         <div class="tutorial-slide" data-slide="5">
-          <div class="slide-icon slide-icon--teal"><i class="fa-solid fa-suitcase"></i></div>
-          <h2>Aba <span class="slide-accent-teal">Mala</span></h2>
-          <p>Lista de mala inteligente gerada automaticamente com base no seu destino e perfil de viagem.</p>
-          <img src="/assets/tutorial_packing.png" alt="Aba Mala" class="slide-screenshot">
-          <ul class="slide-list">
-            <li><i class="fa-solid fa-wand-magic-sparkles"></i> Gerada automaticamente com base no destino</li>
-            <li><i class="fa-solid fa-check-square"></i> Marque os itens conforme faz as malas</li>
-            <li><i class="fa-solid fa-pen"></i> Adicione itens personalizados</li>
-            <li><i class="fa-solid fa-trash"></i> Remova o que não precisa</li>
-          </ul>
-          <div class="slide-tip slide-tip--teal"><i class="fa-solid fa-lightbulb"></i> Peça no chat: "Crie lista de mala para lua de mel em Paris"</div>
+          <div class="tutorial-visual" aria-hidden="true">
+            <div class="tutorial-packing-title"><i class="fa-solid fa-suitcase-rolling"></i><strong>Mala para Roma</strong><span>3 de 6 prontos</span></div>
+            <label><i class="fa-solid fa-check"></i> Passaporte</label><label><i class="fa-solid fa-check"></i> Adaptador</label><label class="pending"><i></i> Casaco leve</label><label class="pending"><i></i> Guarda-chuva compacto</label>
+          </div>
+          <div class="tutorial-copy">
+            <span class="tutorial-step-chip">PASSO 5</span>
+            <h2>Faça uma mala que<br><em>combina com a viagem</em></h2>
+            <p>Depois que destino e datas são definidos, a lista considera duração, clima e estilo da viagem.</p>
+            <ol class="tutorial-checklist">
+              <li><b><i class="fa-solid fa-check"></i></b><span>Marque cada item conforme colocar na mala.</span></li>
+              <li><b><i class="fa-solid fa-plus"></i></b><span>Adicione itens pessoais e remova o que não precisa.</span></li>
+              <li><b><i class="fa-solid fa-arrows-rotate"></i></b><span>Se as datas mudarem, o contexto climático é recalculado.</span></li>
+            </ol>
+            <button class="tutorial-open-tab" type="button" data-tutorial-tab="mala"><i class="fa-solid fa-suitcase"></i> Abrir Mala</button>
+          </div>
         </div>
 
-        <!-- Slide 7: Voos -->
         <div class="tutorial-slide" data-slide="6">
-          <div class="slide-icon slide-icon--indigo"><i class="fa-solid fa-plane"></i></div>
-          <h2>Aba <span class="slide-accent-indigo">Voos</span></h2>
-          <p>Registre seus voos e acompanhe todos os detalhes da sua viagem aérea em um só lugar.</p>
-          <img src="/assets/tutorial_logistics.png" alt="Aba Voos" class="slide-screenshot">
-          <ul class="slide-list">
-            <li><i class="fa-solid fa-plus"></i> Adicionar voos de ida e volta</li>
-            <li><i class="fa-solid fa-magnifying-glass"></i> Buscar status do voo online</li>
-            <li><i class="fa-solid fa-clock"></i> Ver horários de partida e chegada</li>
-            <li><i class="fa-solid fa-pen"></i> Editar ou remover voos registrados</li>
-          </ul>
-          <div class="slide-tip slide-tip--indigo"><i class="fa-solid fa-lightbulb"></i> Use o número do voo (ex: AD4132) para buscar informações em tempo real.</div>
+          <div class="tutorial-visual" aria-hidden="true">
+            <div class="tutorial-wallet-card"><i class="fa-solid fa-plane"></i><span>VOO</span><strong>GRU → FCO</strong><small>Confirmado</small></div>
+            <div class="tutorial-wallet-card"><i class="fa-solid fa-hotel"></i><span>RESERVA</span><strong>Hotel em Roma</strong><small>10–15 mai</small></div>
+            <div class="tutorial-wallet-card"><i class="fa-solid fa-passport"></i><span>DOCUMENTO</span><strong>Passaporte</strong><small>Guardado</small></div>
+          </div>
+          <div class="tutorial-copy">
+            <span class="tutorial-step-chip">PASSO 6</span>
+            <h2>Leve a parte chata<br><em>na Carteira</em></h2>
+            <p>Centralize voos, hospedagens, reservas e documentos para não procurar informação em vários lugares.</p>
+            <ol class="tutorial-checklist">
+              <li><b><i class="fa-solid fa-folder-open"></i></b><span>Abra a Carteira antes de sair e confira os essenciais.</span></li>
+              <li><b><i class="fa-solid fa-lock"></i></b><span>As informações pertencem à viagem selecionada.</span></li>
+            </ol>
+            <button class="tutorial-open-tab" type="button" data-tutorial-tab="logistica"><i class="fa-solid fa-folder-open"></i> Abrir Carteira</button>
+          </div>
         </div>
 
-        <!-- Slide 8: Como Instalar no Celular -->
         <div class="tutorial-slide" data-slide="7">
-          <div class="slide-icon slide-icon--amber"><i class="fa-solid fa-mobile-screen-button"></i></div>
-          <h2>Como Instalar no <span class="slide-accent-amber">Celular</span></h2>
-          <p>Adicione o CoPiloto de Viagem à tela inicial do seu celular para usá-lo como um aplicativo nativo.</p>
-          <ul class="slide-list" style="gap: 8px;">
-            <li>
-              <i class="fa-brands fa-apple" style="color: #a3a3a3; font-size: 0.95rem; margin-right: 4px;"></i> <strong>iPhone (iOS):</strong>
-              <span style="font-size: 0.78rem; display: block; color: var(--text-light); margin-left: 20px; line-height: 1.35; margin-top: 2px;">
-                Abra o link no navegador <strong>Safari</strong>, toque no ícone de <strong>Compartilhar</strong> (quadrado com seta para cima) e escolha <strong>"Adicionar à Tela de Início"</strong>.
-              </span>
-            </li>
-            <li style="margin-top: 8px;">
-              <i class="fa-brands fa-android" style="color: #a4c639; font-size: 0.95rem; margin-right: 4px;"></i> <strong>Android:</strong>
-              <span style="font-size: 0.78rem; display: block; color: var(--text-light); margin-left: 20px; line-height: 1.35; margin-top: 2px;">
-                Abra o link no navegador <strong>Chrome</strong>, toque no menu de <strong>3 pontinhos</strong> (canto superior direito) e escolha <strong>"Instalar aplicativo"</strong> ou <strong>"Adicionar à Tela inicial"</strong>.
-              </span>
-            </li>
-          </ul>
-          <div class="slide-tip slide-tip--amber"><i class="fa-solid fa-lightbulb"></i> Ao instalar o app, ele economiza espaço no seu aparelho e fica acessível com um toque!</div>
+          <div class="tutorial-visual tutorial-visual--chat" aria-hidden="true">
+            <div class="tutorial-chat-bubble">Onde jantar perto do Panteão?</div>
+            <div class="tutorial-chat-bubble answer"><span>1</span><strong>Armando al Pantheon</strong><small>Cacio e pepe · $$$ · 3 min a pé</small></div>
+            <div class="tutorial-chat-bubble answer"><span>2</span><strong>Roscioli</strong><small>Carbonara · $$$ · ver no mapa</small></div>
+          </div>
+          <div class="tutorial-copy">
+            <span class="tutorial-step-chip">PASSO 7</span>
+            <h2>Converse com o Orbia<br><em>antes e durante</em></h2>
+            <p>Antes da viagem, use o chat para ajustar o planejamento. Durante a viagem, ele muda para um guia local em tempo real.</p>
+            <ol class="tutorial-checklist">
+              <li><b><i class="fa-solid fa-comments"></i></b><span>Peça alterações específicas: “troque o Dia 2 por atrações cobertas”.</span></li>
+              <li><b><i class="fa-solid fa-location-arrow"></i></b><span>No destino, diga onde está para receber dicas próximas e úteis.</span></li>
+              <li><b><i class="fa-solid fa-mobile-screen"></i></b><span>No celular, use “Adicionar à Tela de Início” no menu do navegador.</span></li>
+            </ol>
+            <button class="tutorial-open-tab" type="button" data-tutorial-tab="chat"><i class="fa-solid fa-comments"></i> Conversar com o Orbia</button>
+          </div>
         </div>
-
       </div>
 
-      <!-- Navigation -->
       <div class="tutorial-nav">
-        <button class="tut-nav-btn" id="tutPrev" aria-label="Slide anterior">
+        <button class="tut-nav-btn" id="tutPrev" aria-label="Passo anterior">
           <i class="fa-solid fa-chevron-left"></i>
+          <span>Voltar</span>
         </button>
 
         <div class="tutorial-dots" id="tutorialDots">
-          <button class="tut-dot active" data-dot="0" aria-label="Slide 1"></button>
-          <button class="tut-dot" data-dot="1" aria-label="Slide 2"></button>
-          <button class="tut-dot" data-dot="2" aria-label="Slide 3"></button>
-          <button class="tut-dot" data-dot="3" aria-label="Slide 4"></button>
-          <button class="tut-dot" data-dot="4" aria-label="Slide 5"></button>
-          <button class="tut-dot" data-dot="5" aria-label="Slide 6"></button>
-          <button class="tut-dot" data-dot="6" aria-label="Slide 7"></button>
-          <button class="tut-dot" data-dot="7" aria-label="Slide 8"></button>
+          <button class="tut-dot active" data-dot="0" aria-label="Introdução"></button>
+          <button class="tut-dot" data-dot="1" aria-label="Viagem ativa"></button>
+          <button class="tut-dot" data-dot="2" aria-label="Inspirações"></button>
+          <button class="tut-dot" data-dot="3" aria-label="Roteiro"></button>
+          <button class="tut-dot" data-dot="4" aria-label="Orçamento"></button>
+          <button class="tut-dot" data-dot="5" aria-label="Mala"></button>
+          <button class="tut-dot" data-dot="6" aria-label="Carteira"></button>
+          <button class="tut-dot" data-dot="7" aria-label="Chat Orbia"></button>
         </div>
 
-        <button class="tut-nav-btn" id="tutNext" aria-label="Próximo slide">
+        <button class="tut-nav-btn tut-nav-btn--next" id="tutNext" aria-label="Próximo passo">
+          <span>Próximo</span>
           <i class="fa-solid fa-chevron-right"></i>
         </button>
       </div>
 
       <button class="tut-finish-btn hidden" id="tutFinish">
-        <i class="fa-solid fa-rocket"></i> Começar a usar!
+        <i class="fa-solid fa-check"></i> Concluir tutorial
       </button>
 
     </div>
@@ -1304,6 +1685,13 @@
       <div id="createTripStep1" class="create-trip-step">
         <h4 style="margin-top: 0;">Como deseja começar?</h4>
         <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 20px;">
+          <button type="button" class="btn btn-primary" id="createTripWithChatBtn" style="padding: 15px; text-align: left; display: flex; align-items: center; gap: 10px;">
+            <i class="fa-solid fa-comments" style="font-size: 1.5rem;"></i>
+            <div>
+              <strong>Criar Conversando com a Orbia</strong><br>
+              <span style="font-size: 0.8rem; color: rgba(255,255,255,0.9);">Conte sua ideia naturalmente. A Orbia organiza a viagem com você.</span>
+            </div>
+          </button>
           <button type="button" class="btn btn-secondary" onclick="window.showCreateTripStep(2)" style="padding: 15px; text-align: left; display: flex; align-items: center; gap: 10px;">
             <i class="fa-solid fa-wand-magic-sparkles" style="font-size: 1.5rem; color: var(--primary);"></i>
             <div>
@@ -1408,12 +1796,20 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
 
   <!-- Javascript Logic -->
-  <script type="module" src="/app.js"></script>
+  <script type="module" src="/app.js?v=3.0.0-rc.28-full-day"></script>
   
   <!-- Register PWA Service Worker -->
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
+        const isLocalPreview = ['localhost', '127.0.0.1', '0.0.0.0'].includes(window.location.hostname);
+        if (isLocalPreview) {
+          navigator.serviceWorker.getRegistrations()
+            .then(registrations => Promise.all(registrations.map(registration => registration.unregister())))
+            .then(() => ('caches' in window ? caches.keys().then(keys => Promise.all(keys.map(key => caches.delete(key)))) : null))
+            .catch(err => console.warn('Não foi possível limpar o cache local:', err));
+          return;
+        }
         navigator.serviceWorker.register('/sw.js')
           .then(reg => {
             if (!reg) return;
@@ -1434,18 +1830,18 @@
   </script>
 
   <!-- Undo Toast -->
-  <div id="undoToast" class="hidden fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-4 z-[9999]">
-    <span>Ação realizada com sucesso.</span>
-    <button type="button" id="undoBtn" class="text-blue-400 hover:text-blue-300 font-bold underline">Desfazer</button>
-    <button type="button" id="closeUndoBtn" aria-label="Fechar aviso de desfazer" class="text-gray-400 hover:text-gray-200 ml-2"><i class="fa-solid fa-times"></i></button>
+  <div id="undoToast" class="hidden" role="status" aria-live="polite">
+    <span id="undoToastText">Ação realizada com sucesso.</span>
+    <button type="button" id="undoBtn">Desfazer</button>
+    <button type="button" id="closeUndoBtn" aria-label="Fechar confirmação"><i class="fa-solid fa-times"></i></button>
   </div>
 
   <!-- Confirm Modal -->
   <div id="confirmActionModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-    <div class="bg-white dark:bg-gray-800 w-11/12 max-w-md rounded-2xl p-6 shadow-xl text-center">
+    <div class="bg-white w-11/12 max-w-md rounded-2xl p-6 shadow-xl text-center">
       <i class="fa-solid fa-triangle-exclamation text-yellow-500 text-4xl mb-4"></i>
-      <h3 class="text-xl font-bold text-gray-900 dark:text-white mb-2" id="confirmActionTitle">Atenção</h3>
-      <p class="text-gray-600 dark:text-gray-300 mb-6" id="confirmActionMessage">Tem certeza de que deseja realizar esta ação?</p>
+      <h3 class="text-xl font-bold text-gray-900 mb-2" id="confirmActionTitle">Atenção</h3>
+      <p class="text-gray-600 mb-6" id="confirmActionMessage">Tem certeza de que deseja realizar esta ação?</p>
       <div class="flex gap-3 justify-center">
         <button id="cancelActionBtn" class="px-5 py-2.5 rounded-xl font-semibold bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors">Cancelar</button>
         <button id="proceedActionBtn" class="px-5 py-2.5 rounded-xl font-semibold bg-red-500 text-white hover:bg-red-600 shadow-md shadow-red-500/20 transition-colors">Confirmar</button>
@@ -1456,7 +1852,7 @@
   <div class="modal-overlay hidden" id="reservationModal" role="dialog" aria-modal="true" aria-labelledby="reservationModalTitle" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 100000; padding: 20px; box-sizing: border-box;">
     <div class="modal-card glass-panel" style="max-width: 500px; width: 100%; max-height: 90vh; overflow-y: auto; padding: 30px; border-radius: var(--border-radius-lg); box-shadow: var(--shadow-lg);">
       <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--border-color); padding-bottom: 12px;">
-        <h3 id="reservationModalTitle" style="margin: 0; font-size: 1.2rem; font-weight: 700; color: var(--text-main);"><i class="fa-solid fa-bookmark" style="color: var(--primary); margin-right: 8px;"></i> Adicionar Reserva</h3>
+        <h3 id="reservationModalTitle" style="margin: 0; font-size: 1.2rem; font-weight: 700; color: var(--text-main);"><i class="fa-solid fa-route" style="color: var(--primary); margin-right: 8px;"></i> Adicionar à viagem</h3>
         <button type="button" class="modal-close" id="closeReservationModal" aria-label="Fechar cadastro de reserva" style="background: transparent; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.2rem;"><i class="fa-solid fa-xmark"></i></button>
       </div>
       
@@ -1464,50 +1860,89 @@
         <input type="hidden" id="editReservationId" value="">
         
         <div class="input-group" style="display: flex; flex-direction: column; gap: 6px;">
-          <label for="resTypeInput" style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: var(--text-light); letter-spacing: 0.05em;">Tipo de Reserva *</label>
+          <label for="resTypeInput" style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: var(--text-light); letter-spacing: 0.05em;">O que você quer adicionar? *</label>
           <select id="resTypeInput" required style="background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 10px 12px; color: white; outline: none; font-size: 0.9rem;">
-            <option value="Passagem Aérea">Passagem Aérea</option>
-            <option value="Hospedagem">Hospedagem</option>
-            <option value="Ingresso">Ingresso</option>
-            <option value="Seguro Viagem">Seguro Viagem</option>
-            <option value="Outros">Outros</option>
+            <optgroup label="Como chego ou volto">
+              <option value="Passagem Aérea">Avião</option>
+              <option value="Transporte — Ônibus">Ônibus intermunicipal / interestadual</option>
+              <option value="Transporte — Trem">Trem entre cidades</option>
+              <option value="Transporte — Carro próprio">Carro próprio</option>
+              <option value="Transporte — Barco / Navio">Barco ou navio</option>
+            </optgroup>
+            <optgroup label="Como me locomovo no destino">
+              <option value="Transporte — Carro alugado">Carro alugado</option>
+              <option value="Transporte — Táxi / Aplicativo">Uber, 99 ou táxi</option>
+              <option value="Transporte — Transporte público">Metrô, ônibus e transporte público</option>
+              <option value="Transporte — Transfer">Transfer reservado</option>
+              <option value="Transporte — Outro">Outro meio de transporte</option>
+            </optgroup>
+            <optgroup label="Outros itens da viagem">
+              <option value="Hospedagem">Hospedagem</option>
+              <option value="Ingresso">Ingresso ou passeio</option>
+              <option value="Seguro Viagem">Seguro viagem</option>
+              <option value="Outros">Outro item</option>
+            </optgroup>
           </select>
+        </div>
+
+        <div class="reservation-transport-fields" id="resTransportFields">
+          <div class="reservation-field-row">
+            <div class="input-group">
+              <label for="resOriginInput">Saindo de</label>
+              <input type="text" id="resOriginInput" placeholder="Ex: São Paulo, minha casa, rodoviária">
+            </div>
+            <div class="input-group">
+              <label for="resDestinationInput">Indo para</label>
+              <input type="text" id="resDestinationInput" placeholder="Ex: Campo Grande, hotel, aeroporto">
+            </div>
+          </div>
+          <div class="input-group">
+            <label for="resTransportScopeInput">Qual é o papel desse transporte?</label>
+            <select id="resTransportScopeInput">
+              <option value="arrival">Chegada ao destino</option>
+              <option value="local">Mobilidade no destino</option>
+              <option value="departure">Volta para casa</option>
+              <option value="entire_trip">Chegada e mobilidade com o mesmo veículo</option>
+              <option value="specific_leg">Em um trecho específico</option>
+            </select>
+            <small id="resTransportHint">Você pode adicionar mais de um: por exemplo, avião para chegar e carro alugado no destino.</small>
+          </div>
         </div>
 
         <div class="input-group" style="display: flex; flex-direction: column; gap: 6px;">
           <label for="resTitleInput" style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: var(--text-light); letter-spacing: 0.05em;">Título / Nome *</label>
-          <input type="text" id="resTitleInput" placeholder="Ex: Voo para Paris, Hotel Copacabana" required style="background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 10px 12px; color: white; outline: none; font-size: 0.9rem;">
+          <input type="text" id="resTitleInput" placeholder="Ex: Viagem de carro, ônibus para Campo Grande" required style="background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 10px 12px; color: white; outline: none; font-size: 0.9rem;">
         </div>
 
         <div style="display: flex; gap: 12px;">
           <div class="input-group" style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
-            <label for="resProviderInput" style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: var(--text-light); letter-spacing: 0.05em;">Empresa / Provedor</label>
-            <input type="text" id="resProviderInput" placeholder="Ex: LATAM, Booking" style="background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 10px 12px; color: white; outline: none; font-size: 0.9rem;">
+            <label for="resProviderInput" id="resProviderLabel" style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: var(--text-light); letter-spacing: 0.05em;">Empresa / Provedor</label>
+            <input type="text" id="resProviderInput" placeholder="Ex: LATAM, Andorinha, Localiza" style="background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 10px 12px; color: white; outline: none; font-size: 0.9rem;">
           </div>
           <div class="input-group" style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
-            <label for="resReferenceInput" style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: var(--text-light); letter-spacing: 0.05em;">Código de Reserva</label>
+            <label for="resReferenceInput" id="resReferenceLabel" style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: var(--text-light); letter-spacing: 0.05em;">Código de reserva</label>
             <input type="text" id="resReferenceInput" placeholder="Ex: ABC123" style="background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 10px 12px; color: white; outline: none; font-size: 0.9rem;">
           </div>
         </div>
 
         <div style="display: flex; gap: 12px;">
           <div class="input-group" style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
-            <label for="resStartDateInput" style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: var(--text-light); letter-spacing: 0.05em;">Data de Início *</label>
+            <label for="resStartDateInput" id="resStartDateLabel" style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: var(--text-light); letter-spacing: 0.05em;">Data de início *</label>
             <input type="datetime-local" id="resStartDateInput" required style="background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 10px 12px; color: white; outline: none; font-size: 0.9rem;">
           </div>
           <div class="input-group" style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
-            <label for="resEndDateInput" style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: var(--text-light); letter-spacing: 0.05em;">Data de Fim</label>
+            <label for="resEndDateInput" id="resEndDateLabel" style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: var(--text-light); letter-spacing: 0.05em;">Data de fim</label>
             <input type="datetime-local" id="resEndDateInput" style="background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 10px 12px; color: white; outline: none; font-size: 0.9rem;">
           </div>
         </div>
 
         <div class="input-group" style="display: flex; flex-direction: column; gap: 6px;">
           <label for="resNotesInput" style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: var(--text-light); letter-spacing: 0.05em;">Anotações</label>
-          <textarea id="resNotesInput" placeholder="Ex: Portão 4, Check-in às 14h..." style="background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 10px 12px; color: white; outline: none; font-size: 0.9rem; min-height: 80px; resize: vertical;"></textarea>
+          <textarea id="resNotesInput" placeholder="Ex: pedágios, bagagem, local de embarque ou retirada..." style="background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 10px 12px; color: white; outline: none; font-size: 0.9rem; min-height: 80px; resize: vertical;"></textarea>
         </div>
 
         <button type="submit" class="btn btn-primary" style="padding: 12px; font-size: 0.9rem; font-weight: 700; margin-top: 10px;">
-          <i class="fa-solid fa-floppy-disk"></i> Salvar Reserva
+          <i class="fa-solid fa-floppy-disk"></i> Salvar na viagem
         </button>
       </form>
     </div>
@@ -1582,6 +2017,249 @@
         <button class="btn btn-secondary" id="cancelShareConfigBtn" style="padding: 10px 16px;">Cancelar</button>
         <button class="btn btn-primary" id="saveShareConfigBtn" style="padding: 10px 16px;">Salvar</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Calendário da viagem ativa -->
+  <div class="modal-overlay hidden" id="tripDatesModal" role="dialog" aria-modal="true" aria-labelledby="tripDatesModalTitle">
+    <div class="modal-card glass-panel trip-dates-modal-card">
+      <div class="trip-dates-modal-header">
+        <div>
+          <span class="trip-dates-eyebrow">VIAGEM ATIVA</span>
+          <h3 id="tripDatesModalTitle"><i class="fa-solid fa-calendar-days"></i> Definir período da viagem</h3>
+          <p>Ao salvar, o Orbia Travel adapta automaticamente o contexto da viagem.</p>
+        </div>
+        <button type="button" class="btn-close" aria-label="Fechar calendário" onclick="closeTripDatesModal()"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <form id="tripDatesForm" class="trip-dates-form">
+        <div class="trip-dates-fields">
+          <label>
+            <span>Data de ida</span>
+            <input type="date" id="tripStartDateInput" required>
+          </label>
+          <label>
+            <span>Data de volta</span>
+            <input type="date" id="tripEndDateInput" required>
+          </label>
+        </div>
+        <div id="tripDatesError" class="trip-dates-error hidden" role="alert"></div>
+        <div class="trip-dates-impact">
+          <strong><i class="fa-solid fa-wand-magic-sparkles"></i> O que será atualizado</strong>
+          <div class="trip-dates-impact-grid">
+            <span><i class="fa-solid fa-suitcase-rolling"></i> Mala e roupas</span>
+            <span><i class="fa-solid fa-wallet"></i> Orçamento por duração</span>
+            <span><i class="fa-solid fa-cloud-sun-rain"></i> Contexto de clima</span>
+            <span><i class="fa-solid fa-route"></i> Datas e Planos B do roteiro</span>
+          </div>
+          <small>Itens marcados, reservas e valores ajustados manualmente serão preservados.</small>
+        </div>
+        <div class="trip-dates-actions">
+          <button type="button" class="btn btn-secondary" onclick="closeTripDatesModal()">Cancelar</button>
+          <button type="submit" class="btn btn-primary"><i class="fa-solid fa-check"></i> Salvar e adaptar viagem</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Geração guiada do roteiro da viagem ativa -->
+  <div class="modal-overlay hidden" id="itineraryGeneratorModal" role="dialog" aria-modal="true" aria-labelledby="itineraryGeneratorTitle">
+    <div class="modal-card glass-panel itinerary-generator-card" id="itineraryGeneratorCard" tabindex="-1">
+      <div class="itinerary-generator-header">
+        <div>
+          <span class="trip-dates-eyebrow">COPILOTO INTELIGENTE</span>
+          <h3 id="itineraryGeneratorTitle"><i class="fa-solid fa-route"></i> Gerar roteiro</h3>
+          <p>Confirme seu estilo. O Orbia Travel cuida da ordem, do clima e dos detalhes.</p>
+        </div>
+        <button type="button" class="btn-close" aria-label="Fechar gerador de roteiro" onclick="closeItineraryGeneratorModal()"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <div class="itinerary-generator-summary" aria-label="Resumo da viagem">
+        <div><i class="fa-solid fa-location-dot"></i><span><small>Destino</small><strong id="generatorDestination"></strong></span></div>
+        <div><i class="fa-solid fa-calendar-days"></i><span><small>Período</small><strong id="generatorDates"></strong></span></div>
+        <div><i class="fa-solid fa-cloud-sun"></i><span><small>Clima esperado</small><strong id="generatorClimate"></strong></span></div>
+      </div>
+
+      <form id="itineraryGeneratorForm" class="itinerary-generator-form">
+        <fieldset>
+          <legend>Qual ritmo combina com você?</legend>
+          <div class="generator-choice-grid">
+            <label class="generator-choice"><input type="radio" name="generatorPace" value="leve"><span><i class="fa-solid fa-mug-hot"></i><strong>Leve</strong><small>Mais pausas</small></span></label>
+            <label class="generator-choice"><input type="radio" name="generatorPace" value="moderado" checked><span><i class="fa-solid fa-person-walking"></i><strong>Moderado</strong><small>Bem equilibrado</small></span></label>
+            <label class="generator-choice"><input type="radio" name="generatorPace" value="intenso"><span><i class="fa-solid fa-bolt"></i><strong>Intenso</strong><small>Ver o máximo</small></span></label>
+          </div>
+        </fieldset>
+
+        <label class="generator-budget-label" for="generatorBudgetStyle">Faixa de orçamento</label>
+        <select id="generatorBudgetStyle">
+          <option value="economico">Econômico</option>
+          <option value="conforto" selected>Conforto</option>
+          <option value="premium">Premium</option>
+        </select>
+
+        <fieldset>
+          <legend>O que não pode faltar?</legend>
+          <div class="generator-interest-grid">
+            <label><input type="checkbox" name="generatorInterest" value="história e cultura" checked><span>🏛️ História e cultura</span></label>
+            <label><input type="checkbox" name="generatorInterest" value="gastronomia" checked><span>🍽️ Gastronomia</span></label>
+            <label><input type="checkbox" name="generatorInterest" value="arte e museus"><span>🎨 Arte e museus</span></label>
+            <label><input type="checkbox" name="generatorInterest" value="natureza"><span>🌿 Natureza</span></label>
+            <label><input type="checkbox" name="generatorInterest" value="vida noturna"><span>🌙 Vida noturna</span></label>
+            <label><input type="checkbox" name="generatorInterest" value="compras"><span>🛍️ Compras</span></label>
+          </div>
+        </fieldset>
+
+        <div id="itineraryGeneratorOverwrite" class="generator-overwrite hidden"><i class="fa-solid fa-rotate"></i> O roteiro atual será substituído. Você poderá desfazer a alteração.</div>
+        <div class="generator-privacy"><i class="fa-solid fa-shield-halved"></i> A geração usa somente destino, datas, clima e estas preferências.</div>
+        <div id="itineraryGeneratorError" class="trip-dates-error hidden" role="alert"></div>
+        <div id="itineraryGeneratorProgress" class="generator-progress hidden" aria-live="polite">
+          <span class="generator-spinner"><i class="fa-solid fa-wand-magic-sparkles"></i></span>
+          <div><strong>Criando uma viagem que faça sentido de verdade…</strong><small id="itineraryGeneratorProgressText">Selecionando os lugares essenciais e agrupando por região.</small></div>
+        </div>
+        <div class="trip-dates-actions generator-actions">
+          <button type="button" class="btn btn-secondary" onclick="closeItineraryGeneratorModal()">Agora não</button>
+          <button type="submit" class="btn btn-primary" id="generateItinerarySubmit"><i class="fa-solid fa-wand-magic-sparkles"></i> Gerar meu roteiro</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal de Proposta de Replanejamento (Plan Before Apply) -->
+  <div class="modal-overlay hidden" id="replanningProposalModal" role="dialog" aria-modal="true" aria-labelledby="replanModalTitle" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.75); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 100000; padding: 20px; box-sizing: border-box;">
+    <div class="modal-card glass-panel" style="max-width: 540px; width: 100%; max-height: 85vh; overflow-y: auto; padding: 24px; border-radius: var(--border-radius-lg); position: relative; background: var(--bg-card); border: 1px solid var(--border-color);">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <h3 id="replanModalTitle" style="margin: 0; font-size: 1.25rem; font-weight: 800; color: var(--text-light); display: flex; align-items: center; gap: 8px;">
+          <i class="fa-solid fa-wand-magic-sparkles" style="color: var(--primary-color);"></i> Proposta de Replanejamento
+        </h3>
+        <button type="button" class="btn-close" id="closeReplanModalBtn" style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.2rem;"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <div id="replanModalContent" style="display: flex; flex-direction: column; gap: 16px;">
+        <!-- Conteúdo injetado dinamicamente: reason, impactSummary, kept, moved, newSuggestions -->
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; padding-top: 16px; border-top: 1px dashed var(--border-color);">
+        <button type="button" class="btn btn-secondary" id="cancelReplanBtn" style="padding: 10px 16px;">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="applyReplanBtn" style="padding: 10px 20px; font-weight: 700;">
+          <i class="fa-solid fa-check"></i> Aplicar Alterações
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Detalhe da Inspiração -->
+  <div class="modal-overlay hidden" id="inspirationDetailModal" role="dialog" aria-modal="true" aria-labelledby="inspDetailTitle" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(11, 15, 25, 0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); display: flex; align-items: center; justify-content: center; z-index: 100000; padding: 20px; box-sizing: border-box;">
+    <div class="modal-card glass-panel" style="max-width: 780px; width: 100%; max-height: 90vh; overflow-y: auto; padding: 30px; border-radius: 24px; position: relative; background: var(--bg-card); border: 1px solid var(--border-color);">
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; border-bottom: 1px solid var(--border-color); padding-bottom: 16px;">
+        <div>
+          <div id="inspDetailBadge" style="display: inline-block; margin-bottom: 6px;"></div>
+          <h3 id="inspDetailTitle" style="margin: 0 0 4px; font-size: 1.5rem; font-weight: 800; color: var(--text-main);"></h3>
+          <p id="inspDetailSubtitle" style="margin: 0; font-size: 0.95rem; color: var(--text-muted);"></p>
+        </div>
+        <button type="button" class="btn-close" id="closeInspDetailBtn" style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.3rem;"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <div id="inspDetailBody" style="display: flex; flex-direction: column; gap: 24px;">
+        <!-- Conteúdo injetado dinamicamente: meta pills, para quem é, itinerário dia a dia e dicas -->
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border-color);">
+        <button type="button" class="btn btn-secondary" id="closeInspModalBottomBtn" style="padding: 10px 18px; border-radius: 50px;">Fechar</button>
+        <button type="button" class="btn btn-accent" id="cloneInspModalBtn" style="padding: 10px 20px; border-radius: 50px; font-weight: 800;">
+          <i class="fa-solid fa-wand-magic-sparkles"></i> Personalizar roteiro
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de Fluxo de Personalização Guiada (Guided Personalization Flow) -->
+  <div class="modal-overlay hidden" id="inspirationPersonalizationModal" role="dialog" aria-modal="true" aria-labelledby="personalizationModalTitle" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(11, 15, 25, 0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); display: flex; align-items: center; justify-content: center; z-index: 100005; padding: 20px; box-sizing: border-box;">
+    <div class="modal-card glass-panel" style="max-width: 620px; width: 100%; max-height: 90vh; overflow-y: auto; padding: 28px; border-radius: 24px; position: relative; background: var(--bg-card); border: 1px solid var(--border-color);">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--border-color); padding-bottom: 14px;">
+        <div>
+          <span style="font-size: 0.72rem; font-weight: 800; background: rgba(200,90,50,0.12); color: var(--primary); padding: 3px 8px; border-radius: 4px; text-transform: uppercase;">Adaptação Inteligente</span>
+          <h3 id="personalizationModalTitle" style="margin: 4px 0 0; font-size: 1.3rem; font-weight: 800; color: var(--text-main);">Personalizar Roteiro para Roma</h3>
+        </div>
+        <button type="button" class="btn-close" id="closePersonalizationModalBtn" style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.3rem;"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <!-- Passo 1: Informações Básicas (Datas, Viajantes, Ritmo) -->
+      <div id="personalizationStep1" class="personalization-step">
+        <h4 style="font-size: 1rem; font-weight: 800; margin: 0 0 14px; color: var(--text-main);"><i class="fa-regular fa-calendar-days" style="color: var(--primary);"></i> 1. Quando e com quem você vai?</h4>
+        <div style="display: flex; flex-direction: column; gap: 14px;">
+          <div>
+            <label style="font-size: 0.82rem; font-weight: 700; color: var(--text-main); display: block; margin-bottom: 6px;">Data de Início da Viagem</label>
+            <input type="date" id="persStartDate" style="width: 100%; padding: 10px; border-radius: 10px; background: var(--bg-card); border: 1px solid var(--border-color); color: var(--text-main); font-size: 0.88rem;">
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div>
+              <label style="font-size: 0.82rem; font-weight: 700; color: var(--text-main); display: block; margin-bottom: 6px;">Viajantes</label>
+              <select id="persTravelers" style="width: 100%; padding: 10px; border-radius: 10px; background: var(--bg-card); border: 1px solid var(--border-color); color: var(--text-main); font-size: 0.88rem;">
+                <option value="1">Solo / Individual</option>
+                <option value="2" selected>Casal (2 pessoas)</option>
+                <option value="family">Família (3+ pessoas)</option>
+                <option value="group">Grupo de amigos</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size: 0.82rem; font-weight: 700; color: var(--text-main); display: block; margin-bottom: 6px;">Ritmo Desejado</label>
+              <select id="persPace" style="width: 100%; padding: 10px; border-radius: 10px; background: var(--bg-card); border: 1px solid var(--border-color); color: var(--text-main); font-size: 0.88rem;">
+                <option value="light">Leve (Poucas caminhadas)</option>
+                <option value="balanced" selected>Equilibrado (Recomendado)</option>
+                <option value="intense">Intenso (Explorar tudo)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Passo 2: Preferências & Hospedagem -->
+      <div id="personalizationStep2" class="personalization-step style='margin-top: 20px;'">
+        <h4 style="font-size: 1rem; font-weight: 800; margin: 16px 0 14px; color: var(--text-main);"><i class="fa-solid fa-sliders" style="color: var(--primary);"></i> 2. Preferências Rápidas</h4>
+        <div style="display: flex; flex-direction: column; gap: 14px;">
+          <div>
+            <label style="font-size: 0.82rem; font-weight: 700; color: var(--text-main); display: block; margin-bottom: 6px;">Bairro ou Hospedagem (Opcional)</label>
+            <input type="text" id="persHotel" placeholder="Ex: Trastevere, perto de Termini..." style="width: 100%; padding: 10px; border-radius: 10px; background: var(--bg-card); border: 1px solid var(--border-color); color: var(--text-main); font-size: 0.88rem;">
+          </div>
+          <div>
+            <label style="font-size: 0.82rem; font-weight: 700; color: var(--text-main); display: block; margin-bottom: 6px;">Atração Essencial (Must-do)</label>
+            <input type="text" id="persMustDo" placeholder="Ex: Galeria Borghese, gastronomia..." style="width: 100%; padding: 10px; border-radius: 10px; background: var(--bg-card); border: 1px solid var(--border-color); color: var(--text-main); font-size: 0.88rem;">
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 3: AI Proposal Preview Area (Opcional) -->
+      <div id="personalizationStep3" class="personalization-step hidden" style="margin-top: 20px; background: rgba(16,185,129,0.06); border: 1px solid rgba(16,185,129,0.2); border-radius: 14px; padding: 16px;">
+        <strong style="color: var(--accent); font-size: 0.9rem; display: flex; align-items: center; gap: 6px; margin-bottom: 6px;">
+          <i class="fa-solid fa-robot"></i> Proposta de Adaptação do CoPiloto
+        </strong>
+        <p id="persAiSummary" style="margin: 0; font-size: 0.84rem; color: var(--text-secondary); line-height: 1.45;"></p>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px; padding-top: 16px; border-top: 1px dashed var(--border-color);">
+        <button type="button" class="btn btn-secondary" id="cancelPersBtn" style="padding: 10px 18px; border-radius: 50px;">Cancelar</button>
+        <button type="button" class="btn btn-accent" id="submitPersBtn" style="padding: 12px 24px; border-radius: 50px; font-weight: 800; display: inline-flex; align-items: center; gap: 8px;">
+          <i class="fa-solid fa-check"></i> Confirmar e Criar Viagem Privada
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Admin de Inspirações -->
+  <div class="modal-overlay hidden" id="inspirationAdminModal" role="dialog" aria-modal="true" aria-labelledby="adminModalTitle" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(11, 15, 25, 0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); display: flex; align-items: center; justify-content: center; z-index: 100010; padding: 20px; box-sizing: border-box;">
+    <div class="modal-card glass-panel" style="max-width: 900px; width: 100%; max-height: 90vh; overflow-y: auto; padding: 30px; border-radius: 24px; position: relative; background: var(--bg-card); border: 1px solid var(--border-color);">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--border-color); padding-bottom: 16px;">
+        <div>
+          <span style="font-size: 0.72rem; font-weight: 800; background: #fee2e2; color: #991b1b; padding: 3px 8px; border-radius: 4px; text-transform: uppercase;">Área Administrativa</span>
+          <h3 id="adminModalTitle" style="margin: 4px 0 0; font-size: 1.4rem; font-weight: 800; color: var(--text-main);">Gestão de Inspirações & Qualidade</h3>
+        </div>
+        <button type="button" class="btn-close" id="closeAdminModalBtn" style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.3rem;"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <div id="adminModalBody" style="display: flex; flex-direction: column; gap: 20px;">
+        <!-- Injetado dinamicamente: Tabela de roteiros, status, Quality Score, Risk/Logistics Warnings, Fontes -->
+      </div>
+
     </div>
   </div>
 

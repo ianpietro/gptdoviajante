@@ -1,31 +1,32 @@
-import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
 import { SUPABASE_URL, SUPABASE_ANON_KEY, BYPASS_LOGIN } from './config.js';
 
-// Initialize Supabase client
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+let createClientFunc = () => ({
+  from: () => ({ select: () => ({ eq: () => ({ order: () => Promise.resolve({ data: [], error: null }) }) }) }),
+  auth: {
+    getSession: () => Promise.resolve({ data: { session: null } }),
+    onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } })
+  }
+});
+
+if (typeof window !== 'undefined' && window.supabase && typeof window.supabase.createClient === 'function') {
+  createClientFunc = window.supabase.createClient;
+}
+
+// Initialize Supabase client safely
+export const supabase = (SUPABASE_URL && SUPABASE_ANON_KEY && typeof createClientFunc === 'function')
+  ? createClientFunc(SUPABASE_URL, SUPABASE_ANON_KEY)
+  : createClientFunc('https://dummy.supabase.co', 'dummy-key');
 
 const isConfigured = !!(SUPABASE_URL && SUPABASE_ANON_KEY);
 
-/**
- * Returns true if Supabase Auth is configured (URL + Anon Key present).
- * Alias: isFirebaseConfigured kept for backward compatibility during rename migration.
- */
 export function isAuthConfigured() {
   return isConfigured;
 }
-/** @deprecated use isAuthConfigured() */
 export const isFirebaseConfigured = isAuthConfigured;
 
-/**
- * Monitor auth state changes
- * @param {Function} onUserActive Callback called when user is logged in
- * @param {Function} onUserInactive Callback called when user is logged out
- */
 export function setupAuthStateListener(onUserActive, onUserInactive) {
   if (BYPASS_LOGIN || !isConfigured) {
     console.info("Bypassing login.");
-    // Defer the local callback until the importing application module has
-    // finished initializing its state. Production auth remains unchanged.
     queueMicrotask(() => onUserActive({
       id: "dummy-user-id",
       email: "teste@viajante.com",
@@ -38,117 +39,96 @@ export function setupAuthStateListener(onUserActive, onUserInactive) {
     return;
   }
 
-  // Check current session immediately
-  supabase.auth.getSession().then(({ data: { session } }) => {
-    if (session) {
-      onUserActive(session.user, session.access_token);
-    } else {
-      onUserInactive();
-    }
-  });
+  try {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        onUserActive(session.user, session.access_token);
+      } else {
+        onUserInactive();
+      }
+    }).catch(() => onUserInactive());
 
-  // Listen for changes
-  const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-    if (session) {
-      onUserActive(session.user, session.access_token);
-    } else {
-      onUserInactive();
-    }
-  });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session) {
+        onUserActive(session.user, session.access_token);
+      } else {
+        onUserInactive();
+      }
+    });
 
-  return () => {
-    subscription.unsubscribe();
-  };
+    return () => {
+      if (subscription) subscription.unsubscribe();
+    };
+  } catch (e) {
+    console.warn("Auth listener fallback:", e);
+    onUserInactive();
+  }
 }
 
-/**
- * Login with Google OAuth (Redirect method is most reliable for mobile/in-app browsers)
- */
+export async function checkCurrentUser() {
+  if (BYPASS_LOGIN || !isConfigured) {
+    return {
+      user: {
+        id: "dummy-user-id",
+        email: "teste@viajante.com",
+        plan: "premium",
+        user_metadata: { full_name: "Viajante Teste" }
+      },
+      token: "dummy-token"
+    };
+  }
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return { user: null, token: null };
+    return { user: session.user, token: session.access_token };
+  } catch (e) {
+    return { user: null, token: null };
+  }
+}
+
 export async function loginWithGoogle() {
-  if (!isConfigured) return;
-  // Mantém o retorno no mesmo domínio em que o login começou. O caminho fixo
-  // evita cair na landing page ou reaproveitar hashes/query strings antigos.
-  const redirectTo = new URL('/app', window.location.origin).toString();
+  if (!isConfigured) throw new Error("Supabase não configurado.");
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
-    options: {
-      redirectTo
-    }
+    options: { redirectTo: new URL('/app', window.location.origin).toString() }
   });
-  if (error) {
-    console.error("Google sign in error:", error);
-    throw error;
-  }
+  if (error) throw error;
   return data;
 }
 
-/**
- * Login with email and password
- */
 export async function loginWithEmail(email, password) {
-  if (!isConfigured) return;
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email,
-    password
-  });
-  if (error) {
-    console.error("Email login error:", error);
-    throw error;
-  }
+  if (!isConfigured) throw new Error("Supabase não configurado.");
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error) throw error;
   return data.user;
 }
 
-/**
- * Register with email and password
- */
-export async function registerWithEmail(email, password) {
-  if (!isConfigured) return;
+export async function registerWithEmail(email, password, fullName = '') {
+  if (!isConfigured) throw new Error("Supabase não configurado.");
   const { data, error } = await supabase.auth.signUp({
     email,
-    password
+    password,
+    options: { data: { full_name: fullName } }
   });
-  if (error) {
-    console.error("Registration error:", error);
-    throw error;
-  }
+  if (error) throw error;
   return data.user;
 }
 
-/**
- * Logout
- */
 export async function logout() {
-  if (!isConfigured) return;
-  const { error } = await supabase.auth.signOut();
-  if (error) {
-    console.error("Signout error:", error);
-    throw error;
+  if (BYPASS_LOGIN || !isConfigured) {
+    window.location.reload();
+    return;
   }
+  await supabase.auth.signOut();
+  window.location.reload();
 }
 
-/**
- * Check if there is an active session
- */
-export function checkCurrentUser() {
-  return new Promise((resolve) => {
-    if (!isConfigured) {
-      resolve(null);
-      return;
-    }
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      resolve(user);
-    }).catch(() => {
-      resolve(null);
-    });
-  });
-}
-
-/**
- * Get fresh JWT token
- */
 export async function getFreshToken() {
-  if (!isConfigured) return "dummy-token-unconfigured";
-  const { data: { session }, error } = await supabase.auth.getSession();
-  if (error || !session) return null;
-  return session.access_token;
+  if (BYPASS_LOGIN || !isConfigured) return "dummy-token";
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    return session ? session.access_token : null;
+  } catch (e) {
+    return null;
+  }
 }

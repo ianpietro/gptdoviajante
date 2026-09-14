@@ -13,6 +13,7 @@ global.fetch = (...args) => fetchHandler(...args);
 const {
   routeAIRequest,
   classifyTask,
+  classifyRecommendationIntent,
   buildAIContext,
   processChatHistoryWindow,
   calculateRequestCost
@@ -33,6 +34,21 @@ function providerFailure(status, message = 'provider error') {
   return { ok: false, status, json: async () => ({ error: { message } }) };
 }
 
+function openAiGroundedSuccess(text = 'resposta pesquisada') {
+  return {
+    ok: true,
+    status: 200,
+    json: async () => ({
+      output: [
+        { type: 'web_search_call', status: 'completed' },
+        { type: 'message', status: 'completed', content: [{ type: 'output_text', text }] }
+      ],
+      usage: { input_tokens: 40, output_tokens: 10, total_tokens: 50,
+        input_tokens_details: { cached_tokens: 0 }, output_tokens_details: { reasoning_tokens: 0 } }
+    })
+  };
+}
+
 async function run() {
   console.log('🧪 Running AI Router integration tests...');
 
@@ -40,6 +56,14 @@ async function run() {
   localPhrases.forEach(phrase => assert.strictEqual(classifyTask('chat', phrase).useGrounding, false, phrase));
   const realtimePhrases = ['Meu voo atrasou?', 'Vai chover amanhã em Roma?', 'O Louvre abre amanhã?', 'Esse restaurante está aberto agora?'];
   realtimePhrases.forEach(phrase => assert.strictEqual(classifyTask('chat', phrase).useGrounding, true, phrase));
+  const recommendationPhrases = ['Onde comer em Roma?', 'Qual é o prato típico de Campo Grande?', 'O que visitar em Lisboa?', 'Recomende um hotel em Paris'];
+  recommendationPhrases.forEach(phrase => assert.strictEqual(classifyTask('chat', phrase).useGrounding, true, phrase));
+  assert.equal(classifyRecommendationIntent('Quanto já gastei?').required, false);
+  assert.equal(classifyTask('itinerary', 'Crie um roteiro de 5 dias').thinkingBudget, 2048);
+  assert.equal(classifyTask('itinerary', 'Crie um roteiro de 5 dias').useGrounding, false,
+    'a composição final usa o dossiê pesquisado em vez de realizar uma busca solta');
+  assert.equal(classifyTask('itinerary_research', 'Campo Grande').useGrounding, true);
+  assert.equal(classifyTask('itinerary_research', 'Campo Grande').groundingReason, 'destination_research');
 
   const trip = {
     destination: 'Roma', dates: '10 a 17/09', hotel: 'Centro',
@@ -77,6 +101,19 @@ async function run() {
   assert.strictEqual(primary.provider, 'gemini'); assert.deepStrictEqual(counts, { gemini: 1, openai: 0 });
   assert.strictEqual(primary.usage.source, 'provider'); assert.ok(primary.estimatedCostUsd > 0);
 
+  fetchHandler = async url => String(url).includes('generativelanguage')
+    ? geminiSuccess('recomendação sem pesquisa', false)
+    : providerFailure(422, 'pesquisa alternativa indisponível');
+  await assert.rejects(() => routeAIRequest({ messages: [{ role: 'user', content: 'Onde comer em Roma?' }],
+    userMessage: 'Onde comer em Roma?' }), /pesquisa alternativa indisponível/,
+  'recomendações factuais sem grounding devem ser bloqueadas');
+
+  fetchHandler = async () => geminiSuccess('recomendação pesquisada', true);
+  const groundedRecommendation = await routeAIRequest({ messages: [{ role: 'user', content: 'Onde comer em Roma?' }],
+    userMessage: 'Onde comer em Roma?' });
+  assert.equal(groundedRecommendation.groundingUsed, true);
+  assert.equal(groundedRecommendation.groundingReason, 'food_recommendation');
+
   counts = { gemini: 0, openai: 0 };
   fetchHandler = async url => {
     if (String(url).includes('generativelanguage')) { counts.gemini += 1; return providerFailure(503); }
@@ -89,6 +126,54 @@ async function run() {
   assert.deepStrictEqual(counts, { gemini: 2, openai: 1 });
 
   counts = { gemini: 0, openai: 0 };
+  process.env.AI_PRIMARY_PROVIDER = 'openai';
+  fetchHandler = async url => {
+    if (String(url).includes('generativelanguage')) { counts.gemini += 1; return geminiSuccess('gemini'); }
+    counts.openai += 1;
+    return { ok: true, status: 200, json: async () => ({ choices: [{ message: { content: 'openai-primary' } }],
+      usage: { prompt_tokens: 20, completion_tokens: 4, total_tokens: 24 } }) };
+  };
+  const preferredOpenAi = await routeAIRequest({ messages: [{ role: 'user', content: 'oi' }], userMessage: 'oi' });
+  assert.strictEqual(preferredOpenAi.provider, 'openai'); assert.strictEqual(preferredOpenAi.usedFallback, false);
+  assert.deepStrictEqual(counts, { gemini: 0, openai: 1 }, 'configured OpenAI primary must skip Gemini');
+
+  let selectedCompositionModel = null;
+  let selectedCompositionBody = null;
+  fetchHandler = async (url, options) => {
+    selectedCompositionBody = JSON.parse(options.body);
+    selectedCompositionModel = selectedCompositionBody.model;
+    return { ok: true, status: 200, json: async () => ({ choices: [{ message: { content: 'roteiro estruturado' } }],
+      usage: { prompt_tokens: 20, completion_tokens: 4, total_tokens: 24 } }) };
+  };
+  const composedItinerary = await routeAIRequest({ task: 'itinerary', messages: [{ role: 'user', content: 'Monte o roteiro' }],
+    userMessage: 'Monte o roteiro' });
+  assert.equal(composedItinerary.provider, 'openai');
+  assert.equal(selectedCompositionModel, 'gpt-5.6-terra', 'itinerary composition must use the dedicated planning model');
+  assert.equal(selectedCompositionBody.reasoning_effort, 'high', 'planner must use high reasoning effort');
+  assert.equal(selectedCompositionBody.temperature, undefined, 'reasoning planner must not receive unsupported temperature');
+
+  selectedCompositionModel = null;
+  await routeAIRequest({ task: 'quick_extraction', messages: [{ role: 'user', content: 'Converta para ações' }],
+    userMessage: 'Converta para ações', responseMimeType: 'application/json' });
+  assert.equal(selectedCompositionModel, 'gpt-4.1-mini', 'state-action repair must use the stronger structured-output model');
+  delete process.env.AI_PRIMARY_PROVIDER;
+
+  counts = { gemini: 0, openai: 0 };
+  let researchBody = null;
+  fetchHandler = async (url, options) => {
+    if (String(url).includes('generativelanguage')) { counts.gemini += 1; return geminiSuccess('gemini'); }
+    counts.openai += 1;
+    researchBody = JSON.parse(options.body);
+    return openAiGroundedSuccess('dossiê pesquisado');
+  };
+  const researchedItinerary = await routeAIRequest({ task: 'itinerary_research', needsFreshData: true,
+    messages: [{ role: 'user', content: 'Pesquise São Paulo' }], userMessage: 'Pesquise São Paulo' });
+  assert.equal(researchedItinerary.provider, 'openai');
+  assert.equal(researchedItinerary.modelUsed, 'gpt-5.6-terra');
+  assert.equal(researchBody.tools?.[0]?.type, 'web_search');
+  assert.deepStrictEqual(counts, { gemini: 0, openai: 1 }, 'planner research must use OpenAI web search directly');
+
+  counts = { gemini: 0, openai: 0 };
   fetchHandler = async url => {
     if (String(url).includes('generativelanguage')) { counts.gemini += 1; return providerFailure(400); }
     counts.openai += 1; return providerFailure(500);
@@ -99,11 +184,23 @@ async function run() {
   counts = { gemini: 0, openai: 0 };
   fetchHandler = async url => {
     if (String(url).includes('generativelanguage')) { counts.gemini += 1; return providerFailure(503); }
-    counts.openai += 1; return providerFailure(500);
+    counts.openai += 1; return openAiGroundedSuccess('status pesquisado pelo fallback');
   };
-  await assert.rejects(() => routeAIRequest({ task: 'flight_status', needsFreshData: true,
-    messages: [{ role: 'user', content: 'Meu voo atrasou?' }], userMessage: 'Meu voo atrasou?' }), /Dados em tempo real indisponíveis/);
-  assert.deepStrictEqual(counts, { gemini: 2, openai: 0 }, 'grounded requests must fail closed');
+  const groundedFallback = await routeAIRequest({ task: 'flight_status', needsFreshData: true,
+    messages: [{ role: 'user', content: 'Meu voo atrasou?' }], userMessage: 'Meu voo atrasou?' });
+  assert.equal(groundedFallback.provider, 'openai');
+  assert.equal(groundedFallback.groundingUsed, true);
+  assert.equal(groundedFallback.usedFallback, true);
+  assert.deepStrictEqual(counts, { gemini: 2, openai: 1 }, 'grounded requests must use a grounded fallback');
+
+  counts = { gemini: 0, openai: 0 };
+  fetchHandler = async url => {
+    if (String(url).includes('generativelanguage')) { counts.gemini += 1; return providerFailure(503); }
+    counts.openai += 1; return providerFailure(503);
+  };
+  await assert.rejects(() => routeAIRequest({ task: 'itinerary_research', needsFreshData: true,
+    messages: [{ role: 'user', content: 'Destino fictício' }], userMessage: 'Destino fictício' }), /Dados em tempo real indisponíveis/);
+  assert.deepStrictEqual(counts, { gemini: 2, openai: 4 }, 'planner research must fail closed only after both grounded providers fail');
 
   assert.strictEqual(calculateRequestCost('gemini-2.5-flash', {
     inputTokens: 1_000_000, cachedInputTokens: 0, outputTokens: 1_000_000
@@ -116,9 +213,35 @@ async function run() {
   assert.deepStrictEqual(directFiles, [], `direct provider calls outside Router: ${directFiles.join(', ')}`);
 
   const appHtml = fs.readFileSync(path.join(__dirname, '..', 'app.html'), 'utf8');
-  assert.match(appHtml, /src="\/app\.js"/, 'published HTML must load the current frontend controller');
+  assert.match(appHtml, /src="\/app\.js(?:\?[^\"]*)?"/, 'published HTML must load the current frontend controller');
   const appJs = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
   assert.ok((appJs.match(/tripId: tripData\.id/g) || []).length >= 3, 'all chat calls must send tripId');
+  assert.ok((appJs.match(/dates: \{ start: tripData\.start_date, end: tripData\.end_date/g) || []).length >= 3,
+    'chat calls must send structured trip dates');
+  assert.match(appJs, /chatHistory\.at\(-1\).*chatHistory\.pop\(\)/,
+    'a failed request must not remain duplicated in the AI history');
+  assert.match(appJs, /if \(!input\.value\) input\.value = text/,
+    'a failed request must be restored to the input');
+  const localServerText = fs.readFileSync(path.join(__dirname, '..', 'dev-server.js'), 'utf8');
+  const chatHandlerText = fs.readFileSync(path.join(apiDir, 'chat.js'), 'utf8');
+  assert.match(localServerText, /req\.localDev\s*=\s*true/, 'local server must mark trusted preview requests internally');
+  assert.match(localServerText, /loadLocalEnvironment\(\)/, 'local server must load server-only AI configuration');
+  assert.match(chatHandlerText, /isTrustedLocalPreview/, 'chat must support the isolated local preview identity');
+  assert.match(chatHandlerText, /responseShouldUpdateState/, 'operational AI replies must be checked for interface actions');
+  assert.match(chatHandlerText, /repairActionEnvelope/, 'missing structured actions must be repaired server-side');
+  assert.match(chatHandlerText, /actionEnvelopeNeedsRepair/, 'non-canonical itinerary actions must be repaired server-side');
+  assert.match(chatHandlerText, /visibleReply/, 'a repaired envelope must replace the incompatible block');
+  assert.match(chatHandlerText, /responseMimeType: itineraryPlanningRequest \? 'application\/json'/,
+    'itinerary creation and follow-up edits must require a structured JSON response');
+  assert.match(chatHandlerText, /isItineraryMutationRequest/,
+    'itinerary follow-up edits must pass through the full planning pipeline');
+  assert.match(chatHandlerText, /auditConstraintCoverage/,
+    'hard user commitments must be audited before returning an itinerary');
+  assert.match(chatHandlerText, /auditFactualGrounding/,
+    'current facts and addresses must be audited before returning an itinerary');
+  assert.match(chatHandlerText, /parsedWhole\.message/, 'structured itinerary messages must remain friendly in the chat');
+  assert.match(chatHandlerText, /ITINERARY_RESEARCH_UNAVAILABLE/,
+    'itinerary research failures must return an actionable safe error');
 
   console.log('✅ AI Router integration tests passed.');
 }

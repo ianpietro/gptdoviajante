@@ -2,22 +2,22 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>CoPiloto de Viagem - Organize sua viagem em 5 minutos</title>
-  <meta name="description" content="Feche as 15 abas abertas. O CoPiloto de Viagem monta roteiro, calcula custos e gera malas. Oferta de lançamento para os 120 primeiros: acesso vitalício por R$ 49,90.">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Orbia Travel — Seu copiloto de viagem</title>
+  <meta name="description" content="Planeje, organize e viva sua viagem com tudo em um só lugar. Orbia Travel organiza, entende, antecipa e resolve sua viagem em tempo real.">
   <!-- SEO / Canonical -->
   <link rel="canonical" href="https://copilotodeviagem.com.br/">
   
   <!-- SEO OpenGraph Meta Tags -->
-  <meta property="og:title" content="CoPiloto de Viagem: Painel de Controle da Sua Próxima Aventura">
-  <meta property="og:description" content="Feche as 15 abas abertas. O CoPiloto organiza roteiro, custos reais, mala e divisão de contas num painel interativo. Você no controle, sempre.">
+  <meta property="og:title" content="Orbia Travel — Seu copiloto de viagem">
+  <meta property="og:description" content="Planeje, organize e viva sua viagem com tudo em um só lugar.">
   <meta property="og:url" content="https://copilotodeviagem.com.br/">
   <meta property="og:type" content="website">
   <meta property="og:image" content="https://copilotodeviagem.com.br/assets/og-image.jpg">
   
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="CoPiloto de Viagem: Painel de Controle da Sua Próxima Aventura">
-  <meta name="twitter:description" content="Feche as 15 abas abertas. O CoPiloto organiza roteiro, custos reais, mala e divisão de contas num painel interativo.">
+  <meta name="twitter:title" content="Orbia Travel — Seu copiloto de viagem">
+  <meta name="twitter:description" content="Planeje, organize e viva sua viagem com tudo em um só lugar.">
   <meta name="twitter:image" content="https://copilotodeviagem.com.br/assets/twitter-image.jpg">
   
   <!-- Schema.org JSON-LD Structured Data -->
@@ -29,13 +29,13 @@
         "@type": "WebSite",
         "@id": "https://copilotodeviagem.com.br/#website",
         "url": "https://copilotodeviagem.com.br/",
-        "name": "CoPiloto de Viagem",
-        "description": "Seu painel pessoal de viagem."
+        "name": "Orbia Travel",
+        "description": "Seu copiloto de viagem. Planeje, organize e viva sua viagem com tudo em um só lugar."
       },
       {
         "@type": "SoftwareApplication",
         "@id": "https://copilotodeviagem.com.br/#software",
-        "name": "CoPiloto de Viagem",
+        "name": "Orbia Travel",
         "url": "https://copilotodeviagem.com.br/",
         "applicationCategory": "TravelApplication",
         "operatingSystem": "All",
@@ -44,728 +44,606 @@
       {
         "@type": "Organization",
         "@id": "https://copilotodeviagem.com.br/#organization",
-        "name": "CoPiloto de Viagem",
+        "name": "Orbia Travel",
         "url": "https://copilotodeviagem.com.br/"
       }
     ]
   }
   </script>
   
-  <!-- Modern Typography (Google Fonts) -->
+  <!-- Fonts (Google Fonts: Sora & Inter) -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Sora:wght@400;600;700;800&display=swap" rel="stylesheet">
   
   <!-- FontAwesome Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   
   <!-- Web App Manifest for PWA -->
   <link rel="manifest" href="/manifest.json">
-  <meta name="theme-color" content="#0f172a">
+  <meta name="theme-color" content="#216F80">
   
-  <!-- Main Stylesheet (LP Isolated) -->
+  <!-- Main Stylesheet -->
   <link rel="stylesheet" href="/vendas.css">
+  <link rel="stylesheet" href="/style.v2.css">
 </head>
 <body>
 
-  <!-- 1. Header / Barra de Navegação -->
-  <nav class="header-nav" id="mainHeader">
+  <!-- 1. Header / Barra de Navegação Orbia Travel -->
+  <nav class="header-nav" id="mainHeader" style="background: rgba(221, 243, 247, 0.95); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border-color);">
     <div class="container nav-wrapper">
-      <a href="#" class="logo-container" id="brandLogo">
-        <div class="logo-icon"><i class="fa-solid fa-compass"></i></div>
-        <div class="logo-text">CoPiloto de Viagem</div>
+      <a href="#" class="logo-container" id="brandLogo" style="display: flex; align-items: center; gap: 10px; text-decoration: none;">
+        <img src="/assets/symbol-orbia.svg" alt="Orbia Travel" style="width: 32px; height: 32px;">
+        <span style="font-family: 'Sora', sans-serif; font-size: 1.4rem; font-weight: 800; color: var(--orbia-berilo); letter-spacing: 2px;">ORBIA TRAVEL</span>
       </a>
-      <div class="nav-actions">
-        <a href="/app.html" class="nav-login" id="linkToLogin">
-          <i class="fa-solid fa-right-to-bracket"></i> 
-          <span class="desktop-only-text">Acessar meu CoPiloto</span>
-          <span class="mobile-only-text" style="display: none;">Acessar</span>
-        </a>
-        <a href="#oferta" class="btn btn-primary nav-btn-sm" id="btnHeaderCta">Quero meu CoPiloto →</a>
+      <div class="nav-login">
+        <a href="/app.html" class="btn btn-outline btn-nav-login" id="linkToLogin" style="border-color: var(--orbia-berilo); color: var(--orbia-berilo);">Acessar Orbia Travel</a>
+        <a href="#oferta" class="btn btn-accent btn-nav-login" id="btnHeaderCta" style="background: var(--orbia-laranja); color: #FFFFFF; font-weight: 800;">Iniciar agora</a>
       </div>
     </div>
   </nav>
 
-  <!-- 2. Hero Section: Headline Impactante + Simulador Interativo -->
-  <header class="hero-section" id="heroSection">
+  <!-- 2. Hero Section: Orbia Travel -->
+  <header class="hero-section" id="heroSection" style="background: var(--orbia-ceu); padding-top: 110px;">
     <div class="container hero-grid">
       
-      <!-- Lado Esquerdo: Copys Persuasivas -->
+      <!-- Lado Esquerdo: Tensão Comercial & Prova de Valor -->
       <div class="hero-content-left">
-        <span class="badge" id="heroBadge"><i class="fa-solid fa-compass"></i> Seu painel pessoal de viagem. Sem mensalidade.</span>
-        <h1 class="hero-title" id="mainTitle">Feche as 15 abas <span class="highlight">abertas</span>. Seu CoPiloto organiza <span class="highlight">tudo</span> em 5 minutos.</h1>
-        <p class="hero-description" id="mainDesc">
-          Você conta para onde quer ir. O CoPiloto cria seu roteiro organizado por turnos, com horários sugeridos, calcula custos locais em 3 faixas de bolso, gera sua lista de mala ideal para o clima e divide as contas do grupo de forma simples. Tudo em um painel interativo e rápido que vai direto no seu celular.
+        <div style="display: inline-flex; align-items: center; gap: 8px; background: rgba(112, 196, 208, 0.25); color: var(--orbia-berilo); padding: 6px 14px; border-radius: 50px; font-size: 0.82rem; font-weight: 700; margin-bottom: 16px;">
+          <img src="/assets/symbol-orbia.svg" style="width: 14px; height: 14px;" alt="Orbia"> SEU COPILOTO DE VIAGEM
+        </div>
+        <h1 class="hero-title" id="mainTitle" style="font-family: 'Sora', sans-serif; color: var(--orbia-profundo); line-height: 1.15; font-size: 2.7rem;">
+          Sua viagem inteira.<br>
+          <span class="highlight" style="color: var(--orbia-berilo);">Sob controle.</span>
+        </h1>
+        <p class="hero-description" id="mainDesc" style="color: var(--orbia-texto-secundario); font-size: 1.15rem; line-height: 1.6; margin-top: 14px;">
+          Orbia Travel não apenas planeja sua viagem. Opera sua viagem. Reúna roteiro, comprovantes, voos e imprevistos em um único copiloto inteligente.
         </p>
         
-        <div class="hero-ctas">
-          <a href="#oferta" class="btn btn-accent" id="btnHeroBuy"><i class="fa-solid fa-plane-departure"></i> Quero meu CoPiloto de Viagem</a>
-          <a href="#como-funciona" class="btn btn-outline" id="btnHeroLearn">Ver como funciona</a>
-        </div>
-        
-        <div class="hero-trust" id="heroTrust">
-          <div class="hero-trust-stars">
-            <i class="fa-solid fa-star"></i>
-            <i class="fa-solid fa-star"></i>
-            <i class="fa-solid fa-star"></i>
-            <i class="fa-solid fa-star"></i>
-            <i class="fa-solid fa-star"></i>
-          </div>
-          <span>Usado por viajantes em 34 países</span>
+        <div class="hero-ctas" style="margin-top: 24px;">
+          <a href="#oferta" class="btn btn-accent" id="btnHeroBuy" style="background: var(--veroa-blue); color: #FFFFFF; font-weight: 800; padding: 14px 28px; border-radius: 50px; font-size: 1.05rem;">
+            <i class="fa-solid fa-arrow-right"></i> Começar no Orbia Travel
+          </a>
+          <a href="#pilares" class="btn btn-outline" id="btnHeroLearn" style="border-color: var(--veroa-blue); color: var(--veroa-blue-dark); padding: 14px 24px; border-radius: 50px; font-weight: 700;">
+            Conhecer os 4 Pilares
+          </a>
         </div>
       </div>
       
-      <!-- Lado Direito: Preview Real do Painel -->
-      <div class="glass-card panel-preview-widget" id="panelPreviewWidget">
+      <!-- Lado Direito: Demonstração Operacional Orbia Now -->
+      <div class="panel-preview-widget" id="panelPreviewWidget" style="background: var(--veroa-white); border: 1px solid var(--border-color); border-radius: 24px; padding: 24px; box-shadow: 0 20px 40px rgba(52, 74, 89, 0.08); font-family: var(--font-body);">
 
-        <!-- Cabeçalho do painel -->
-        <div class="ppw-header">
-          <div class="ppw-trip-info">
-            <div class="ppw-trip-badge"><i class="fa-solid fa-compass"></i></div>
+        <!-- TOPO DO CARD: Cabeçalho Orbia Now & Clima em Tempo Real -->
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding-bottom: 16px; border-bottom: 1px solid rgba(83, 106, 121, 0.12); flex-wrap: wrap;">
+          <div>
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px; flex-wrap: wrap;">
+              <span style="background: var(--veroa-seafoam-light); color: var(--veroa-blue-dark); padding: 3px 10px; border-radius: 50px; font-size: 0.72rem; font-weight: 800; display: inline-flex; align-items: center; gap: 4px;">
+                <span style="width: 6px; height: 6px; border-radius: 50%; background: var(--veroa-blue); display: inline-block;"></span> EM VIAGEM
+              </span>
+              <span style="font-family: 'Sora', sans-serif; font-size: 0.78rem; font-weight: 800; color: var(--veroa-blue); letter-spacing: 1px;">ORBIA NOW</span>
+            </div>
+            <h3 style="margin: 0; font-family: 'Sora', sans-serif; font-size: 1.15rem; font-weight: 800; color: var(--veroa-blue-dark);">Buenos Aires, Argentina</h3>
+            <div style="font-size: 0.82rem; color: var(--veroa-text-secondary); margin-top: 2px; font-weight: 500;">
+              Hoje · 15:10 · Dia 2 de 6
+            </div>
+          </div>
+          <div style="text-align: right; background: var(--veroa-background); padding: 8px 12px; border-radius: 12px; border: 1px solid rgba(83, 106, 121, 0.08);">
+            <div style="font-size: 0.88rem; font-weight: 800; color: var(--veroa-blue-dark);"><i class="fa-solid fa-cloud-rain" style="color: var(--veroa-blue);"></i> 18°C</div>
+            <div style="font-size: 0.72rem; color: #B54A4A; font-weight: 600; margin-top: 2px;">Chuva prevista às 16:20</div>
+          </div>
+        </div>
+
+        <!-- Banner de Mudança Detectada -->
+        <div style="margin-top: 16px; background: var(--veroa-seafoam-light); border: 1px solid rgba(169, 203, 200, 0.5); padding: 12px 14px; border-radius: 14px; display: flex; justify-content: space-between; align-items: center; gap: 10px;">
+          <div>
+            <span style="font-size: 0.72rem; font-weight: 800; color: var(--veroa-blue-dark); text-transform: uppercase; letter-spacing: 0.5px;">3 mudanças afetam seu dia</span>
+            <p style="margin: 2px 0 0; font-size: 0.85rem; color: var(--veroa-text); font-weight: 600;">“A chuva mudou o plano. Seu dia não precisa mudar.”</p>
+          </div>
+          <i class="fa-solid fa-compass" style="font-size: 1.2rem; color: var(--veroa-blue);"></i>
+        </div>
+
+        <!-- BLOCO 1: Conflito Detectado & Reorganização (Jardim Japonês) -->
+        <div style="margin-top: 16px; background: var(--veroa-background); border: 1px solid rgba(83, 106, 121, 0.12); border-radius: 16px; padding: 16px;">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
             <div>
-              <div class="ppw-trip-name">Buenos Aires, Argentina</div>
-              <div class="ppw-trip-meta">6 dias · 2 pessoas · Set 2026</div>
+              <span style="font-size: 0.7rem; font-weight: 800; background: #FDE8E8; color: #B54A4A; padding: 3px 8px; border-radius: 4px; text-transform: uppercase;">CONFLITO DETECTADO</span>
+              <h4 style="margin: 6px 0 2px; font-family: 'Sora', sans-serif; font-size: 1rem; color: var(--veroa-blue-dark); font-weight: 700;">Jardim Japonês</h4>
+              <div style="font-size: 0.78rem; color: var(--veroa-text-secondary); font-weight: 500;">15:30 · Atividade ao ar livre</div>
             </div>
+            <span style="font-size: 0.75rem; font-weight: 700; color: #B54A4A; background: #FFF5F5; padding: 4px 8px; border-radius: 8px; border: 1px solid rgba(181, 74, 74, 0.2);">🌧️ 82% chuva</span>
           </div>
-          <span class="ppw-live-badge"><i class="fa-solid fa-circle"></i> Ao vivo</span>
-        </div>
 
-        <!-- Abas -->
-        <div class="ppw-tabs">
-          <button class="ppw-tab active" data-ppw="roteiro"><i class="fa-solid fa-route"></i> Roteiro</button>
-          <button class="ppw-tab" data-ppw="orcamento"><i class="fa-solid fa-wallet"></i> Orçamento</button>
-          <button class="ppw-tab" data-ppw="mala"><i class="fa-solid fa-suitcase"></i> Mala</button>
-        </div>
-
-        <!-- ABA: ROTEIRO -->
-        <div class="ppw-content active" id="ppwRoteiro">
-          <div class="ppw-day-label">DIA 1 — Domingo: Centro Histórico &amp; San Telmo</div>
-          <div class="ppw-turns">
-            <div class="ppw-turn">
-              <div class="ppw-turn-header ppw-manha">
-                <i class="fa-solid fa-cloud-sun"></i> Manhã
-              </div>
-              <div class="ppw-activity">
-                <span class="ppw-time">08:30</span>
-                <div class="ppw-act-body">
-                  <strong>Plaza de Mayo &amp; Casa Rosada</strong>
-                  <p>Início do dia no coração histórico. Fotos em frente à Casa Rosada e visita rápida à Catedral Metropolitana antes de a feira abrir.</p>
-                </div>
-                <a href="https://www.google.com/maps/search/?api=1&query=Plaza+de+Mayo,+Buenos+Aires" target="_blank" class="ppw-pin-link"><i class="fa-solid fa-location-dot ppw-pin"></i></a>
-              </div>
-              <div class="ppw-activity">
-                <span class="ppw-time">10:00</span>
-                <div class="ppw-act-body">
-                  <strong>Feira de San Telmo (Calle Defensa)</strong>
-                  <p>A feira começa na Plaza de Mayo e segue pela Calle Defensa. Caminhada de 2h entre artistas de rua, relíquias, apresentações de tango e artesanato local.</p>
-                </div>
-                <a href="https://www.google.com/maps/search/?api=1&query=Feira+de+San+Telmo,+Buenos+Aires" target="_blank" class="ppw-pin-link"><i class="fa-solid fa-location-dot ppw-pin"></i></a>
-              </div>
-            </div>
-            <div class="ppw-turn">
-              <div class="ppw-turn-header ppw-tarde">
-                <i class="fa-solid fa-sun"></i> Tarde
-              </div>
-              <div class="ppw-activity">
-                <span class="ppw-time">12:15</span>
-                <div class="ppw-act-body">
-                  <strong>Almoço no Bar El Federal</strong>
-                  <p>Um "Bar Notable" fundado em 1864, muito frequentado por locais. Atmosfera portenha legítima com cerveja artesanal e ojo de bife com fritas impecável.</p>
-                </div>
-                <a href="https://www.google.com/maps/search/?api=1&query=Bar+El+Federal,+Buenos+Aires" target="_blank" class="ppw-pin-link"><i class="fa-solid fa-location-dot ppw-pin"></i></a>
-              </div>
-              <div class="ppw-activity">
-                <span class="ppw-time">13:45</span>
-                <div class="ppw-act-body">
-                  <strong>Sobremesa na Heladería Rapa Nui</strong>
-                  <p>Sorvete artesanal de doce de leite argentino e os famosos Franui (framboesas frescas cobertas de chocolate trufado) para adoçar a tarde.</p>
-                </div>
-                <a href="https://www.google.com/maps/search/?api=1&query=Heladeria+Rapa+Nui,+Recoleta,+Buenos+Aires" target="_blank" class="ppw-pin-link"><i class="fa-solid fa-location-dot ppw-pin"></i></a>
-              </div>
-              <div class="ppw-activity">
-                <span class="ppw-time">15:30</span>
-                <div class="ppw-act-body">
-                  <strong>Livraria El Ateneo Grand Splendid</strong>
-                  <p>Desloque-se à Recoleta para conhecer a icônica livraria instalada dentro de um luxuoso teatro clássico preservado de 1919. Entrada livre.</p>
-                </div>
-                <a href="https://www.google.com/maps/search/?api=1&query=El+Ateneo+Grand+Splendid,+Buenos+Aires" target="_blank" class="ppw-pin-link"><i class="fa-solid fa-location-dot ppw-pin"></i></a>
-              </div>
-              <div class="ppw-activity">
-                <span class="ppw-time">17:00</span>
-                <div class="ppw-act-body">
-                  <strong>Pôr do Sol no Parque Tres de Febrero (Palermo)</strong>
-                  <p>Passeio relaxante pelos lagos de Palermo e pelo famoso Rosedal. O fim de tarde perfeito com o clima da primavera portenha.</p>
-                </div>
-                <a href="https://www.google.com/maps/search/?api=1&query=Parque+Tres+de+Febrero,+Buenos+Aires" target="_blank" class="ppw-pin-link"><i class="fa-solid fa-location-dot ppw-pin"></i></a>
-              </div>
-            </div>
-            <div class="ppw-turn">
-              <div class="ppw-turn-header ppw-noite">
-                <i class="fa-solid fa-moon"></i> Noite
-              </div>
-              <div class="ppw-activity">
-                <span class="ppw-time">21:00</span>
-                <div class="ppw-act-body">
-                  <strong>Show de Tango no Café de los Angelitos</strong>
-                  <p>Espetáculo de tango ao vivo de altíssimo nível combinado com um jantar tradicional portenho completo de 3 passos.</p>
-                </div>
-                <a href="https://www.google.com/maps/search/?api=1&query=Cafe+de+los+Angelitos,+Buenos+Aires" target="_blank" class="ppw-pin-link"><i class="fa-solid fa-location-dot ppw-pin"></i></a>
-              </div>
-            </div>
+          <div style="margin-top: 10px; font-size: 0.82rem; color: #B54A4A; background: rgba(181, 74, 74, 0.06); padding: 8px 10px; border-radius: 8px; font-weight: 500;">
+            <i class="fa-solid fa-circle-exclamation"></i> Chuva forte prevista durante sua visita.
           </div>
-          <div class="ppw-more-days">
-            <i class="fa-solid fa-lock ppw-lock"></i>
-            <span>+ 5 dias de roteiro completo no seu painel</span>
+
+          <div style="margin-top: 12px; padding-top: 10px; border-top: 1px dashed rgba(83, 106, 121, 0.15);">
+            <div style="font-size: 0.82rem; font-weight: 700; color: var(--veroa-blue-dark); margin-bottom: 6px;">Sugestão do Copiloto Orbia: <span style="color: var(--veroa-blue);">Mover para amanhã às 10:00</span></div>
+            <ul style="margin: 0; padding-left: 16px; font-size: 0.78rem; color: var(--veroa-text); line-height: 1.55;">
+              <li>previsão de sol</li>
+              <li>sem conflito com reservas existentes</li>
+              <li>horário de funcionamento confirmado</li>
+              <li>deslocamento 18 min menor a partir do hotel</li>
+            </ul>
+            <button type="button" class="btn" style="margin-top: 12px; width: 100%; padding: 9px; background: var(--veroa-blue); color: white; border: none; border-radius: 50px; font-size: 0.82rem; font-weight: 700; cursor: pointer;">
+              <i class="fa-solid fa-calendar-check"></i> Remarcar no roteiro
+            </button>
           </div>
         </div>
 
-        <!-- ABA: ORÇAMENTO -->
-        <div class="ppw-content" id="ppwOrcamento">
-          <div class="ppw-budget-intro">Estimativa para <strong>2 pessoas · 6 dias</strong> em Buenos Aires</div>
-          <div class="ppw-budget-tiers">
-            <div class="ppw-tier">
-              <div class="ppw-tier-label">🟠 Econômico</div>
-              <div class="ppw-tier-total">R$ 3.100</div>
-              <div class="ppw-tier-day">≈ R$ 517/dia</div>
-              <div class="ppw-tier-desc">Hostels em Palermo, metrô, parillas populares e museus gratuitos.</div>
-            </div>
-            <div class="ppw-tier ppw-tier-recommended">
-              <div class="ppw-tier-rec-badge">✦ Recomendado</div>
-              <div class="ppw-tier-label">🟡 Conforto</div>
-              <div class="ppw-tier-total">R$ 6.800</div>
-              <div class="ppw-tier-day">≈ R$ 1.133/dia</div>
-              <div class="ppw-tier-desc">Hotel 3★ em Recoleta, parrillas tradicionais e show de tango incluso.</div>
-            </div>
-            <div class="ppw-tier">
-              <div class="ppw-tier-label">🟢 Premium</div>
-              <div class="ppw-tier-total">R$ 14.200</div>
-              <div class="ppw-tier-day">≈ R$ 2.367/dia</div>
-              <div class="ppw-tier-desc">Boutique hotel 5★, churrascaria El Gaucho e tour privado da cidade.</div>
+        <!-- BLOCO 2: Oportunidade Encontrada & Substituição (MALBA) -->
+        <div style="margin-top: 14px; background: var(--veroa-background); border: 1px solid rgba(169, 203, 200, 0.4); border-radius: 16px; padding: 16px;">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
+            <div>
+              <span style="font-size: 0.7rem; font-weight: 800; background: var(--veroa-seafoam-light); color: var(--veroa-blue-dark); padding: 3px 8px; border-radius: 4px; text-transform: uppercase;">OPORTUNIDADE ENCONTRADA</span>
+              <h4 style="margin: 6px 0 2px; font-family: 'Sora', sans-serif; font-size: 1rem; color: var(--veroa-blue-dark); font-weight: 700;">Museu MALBA</h4>
+              <div style="font-size: 0.78rem; color: var(--veroa-text-secondary); font-weight: 500;">Melhor alternativa para hoje · 16:00 · Ambiente coberto · 12 min de Uber</div>
             </div>
           </div>
-          <div class="ppw-budget-note"><i class="fa-solid fa-circle-info"></i> Câmbio dólar blue considerado. Valores atualizados para Set/2026.</div>
+
+          <!-- Comparativo Antes / Depois -->
+          <div style="margin-top: 10px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; background: var(--veroa-white); padding: 8px 12px; border-radius: 10px; border: 1px solid rgba(83, 106, 121, 0.08);">
+            <div>
+              <div style="font-size: 0.68rem; color: var(--veroa-text-secondary); font-weight: 600; text-transform: uppercase;">Antes</div>
+              <div style="font-size: 0.78rem; color: var(--veroa-text); font-weight: 700;">Amanhã · 11:00</div>
+            </div>
+            <div>
+              <div style="font-size: 0.68rem; color: var(--veroa-blue); font-weight: 700; text-transform: uppercase;">Novo horário</div>
+              <div style="font-size: 0.78rem; color: var(--veroa-blue-dark); font-weight: 800;">Hoje · 16:00</div>
+            </div>
+          </div>
+
+          <ul style="margin: 10px 0 0; padding-left: 16px; font-size: 0.78rem; color: var(--veroa-text); line-height: 1.55;">
+            <li>substitui o Jardim Japonês sem deixar espaço vazio no roteiro</li>
+            <li>evita perder uma atração</li>
+            <li>mantém o restante da tarde organizado</li>
+            <li>não conflita com reservas existentes</li>
+          </ul>
+
+          <button type="button" class="btn" style="margin-top: 12px; width: 100%; padding: 9px; background: var(--veroa-seafoam); color: var(--veroa-blue-dark); border: none; border-radius: 50px; font-size: 0.82rem; font-weight: 800; cursor: pointer;">
+            <i class="fa-solid fa-clock-rotate-left"></i> Antecipar para hoje
+          </button>
         </div>
 
-        <!-- ABA: MALA -->
-        <div class="ppw-content" id="ppwMala">
-          <div class="ppw-packing-intro">Lista gerada para <strong>Buenos Aires · Setembro · Casal</strong></div>
-          <div class="ppw-packing-cats">
-            <div class="ppw-pack-cat">
-              <div class="ppw-pack-cat-title"><i class="fa-solid fa-shirt"></i> Vestuário</div>
-              <div class="ppw-pack-item ppw-checked"><i class="fa-solid fa-circle-check"></i> Casaco e agasalho (primavera portenha, ~12°C à noite)</div>
-              <div class="ppw-pack-item ppw-checked"><i class="fa-solid fa-circle-check"></i> Roupas em camadas (dias ensolarados chegam a 18°C)</div>
-              <div class="ppw-pack-item ppw-checked"><i class="fa-solid fa-circle-check"></i> Sapato fechado confortável para muito asfalto</div>
+        <!-- BLOCO 3: Acompanhamento em Tempo Real (Voo LA8012) -->
+        <div style="margin-top: 14px; background: var(--veroa-background); border: 1px solid rgba(83, 106, 121, 0.12); border-radius: 16px; padding: 16px;">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
+            <div>
+              <span style="font-size: 0.7rem; font-weight: 800; background: #FEF3C7; color: #B38644; padding: 3px 8px; border-radius: 4px; text-transform: uppercase;">ACOMPANHAMENTO EM TEMPO REAL</span>
+              <h4 style="margin: 6px 0 2px; font-family: 'Sora', sans-serif; font-size: 1rem; color: var(--veroa-blue-dark); font-weight: 700;">Voo LA8012</h4>
             </div>
-            <div class="ppw-pack-cat">
-              <div class="ppw-pack-cat-title"><i class="fa-solid fa-id-card"></i> Documentos</div>
-              <div class="ppw-pack-item ppw-checked"><i class="fa-solid fa-circle-check"></i> RG ou Passaporte (brasileiros não precisam de visto)</div>
-              <div class="ppw-pack-item ppw-checked"><i class="fa-solid fa-circle-check"></i> Seguro viagem contratado</div>
-              <div class="ppw-pack-item"><i class="fa-regular fa-circle"></i> Dólares em espécie para câmbio blue</div>
-            </div>
-            <div class="ppw-pack-cat">
-              <div class="ppw-pack-cat-title"><i class="fa-solid fa-kit-medical"></i> Saúde</div>
-              <div class="ppw-pack-item"><i class="fa-regular fa-circle"></i> Remédios para frio e gripe</div>
-              <div class="ppw-pack-item"><i class="fa-regular fa-circle"></i> Analgésico e antidiarreico</div>
-            </div>
+            <span style="font-size: 0.75rem; font-weight: 800; color: #B38644; background: #FFFBEB; padding: 4px 8px; border-radius: 8px; border: 1px solid rgba(179, 134, 68, 0.3);">+45 min atraso</span>
           </div>
-          <div class="ppw-more-days">
-            <i class="fa-solid fa-lock ppw-lock"></i>
-            <span>+ 26 itens personalizados no seu painel completo</span>
+
+          <p style="margin: 8px 0 6px; font-size: 0.82rem; font-weight: 700; color: var(--veroa-blue-dark);">O Orbia Travel recalculou o impacto na sua viagem.</p>
+          <ul style="margin: 0; padding-left: 16px; font-size: 0.78rem; color: var(--veroa-text); line-height: 1.55;">
+            <li>transfer continua viável</li>
+            <li>check-in do hotel sem impacto</li>
+            <li>jantar das 20:30 com risco baixo</li>
+            <li>chegada prevista ao hotel: 19:05</li>
+          </ul>
+
+          <div style="margin-top: 10px; display: flex; justify-content: space-between; align-items: center; background: var(--veroa-white); padding: 8px 12px; border-radius: 8px; font-size: 0.78rem;">
+            <span style="color: var(--veroa-text); font-weight: 600;">Impacto geral: <strong style="color: #3B7A75;">baixo</strong></span>
+            <span style="color: var(--veroa-text-secondary); font-size: 0.72rem;">Avisar hotel se > 70 min</span>
           </div>
+
+          <button type="button" class="btn" style="margin-top: 12px; width: 100%; padding: 9px; background: var(--veroa-blue-dark); color: white; border: none; border-radius: 50px; font-size: 0.82rem; font-weight: 700; cursor: pointer;">
+            <i class="fa-solid fa-plane-flight"></i> Acompanhar voo
+          </button>
         </div>
 
-        <!-- CTA dentro do widget -->
-        <a href="#oferta" class="ppw-cta-btn">
-          <i class="fa-solid fa-plane-departure"></i> Garantir Acesso Vitalício — R$ 49,90
-        </a>
+        <!-- RESUMO DE VALOR: Métricas de Impacto Gerado -->
+        <div style="margin-top: 18px; background: var(--veroa-seafoam-light); border: 1px solid rgba(169, 203, 200, 0.6); border-radius: 18px; padding: 18px;">
+          <h4 style="margin: 0 0 12px; font-family: 'Sora', sans-serif; font-size: 0.95rem; font-weight: 800; color: var(--veroa-blue-dark); text-align: center;">
+            <i class="fa-solid fa-shield-halved" style="color: var(--veroa-blue);"></i> Hoje o Orbia Travel já fez por você
+          </h4>
+          
+          <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; text-align: center;">
+            <div style="background: var(--veroa-white); padding: 8px 4px; border-radius: 10px; border: 1px solid rgba(83, 106, 121, 0.08);">
+              <div style="font-family: 'Sora', sans-serif; font-size: 1.1rem; font-weight: 800; color: var(--veroa-blue-dark);">3</div>
+              <div style="font-size: 0.65rem; color: var(--veroa-text-secondary); font-weight: 600; line-height: 1.2; margin-top: 2px;">mudanças analisadas</div>
+            </div>
+            <div style="background: var(--veroa-white); padding: 8px 4px; border-radius: 10px; border: 1px solid rgba(83, 106, 121, 0.08);">
+              <div style="font-family: 'Sora', sans-serif; font-size: 1.1rem; font-weight: 800; color: var(--veroa-blue-dark);">2</div>
+              <div style="font-size: 0.65rem; color: var(--veroa-text-secondary); font-weight: 600; line-height: 1.2; margin-top: 2px;">ajustes recomendados</div>
+            </div>
+            <div style="background: var(--veroa-white); padding: 8px 4px; border-radius: 10px; border: 1px solid rgba(83, 106, 121, 0.08);">
+              <div style="font-family: 'Sora', sans-serif; font-size: 1.05rem; font-weight: 800; color: var(--veroa-blue-dark);">47m</div>
+              <div style="font-size: 0.65rem; color: var(--veroa-text-secondary); font-weight: 600; line-height: 1.2; margin-top: 2px;">deslocamento evitado</div>
+            </div>
+            <div style="background: var(--veroa-white); padding: 8px 4px; border-radius: 10px; border: 1px solid rgba(83, 106, 121, 0.08);">
+              <div style="font-family: 'Sora', sans-serif; font-size: 1.1rem; font-weight: 800; color: var(--veroa-blue-dark);">1</div>
+              <div style="font-size: 0.65rem; color: var(--veroa-text-secondary); font-weight: 600; line-height: 1.2; margin-top: 2px;">conflito prevenido</div>
+            </div>
+            <div style="background: var(--veroa-white); padding: 8px 4px; border-radius: 10px; border: 1px solid rgba(83, 106, 121, 0.08);">
+              <div style="font-family: 'Sora', sans-serif; font-size: 1.1rem; font-weight: 800; color: var(--veroa-blue-dark);">0</div>
+              <div style="font-size: 0.65rem; color: var(--veroa-text-secondary); font-weight: 600; line-height: 1.2; margin-top: 2px;">reservas afetadas</div>
+            </div>
+          </div>
+
+          <p style="margin: 12px 0 0; font-size: 0.82rem; color: var(--veroa-blue-dark); text-align: center; font-weight: 700;">
+            “Seu roteiro continua funcionando, mesmo quando a viagem muda.”
+          </p>
+        </div>
+
+        <!-- CTA PRINCIPAL & MICROCOPY -->
+        <div style="margin-top: 20px; text-align: center;">
+          <a href="#oferta" class="btn" style="display: block; width: 100%; padding: 14px; background: var(--veroa-blue); color: white; border-radius: 50px; font-family: 'Sora', sans-serif; font-size: 0.95rem; font-weight: 800; text-decoration: none; box-sizing: border-box; box-shadow: 0 8px 20px rgba(83, 106, 121, 0.25);">
+            Montar minha viagem com o VEROA <i class="fa-solid fa-arrow-right" style="margin-left: 6px;"></i>
+          </a>
+          <span style="display: block; font-size: 0.78rem; color: var(--veroa-text-secondary); margin-top: 8px; font-weight: 600;">
+            Planeje antes. Resolva durante.
+          </span>
+        </div>
 
       </div>
 
     </div>
   </header>
 
-  <!-- 3. Seção A Dor: O Caos do Planejamento Comum -->
-  <section class="section-padding pain-section" id="a-dor">
+  <!-- 3. Seção 2: Produto em Situação Real -->
+  <section class="section-padding real-situations-section" id="situacoes-reais">
     <div class="container">
       <div class="section-header">
-        <span class="badge badge-accent"><i class="fa-solid fa-triangle-exclamation"></i> O Grande Problema</span>
-        <h2 class="section-title">Planejar viagem do zero é uma bagunça com endereço certo.</h2>
+        <h2 class="section-title">Feito para os momentos reais da viagem.</h2>
         <p class="section-subtitle">
-          Você abre dezenas de abas, assiste a vídeos longos e lê dicas conflitantes. No final do dia, perdeu horas pesquisando e não decidiu nada.
+          O roteiro é só o começo. Depois vêm os horários, os atrasos, as reservas, o clima e as mudanças de ideia.
         </p>
       </div>
-      
-      <div class="pain-grid">
-        <div class="glass-card pain-card">
-          <div class="pain-card-icon"><i class="fa-solid fa-hourglass-half"></i></div>
-          <h3>Você pesquisa por horas e não sai do lugar</h3>
-          <p>Dicas genéricas e blogs desatualizados geram mais dúvidas do que respostas. Sua viagem continua travada no papel.</p>
-        </div>
+
+      <div class="situations-grid">
         
-        <div class="glass-card pain-card">
-          <div class="pain-card-icon"><i class="fa-solid fa-dollar-sign"></i></div>
-          <h3>Custos inesperados estouram sua conta</h3>
-          <p>Taxas locais, gorjetas e pegadinhas de turista passam despercebidas. O susto com as despesas só chega na volta.</p>
+        <div class="situation-card">
+          <div class="situation-header">
+            <span class="situation-time">09:40 · HOJE</span>
+            <span class="situation-badge badge-info">Próximo Passo</span>
+          </div>
+          <div class="situation-title">Coliseu de Roma</div>
+          <div class="situation-desc">
+            Saia em cerca de 18 min para chegar no horário. Seu ingresso já está salvo para abrir mesmo sem internet.
+          </div>
         </div>
-        
-        <div class="glass-card pain-card">
-          <div class="pain-card-icon"><i class="fa-solid fa-shield-halved"></i></div>
-          <h3>A sensação constante de que esqueceu algo</h3>
-          <p>Esquecer itens essenciais, levar a mala errada para o clima local ou perder atrações famosas por falta de reserva.</p>
+
+        <div class="situation-card">
+          <div class="situation-header">
+            <span class="situation-time">VOO TP123</span>
+            <span class="situation-badge badge-warning">Alerta de Voo</span>
+          </div>
+          <div class="situation-title">Seu voo atrasou 55 min</div>
+          <div class="situation-desc">
+            Veja o que isso muda no restante do dia e quais ajustes fazem sentido.
+          </div>
         </div>
+
+        <div class="situation-card">
+          <div class="situation-header">
+            <span class="situation-time">15:00 · CLIMA</span>
+            <span class="situation-badge badge-success">Replanejamento</span>
+          </div>
+          <div class="situation-title">Chuva prevista à tarde</div>
+          <div class="situation-desc">
+            O CoPiloto pode reorganizar as atividades afetadas sem mexer no que já está reservado.
+          </div>
+        </div>
+
       </div>
     </div>
   </section>
 
-  <!-- 4. Seção Solução: O Que o CoPiloto Entrega -->
-  <section class="section-padding" id="o-que-entrega">
+  <!-- 4. Seção 3: Linha do Tempo contínua (Antes / Durante / Quando Muda) -->
+  <section class="section-padding timeline-section" id="linha-do-tempo">
     <div class="container">
       <div class="section-header">
-        <span class="badge"><i class="fa-solid fa-circle-check"></i> A Solução</span>
-        <h2 class="section-title">O CoPiloto não é um chatbot. É o painel que você sempre quis ter.</h2>
+        <h2 class="section-title">Antes da viagem. Durante. E quando o plano muda.</h2>
         <p class="section-subtitle">
-          Esqueça as respostas longas e genéricas das IAs gratuitas. O CoPiloto entrega um painel interativo e formatado com tudo o que você precisa para a estrada.
+          O mesmo lugar para preparar a viagem e continuar usando quando ela começa de verdade.
         </p>
       </div>
-      
-      <div class="features-grid">
+
+      <div class="timeline-flow">
         
-        <div class="glass-card feature-item">
-          <div class="feature-icon-box"><i class="fa-solid fa-calendar-day"></i></div>
-          <div class="feature-body">
-            <h3>Roteiro por turnos, com horários sugeridos</h3>
-            <p>Manhã, Tarde e Noite organizados por proximidade geográfica e horários. Economize tempo e evite andar em círculos.</p>
-          </div>
-        </div>
-        
-        <div class="glass-card feature-item accent-theme">
-          <div class="feature-icon-box"><i class="fa-solid fa-wallet"></i></div>
-          <div class="feature-body">
-            <h3>Custos Reais e Estimativas Práticas</h3>
-            <p>Previsibilidade financeira em 3 faixas de orçamento (Econômico, Conforto e Premium) baseada nos custos práticos do destino.</p>
-          </div>
-        </div>
-        
-        <div class="glass-card feature-item purple-theme">
-          <div class="feature-icon-box"><i class="fa-solid fa-suitcase-rolling"></i></div>
-          <div class="feature-body">
-            <h3>Lista de Mala Inteligente</h3>
-            <p>Sua mala gerada com base na previsão do tempo real do destino nas datas da viagem e nas atividades do roteiro.</p>
-          </div>
-        </div>
-        
-        <div class="glass-card feature-item yellow-theme">
-          <div class="feature-icon-box"><i class="fa-solid fa-compass"></i></div>
-          <div class="feature-body">
-            <h3>Guia Local Sempre no Bolso</h3>
-            <p>Tire dúvidas no chat a qualquer hora da viagem. Receba orientações rápidas sobre metrôs, rotas e restaurantes locais.</p>
+        <div class="timeline-step">
+          <div class="timeline-marker">01 · ANTES</div>
+          <div class="timeline-body">
+            <h3>Monte a viagem sem começar por uma planilha.</h3>
+            <p>
+              Roteiro, orçamento, mala, voos e reservas vão ganhando forma conforme você organiza a viagem.
+            </p>
           </div>
         </div>
 
-        <div class="glass-card feature-item cyan-theme">
-          <div class="feature-icon-box"><i class="fa-solid fa-plane-departure"></i></div>
-          <div class="feature-body">
-            <h3>Pesquisa de Voos Integrada</h3>
-            <p>Compare passagens aéreas direto no painel e encontre as datas mais baratas para economizar sem precisar abrir outras abas.</p>
+        <div class="timeline-step">
+          <div class="timeline-marker">02 · DURANTE</div>
+          <div class="timeline-body">
+            <h3>Abra e veja o que importa agora.</h3>
+            <p>
+              Próximo compromisso, horário, localização, documentos e o que merece sua atenção naquele momento.
+            </p>
           </div>
         </div>
 
-        <div class="glass-card feature-item orange-theme">
-          <div class="feature-icon-box"><i class="fa-solid fa-scale-balanced"></i></div>
-          <div class="feature-body">
-            <h3>Divisão de Gastos do Grupo</h3>
-            <p>Registre as despesas compartilhadas e saiba instantaneamente quem deve quanto para quem, sem precisar de planilhas complexas.</p>
+        <div class="timeline-step">
+          <div class="timeline-marker">03 · QUANDO MUDA</div>
+          <div class="timeline-body">
+            <h3>Adapte o dia sem desmontar a viagem.</h3>
+            <p>
+              Se clima, voo ou planos mudarem, veja uma nova proposta antes de decidir o que alterar.
+            </p>
           </div>
         </div>
-        
+
       </div>
     </div>
   </section>
 
-
-
-  <!-- 5. Como Funciona -->
-  <section class="section-padding how-section" id="como-funciona">
+  <!-- 5. Seção 4: Modo Hoje -->
+  <section class="section-padding today-mode-section" id="modo-hoje">
     <div class="container">
       <div class="section-header">
-        <span class="badge badge-accent"><i class="fa-solid fa-circle-play"></i> Simples & Rápido</span>
-        <h2 class="section-title">Três passos. Cinco minutos. Tudo organizado.</h2>
+        <h2 class="section-title">Abra e saiba o que importa agora.</h2>
         <p class="section-subtitle">
-          Sem formulários longos ou cadastros chatos. Você só precisa conversar com o CoPiloto e ver o seu painel se montar sozinho.
+          Sua tela principal no dia a dia da viagem. Sem procurar em e-mails ou capturas de tela no celular.
         </p>
       </div>
-      
-      <div class="steps-grid">
-        
-        <div class="glass-card step-card step-card-with-screenshot">
-          <div class="step-text-side">
-            <div class="step-number">1</div>
-            <h3>1. Defina sua viagem</h3>
-            <p>Informe o destino, datas e seu estilo de viagem direto no chat, sem preencher formulários longos.</p>
+
+      <div class="today-card-preview">
+        <div class="today-header-bar">
+          <div>
+            <div style="font-weight: 700; font-size: 1.1rem; color: #ffffff;">Buenos Aires · Dia 2 de 6</div>
+            <div style="font-size: 0.85rem; color: #9ca3af; margin-top: 2px;">Segunda-feira · 14 de Setembro</div>
           </div>
-          <div class="step-screenshot-side">
-            <div class="screenshot-placeholder screenshot-step" id="screenshot-chat">
-              <div class="screenshot-ph-inner">
-                <i class="fa-solid fa-comments screenshot-ph-icon"></i>
-                <span class="screenshot-ph-label">Screenshot — Chat de Planejamento</span>
-              </div>
+          <div class="today-countdown">Saída em 14 min</div>
+        </div>
+
+        <div class="today-timeline-items">
+          <div class="today-item">
+            <div>
+              <div class="today-item-title">12:30 · Almoço em Recoleta</div>
+              <div class="today-item-sub">Restaurante Fervor · Reserva confirmada</div>
             </div>
+            <button class="today-item-btn"><i class="fa-solid fa-map-pin"></i> Ver Mapa</button>
+          </div>
+
+          <div class="today-item">
+            <div>
+              <div class="today-item-title">15:00 · Livraria El Ateneo</div>
+              <div class="today-item-sub">Entrada livre · 15 min de caminhada</div>
+            </div>
+            <button class="today-item-btn"><i class="fa-solid fa-file-pdf"></i> Voucher PDF</button>
+          </div>
+
+          <div class="today-item">
+            <div>
+              <div class="today-item-title">20:30 · Jantar em Palermo Soho</div>
+              <div class="today-item-sub">Don Julio · Reserva para 2 pessoas</div>
+            </div>
+            <button class="today-item-btn"><i class="fa-solid fa-calendar-check"></i> Detalhes</button>
           </div>
         </div>
-        
-        <div class="glass-card step-card step-card-with-screenshot">
-          <div class="step-text-side">
-            <div class="step-number">2</div>
-            <h3>2. Visualize o painel</h3>
-            <p>Veja seu painel montado com roteiro por turnos, custos locais detalhados e sua lista de mala de viagem pronta.</p>
-          </div>
-          <div class="step-screenshot-side">
-            <div class="screenshot-placeholder screenshot-step" id="screenshot-roteiro-passo2">
-              <div class="screenshot-ph-inner">
-                <i class="fa-solid fa-route screenshot-ph-icon"></i>
-                <span class="screenshot-ph-label">Screenshot — Roteiro Montado</span>
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        <div class="glass-card step-card step-card-with-screenshot">
-          <div class="step-text-side">
-            <div class="step-number">3</div>
-            <h3>3. Viaje sem preocupação</h3>
-            <p>Adicione o CoPiloto à tela do celular, use offline e compartilhe o PDF do roteiro no grupo da viagem.</p>
-          </div>
-          <div class="step-screenshot-side">
-            <div class="screenshot-placeholder screenshot-step" id="screenshot-mala">
-              <div class="screenshot-ph-inner">
-                <i class="fa-solid fa-suitcase screenshot-ph-icon"></i>
-                <span class="screenshot-ph-label">Screenshot — Mala com Itens Marcados</span>
-              </div>
-            </div>
-          </div>
-        </div>
-        
       </div>
     </div>
   </section>
 
-  <!-- POSIÇÃO 3: Nova seção Veja o painel por dentro -->
-  <section class="section-padding screenshot-gallery-section" id="painel-por-dentro">
+  <!-- 6. Seção 5: Replanejamento Inteligente -->
+  <section class="section-padding replanning-section" id="replanejamento">
     <div class="container">
       <div class="section-header">
-        <span class="badge"><i class="fa-solid fa-mobile-screen"></i> Interface</span>
-        <h2 class="section-title">Veja o painel por dentro</h2>
-        <p class="section-subtitle">Tudo que você precisa, organizado num painel que cabe no bolso.</p>
-      </div>
-      <div class="screenshot-gallery-grid">
-
-        <div class="screenshot-gallery-card">
-          <div class="screenshot-placeholder" id="screenshot-orcamento">
-            <div class="screenshot-ph-inner">
-              <i class="fa-solid fa-wallet screenshot-ph-icon"></i>
-              <span class="screenshot-ph-label">Screenshot — Orçamento</span>
-            </div>
-          </div>
-          <div class="screenshot-gallery-info">
-            <h3>Orçamento em tempo real</h3>
-            <p>Sliders por categoria, gráfico visual e perfil de gasto. Você sabe exatamente quanto vai gastar antes de embarcar.</p>
-          </div>
-        </div>
-
-        <div class="screenshot-gallery-card">
-          <div class="screenshot-placeholder" id="screenshot-na-viagem">
-            <div class="screenshot-ph-inner">
-              <i class="fa-solid fa-compass screenshot-ph-icon"></i>
-              <span class="screenshot-ph-label">Screenshot — Na Viagem</span>
-            </div>
-          </div>
-          <div class="screenshot-gallery-info">
-            <h3>Guia local no bolso</h3>
-            <p>Durante a viagem o CoPiloto vira seu guia em campo. Ele já sabe seu hotel, seu destino e seu roteiro.</p>
-          </div>
-        </div>
-
-        <div class="screenshot-gallery-card">
-          <div class="screenshot-placeholder" id="screenshot-logistica">
-            <div class="screenshot-ph-inner">
-              <i class="fa-solid fa-plane-departure screenshot-ph-icon"></i>
-              <span class="screenshot-ph-label">Screenshot — Logística</span>
-            </div>
-          </div>
-          <div class="screenshot-gallery-info">
-            <h3>Voos e documentos centralizados</h3>
-            <p>Cadastre voos, faça upload de passagens em PDF e o CoPiloto extrai os dados automaticamente.</p>
-          </div>
-        </div>
-
-      </div>
-    </div>
-  </section>
-
-  <!-- 6. Depoimentos de Clientes (Prova Social) -->
-  <section class="section-padding" id="depoimentos">
-    <div class="container">
-      <div class="section-header">
-        <span class="badge"><i class="fa-solid fa-comments"></i> Opinião de Quem Usou</span>
-        <h2 class="section-title">O que dizem os viajantes</h2>
+        <h2 class="section-title">Mudou o dia? Não precisa jogar o roteiro fora.</h2>
         <p class="section-subtitle">
-          Viajantes reais que economizaram tempo, dinheiro e evitaram ciladas nas estradas do mundo.
+          Quando o plano muda, o CoPiloto reorganiza o que é flexível e preserva o que você já reservou. Você decide antes de qualquer alteração.
         </p>
       </div>
-      
-      <div class="testimonials-grid">
-        
-        <div class="glass-card testimonial-card">
-          <div class="testimonial-rating">
-            <i class="fa-solid fa-star"></i>
-            <i class="fa-solid fa-star"></i>
-            <i class="fa-solid fa-star"></i>
-            <i class="fa-solid fa-star"></i>
-            <i class="fa-solid fa-star"></i>
-          </div>
-          <p class="testimonial-text">
-            "Eu levei 5 minutos pra ter uma viagem completa montada. O roteiro veio com sugestões de comida local, tempo de deslocamento e até valores. Foi surreal!"
-          </p>
-          <div class="testimonial-user">
-            <img class="testimonial-avatar" src="assets/tatiani.png" alt="Tatiani C.">
-            <div class="testimonial-user-info">
-              <h4>Tatiani C.</h4>
-              <span>Fisioterapeuta</span>
-            </div>
-          </div>
-        </div>
-        
-        <div class="glass-card testimonial-card">
-          <div class="testimonial-rating">
-            <i class="fa-solid fa-star"></i>
-            <i class="fa-solid fa-star"></i>
-            <i class="fa-solid fa-star"></i>
-            <i class="fa-solid fa-star"></i>
-            <i class="fa-solid fa-star"></i>
-          </div>
-          <p class="testimonial-text">
-            "A parte do tour imersivo me deixou de queixo caído. O CoPiloto praticamente me levou pela mão. Dentro do metrô em Paris, que é muito grande, ele foi me guiando passo a passo."
-          </p>
-          <div class="testimonial-user">
-            <img class="testimonial-avatar" src="assets/alexandre.png" alt="Alexandre B.">
-            <div class="testimonial-user-info">
-              <h4>Alexandre B.</h4>
-              <span>Publicitário</span>
-            </div>
-          </div>
+
+      <div class="replanning-box">
+        <div class="replanning-alert">
+          <i class="fa-solid fa-cloud-showers-heavy" style="font-size: 1.2rem;"></i>
+          <span>Alerta de Clima: Previsão de chuva forte em Roma a partir das 14h.</span>
         </div>
 
-        <div class="glass-card testimonial-card">
-          <div class="testimonial-rating">
-            <i class="fa-solid fa-star"></i>
-            <i class="fa-solid fa-star"></i>
-            <i class="fa-solid fa-star"></i>
-            <i class="fa-solid fa-star"></i>
-            <i class="fa-solid fa-star"></i>
-          </div>
-          <p class="testimonial-text">
-            "Já estava com um roteiro pré-montado, mas joguei na ferramenta, meu irmão, potencializou o negócio, o que era um roteiro virou uma experiência e o melhor de tudo interativa e em tempo real! Não pensa muito não, compra aí!!!"
-          </p>
-          <div class="testimonial-user">
-            <img class="testimonial-avatar" src="assets/luiz.png" alt="Luiz C.">
-            <div class="testimonial-user-info">
-              <h4>Luiz C.</h4>
-              <span>Empresário</span>
-            </div>
-          </div>
+        <div class="replanning-proposal">
+          <strong>Uma opção para salvar a tarde:</strong><br>
+          Mover o Fórum Romano para amanhã de manhã e antecipar a Galleria Borghese para hoje.
         </div>
-        
+
+        <div class="replanning-actions">
+          <a href="#oferta" class="btn btn-accent"><i class="fa-solid fa-check"></i> Aplicar esta mudança</a>
+          <a href="#oferta" class="btn btn-outline">Manter como está</a>
+        </div>
       </div>
     </div>
   </section>
 
-  <!-- 7. Seção Criador: Quem está por trás -->
+  <!-- 7. Seção 6: Carteira & Offline -->
+  <section class="section-padding offline-section" id="carteira-offline">
+    <div class="container">
+      <div class="section-header">
+        <h2 class="section-title">Internet ruim não deveria levar seus comprovantes junto.</h2>
+        <p class="section-subtitle">
+          Salve bilhetes, reservas e ingressos no celular para abrir mesmo quando a internet não colaborar.
+        </p>
+      </div>
+
+      <div class="offline-card">
+        <div class="offline-list">
+          <div class="offline-item">
+            <div class="offline-item-name">
+              <i class="fa-solid fa-plane" style="color: var(--primary);"></i>
+              Voo LATAM LA8012 — Guarulhos / Ezeiza
+            </div>
+            <span class="offline-badge"><i class="fa-solid fa-check"></i> Salvo no dispositivo</span>
+          </div>
+
+          <div class="offline-item">
+            <div class="offline-item-name">
+              <i class="fa-solid fa-hotel" style="color: var(--primary);"></i>
+              Reserva Hotel Mio Recoleta (Comprovante PDF)
+            </div>
+            <span class="offline-badge"><i class="fa-solid fa-check"></i> Salvo no dispositivo</span>
+          </div>
+
+          <div class="offline-item">
+            <div class="offline-item-name">
+              <i class="fa-solid fa-shield-halved" style="color: var(--primary);"></i>
+              Apólice Seguro Viagem Assist Card
+            </div>
+            <span class="offline-badge"><i class="fa-solid fa-check"></i> Salvo no dispositivo</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 8. Seção 7: História do Fundador (100% Autêntica) -->
   <section class="section-padding creator-section" id="criador">
-    <div class="container creator-grid">
-      <div class="creator-image-box">
-        <div class="creator-badge"><i class="fa-solid fa-plane"></i> Criador & Viajante</div>
-        <img class="creator-img" src="assets/ian.jpg" alt="Ian Pietro">
-      </div>
-      <div class="creator-content">
-        <span class="badge"><i class="fa-solid fa-user"></i> Quem Criou</span>
-        <h2 class="section-title">Muito prazer, eu sou o Ian.</h2>
-        <p class="creator-text">
-          Sempre fui apaixonado por desbravar o mundo, mas odiava passar dias montando roteiros no Excel, caindo em armadilhas de turista e perdendo tempo com listas prontas da internet que não serviam para mim.
-        </p>
-        <p class="creator-text">
-          Como desenvolvedor, decidi unir minha experiência prática de estrada à tecnologia. Criei este assistente para resolver os meus próprios problemas de planejamento: organizar o dia a dia geograficamente, calcular gastos reais e gerar checklists automáticos de mala. O resultado foi tão bom que resolvi abrir o acesso para outros viajantes aproveitarem também.
-        </p>
+    <div class="container">
+      <div class="creator-grid">
+        <div class="creator-image-box">
+          <img src="assets/ian.jpg" alt="Ian Pietro, criador do CoPiloto de Viagem" class="creator-img">
+        </div>
+        <div class="creator-body">
+          <h3>"Eu criei o CoPiloto porque precisava dele nas minhas próprias viagens."</h3>
+          <p>
+            Eu adoro montar viagem, mas sempre chegava no mesmo ponto: dez abas abertas, reserva no e-mail, passagem em PDF, endereço salvo no WhatsApp, anotação no celular e um roteiro que parava de servir na primeira mudança de planos.
+          </p>
+          <p>
+            Queria uma ferramenta que não terminasse o trabalho quando o roteiro ficasse pronto. Queria abrir o celular durante a viagem e saber: o que faço agora?
+          </p>
+          <p>
+            Foi daí que nasceu o CoPiloto. Primeiro para organizar as minhas viagens. Agora, para ajudar outras pessoas a viajar com menos coisa na cabeça.
+          </p>
+          <p style="font-weight: 700; color: var(--text-main); margin-top: 14px;">
+            — Ian Pietro<br>
+            <span style="font-weight: 400; font-size: 0.9rem; color: var(--text-muted);">Criador do CoPiloto e viajante antes de qualquer coisa.</span>
+          </p>
+        </div>
       </div>
     </div>
   </section>
 
-  <!-- 8. Oferta Única / Preço -->
+  <!-- 9. Seção 8: Preço (Ancoragem Comercial de Acesso Antecipado) -->
   <section class="section-padding pricing-section" id="oferta">
     <div class="container">
       <div class="section-header">
-        <span class="badge badge-accent"><i class="fa-solid fa-fire"></i> Lançamento Exclusivo</span>
-        <h2 class="section-title">Você gasta 6 horas pesquisando. O CoPiloto organiza tudo em 5 minutos. Por R$ 49,90.</h2>
+        <h2 class="section-title">Leve o CoPiloto para as suas próximas viagens.</h2>
         <p class="section-subtitle">
-          Evitar um único erro na viagem já paga o investimento. Oferta vitalícia exclusiva para os 120 primeiros compradores — depois custará R$ 79,90/ano.
+          Acesso antecipado por R$ 49,90, pagamento único.<br>
+          <span style="font-size: 0.92rem; color: var(--text-muted); font-weight: 500; display: block; margin-top: 6px;">
+            Depois do lançamento, o acesso será oferecido por R$ 79,90 por ano.<br>
+            <strong style="color: var(--text-main);">Quem entrar agora mantém o acesso vitalício, sem mensalidade.</strong>
+          </span>
         </p>
       </div>
-      
-      <div class="glass-card pricing-box" id="priceCard">
-        <div class="pricing-box-content">
-          <div class="pricing-alert-banner">
-            <i class="fa-solid fa-hourglass-half"></i> <strong>Lote Promocional:</strong> Apenas para os 120 primeiros.
-          </div>
-          <span class="pricing-title">Acesso Total Vitalício ao CoPiloto</span>
-          
-          <p class="pricing-hero-statement">
-            "Você vai mesmo gastar mais um final de semana inteiro comparando abas de navegador para economizar o valor de uma única pizza?"
-          </p>
-          
-          <div class="price-container">
-            <span class="price-currency">R$</span>
-            <span class="price-val">49</span>
-            <span class="price-currency">,90</span>
-            <span class="price-period">único</span>
-          </div>
-          <div class="price-comparison-label">Mais barato que um café da manhã no aeroporto.</div>
-          
-          <ul class="price-list">
-            <li><i class="fa-solid fa-circle-check"></i> Viagens ilimitadas: planeje quantas vezes quiser para sempre</li>
-            <li><i class="fa-solid fa-circle-check"></i> Roteiros inteligentes organizados por rota geográfica</li>
-            <li><i class="fa-solid fa-circle-check"></i> Estimativa de custos realistas em 3 perfis de bolso</li>
-            <li><i class="fa-solid fa-circle-check"></i> Lista de mala inteligente baseada no clima real</li>
-            <li><i class="fa-solid fa-circle-check"></i> Busca e comparação de passagens direto no painel</li>
-            <li><i class="fa-solid fa-circle-check"></i> Calculadora de divisão de gastos do grupo integrada</li>
-            <li><i class="fa-solid fa-circle-check"></i> Guia local instantâneo via chat para tirar dúvidas</li>
-            <li><i class="fa-solid fa-circle-check"></i> Download em PDF para acessar o roteiro offline na estrada</li>
-          </ul>
-          
-          <a href="https://pay.kirvano.com/8c50a730-069a-40e8-bed3-078c03089d1d" target="_blank" class="btn btn-accent" style="width: 100%; padding: 18px;" id="btnCheckoutPurchase">
-            <i class="fa-solid fa-plane-departure"></i> Garantir meu CoPiloto com Acesso Vitalício
-          </a>
-          
-          <p class="price-note">Pagamento 100% seguro via Pix ou Cartão. Acesso liberado imediatamente no seu e-mail.</p>
-          
-          <p class="price-next-batch">⚠️ Após esgotar o lote (120 vagas), o acesso vitalício será encerrado e o CoPiloto passará a custar <strong>R$ 79,90/ano</strong>.</p>
+
+      <div class="pricing-box">
+        <div class="pricing-title">Acesso antecipado ao CoPiloto</div>
+        
+        <div class="price-container">
+          <span class="price-currency">R$</span>
+          <span class="price-val">49</span>
+          <span class="price-currency">,90</span>
+          <span class="price-period">pagamento único</span>
         </div>
+
+        <ul class="price-list">
+          <li><i class="fa-solid fa-check"></i> Planeje quantas viagens quiser</li>
+          <li><i class="fa-solid fa-check"></i> Use o Modo Hoje durante a viagem</li>
+          <li><i class="fa-solid fa-check"></i> Guarde documentos importantes offline</li>
+          <li><i class="fa-solid fa-check"></i> Reorganize o roteiro quando os planos mudarem</li>
+        </ul>
+
+        <a href="https://pay.kirvano.com/8c50a730-069a-40e8-bed3-078c03089d1d" target="_blank" class="btn btn-accent" style="width: 100%; padding: 18px;" id="btnCheckoutPurchase">
+          Quero meu acesso →
+        </a>
+
+        <p class="price-note">Pagamento seguro por Pix ou cartão. Acesso liberado imediatamente no seu e-mail.</p>
       </div>
     </div>
   </section>
 
-  <!-- 8. FAQ: Dúvidas Frequentes -->
-  <section class="section-padding" id="faq">
-    <div class="container">
-      <div class="section-header">
-        <span class="badge"><i class="fa-solid fa-circle-question"></i> FAQ</span>
-        <h2 class="section-title">Perguntas Frequentes</h2>
-        <p class="section-subtitle">
-          Ficou com alguma dúvida sobre o CoPiloto? A gente responde aqui.
-        </p>
-      </div>
-      
-      <div class="faq-list" id="faqAccordion">
-        
-        <div class="faq-item">
-          <button class="faq-question">
-            <span>Como acesso o CoPiloto depois de comprar?</span>
-            <i class="fa-solid fa-chevron-down faq-icon"></i>
-          </button>
-          <div class="faq-answer">
-            <div class="faq-answer-inner">
-              Assim que o pagamento for confirmado, você receberá um e-mail automático com o link de acesso. Basta acessar, criar sua conta com o mesmo e-mail usado na compra (ou fazer login direto usando sua conta Google) e pronto! Em menos de 2 minutos você já poderá começar a planejar.
-            </div>
-          </div>
-        </div>
-        
-        <div class="faq-item">
-          <button class="faq-question">
-            <span>Posso usar pra mais de uma viagem?</span>
-            <i class="fa-solid fa-chevron-down faq-icon"></i>
-          </button>
-          <div class="faq-answer">
-            <div class="faq-answer-inner">
-              Pode, e não tem limite de roteiros. Você planeja a viagem deste ano, a do ano que vem, a da lua de mel, a viagem em família... Enquanto seu plano estiver ativo (acesso vitalício para quem garantir o lote de lançamento, ou anualmente para os lotes seguintes), você pode planejar quantos roteiros desejar. Resetou, começou de novo. Sem custos adicionais por roteiro.
-            </div>
-          </div>
-        </div>
-        
-        <div class="faq-item">
-          <button class="faq-question">
-            <span>Preciso pagar alguma mensalidade?</span>
-            <i class="fa-solid fa-chevron-down faq-icon"></i>
-          </button>
-          <div class="faq-answer">
-            <div class="faq-answer-inner">
-              Não para quem garantir o lote de lançamento. Os 120 primeiros compradores pagam uma única taxa de R$ 49,90 e têm acesso vitalício completo. Após o preenchimento dessas vagas, o CoPiloto passará a custar R$ 79,90 por ano.
-            </div>
-          </div>
-        </div>
-
-        <div class="faq-item">
-          <button class="faq-question">
-            <span>Isso é diferente de usar o ChatGPT ou Gemini gratuito?</span>
-            <i class="fa-solid fa-chevron-down faq-icon"></i>
-          </button>
-          <div class="faq-answer">
-            <div class="faq-answer-inner">
-              Muito diferente. O ChatGPT ou Gemini entrega um bloco de texto que você ainda precisa interpretar, formatar e transformar em algo utilizável. O CoPiloto entrega um painel interativo com roteiro, custos e mala já organizados: você só usa. É a diferença entre receber uma lista de ingredientes e receber o prato pronto.
-            </div>
-          </div>
-        </div>
-        
-        <div class="faq-item">
-          <button class="faq-question">
-            <span>Como funciona a exportação em PDF?</span>
-            <i class="fa-solid fa-chevron-down faq-icon"></i>
-          </button>
-          <div class="faq-answer">
-            <div class="faq-answer-inner">
-              Dentro do painel, basta clicar em "Exportar PDF". O sistema abrirá a tela de visualização e impressão do seu próprio navegador ou celular, onde você pode salvar o roteiro completo como PDF. Depois, é só enviar no grupo do WhatsApp ou salvar no aparelho para acessar offline durante a viagem.
-            </div>
-          </div>
-        </div>
-        
-      </div>
-    </div>
-  </section>
-
-  <!-- 9. Rodapé / Footer -->
-  <footer class="main-footer" id="mainFooter">
+  <!-- 10. Footer -->
+  <footer class="main-footer">
     <div class="container">
       <a href="#" class="footer-logo">
-        <div class="logo-icon"><i class="fa-solid fa-compass"></i></div>
+        <div class="logo-icon" style="width: 32px; height: 32px; font-size: 0.9rem;"><i class="fa-solid fa-compass"></i></div>
         <div class="logo-text">CoPiloto de Viagem</div>
       </a>
-      
+
       <ul class="footer-links">
-        <li><a href="#a-dor">O Problema</a></li>
-        <li><a href="#o-que-entrega">O que entrega</a></li>
-        <li><a href="#novidades">Novidades</a></li>
-        <li><a href="#como-funciona">Como Funciona</a></li>
-        <li><a href="#criador">Quem Criou</a></li>
-        <li><a href="#oferta">Garantir Acesso</a></li>
-        <li><a href="/app.html">Meu CoPiloto</a></li>
+        <li><a href="#situacoes-reais">Produto</a></li>
+        <li><a href="#modo-hoje">Modo Hoje</a></li>
+        <li><a href="#criador">Sobre</a></li>
+        <li><a href="#oferta">Preço</a></li>
+        <li><a href="/app.html">Entrar</a></li>
       </ul>
-      
+
       <p class="footer-copy">
-        &copy; 2026 CoPiloto de Viagem. Todos os direitos reservados. Criado e desenvolvido por Ian Pietro Capo.<br>
-        Esta aplicação usa a API do Gemini/OpenAI de forma segura. Seus dados estão protegidos sob nossa <a href="/politica-privacidade.html" style="color: var(--primary); text-decoration: underline;">política de privacidade</a>.
+        © 2026 CoPiloto de Viagem. Todos os direitos reservados.
       </p>
     </div>
   </footer>
 
-  <!-- Main JavaScript File (LP Isolated) -->
-  <script src="/vendas.js"></script>
-  
-  <!-- Register PWA Service Worker -->
+  <!-- Sticky Mobile CTA -->
+  <div class="sticky-mobile-cta hidden" id="stickyMobileCta">
+    <a href="#oferta" class="btn btn-accent"><i class="fa-solid fa-plane-departure"></i> Montar minha viagem</a>
+  </div>
+
+  <!-- Script para abas interativas do widget do Hero & Sticky Mobile CTA -->
   <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js')
-          .then(reg => console.log('Service Worker registered successfully:', reg.scope))
-          .catch(err => console.error('Service Worker registration failed:', err));
+    document.addEventListener('DOMContentLoaded', () => {
+      // Abas interativas do Hero Widget
+      const tabs = document.querySelectorAll('.ppw-tab');
+      const contents = document.querySelectorAll('.ppw-content');
+
+      tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+          const target = tab.getAttribute('data-ppw');
+          
+          tabs.forEach(t => t.classList.remove('active'));
+          contents.forEach(c => c.classList.remove('active'));
+
+          tab.classList.add('active');
+          if (target === 'roteiro') document.getElementById('ppwRoteiro').classList.add('active');
+          if (target === 'orcamento') document.getElementById('ppwOrcamento').classList.add('active');
+          if (target === 'mala') document.getElementById('ppwMala').classList.add('active');
+        });
       });
-    }
+
+      // Sticky Mobile CTA Observer Logic
+      const stickyCta = document.getElementById('stickyMobileCta');
+      const heroBuyBtn = document.getElementById('btnHeroBuy');
+      const ofertaSection = document.getElementById('oferta');
+
+      if (stickyCta && heroBuyBtn && ofertaSection) {
+        let heroVisible = true;
+        let ofertaVisible = false;
+
+        const updateStickyVisibility = () => {
+          if (!heroVisible && !ofertaVisible) {
+            stickyCta.classList.remove('hidden');
+          } else {
+            stickyCta.classList.add('hidden');
+          }
+        };
+
+        const heroObserver = new IntersectionObserver((entries) => {
+          entries.forEach(entry => {
+            heroVisible = entry.isIntersecting;
+            updateStickyVisibility();
+          });
+        }, { threshold: 0.1 });
+
+        const ofertaObserver = new IntersectionObserver((entries) => {
+          entries.forEach(entry => {
+            ofertaVisible = entry.isIntersecting;
+            updateStickyVisibility();
+          });
+        }, { threshold: 0.1 });
+
+        heroObserver.observe(heroBuyBtn);
+        ofertaObserver.observe(ofertaSection);
+      }
+    });
   </script>
 </body>
 </html>

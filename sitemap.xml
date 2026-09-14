@@ -2,8 +2,68 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
    <url>
       <loc>https://copilotodeviagem.com.br/</loc>
-      <lastmod>2026-08-22</lastmod>
+      <lastmod>2026-08-28</lastmod>
       <changefreq>weekly</changefreq>
       <priority>1.0</priority>
+   </url>
+   <url>
+      <loc>https://copilotodeviagem.com.br/roteiros/buenos-aires/3-dias</loc>
+      <lastmod>2026-08-28</lastmod>
+      <changefreq>weekly</changefreq>
+      <priority>0.9</priority>
+   </url>
+   <url>
+      <loc>https://copilotodeviagem.com.br/roteiros/roma/5-dias</loc>
+      <lastmod>2026-08-28</lastmod>
+      <changefreq>weekly</changefreq>
+      <priority>0.9</priority>
+   </url>
+   <url>
+      <loc>https://copilotodeviagem.com.br/roteiros/nova-york/7-dias</loc>
+      <lastmod>2026-08-28</lastmod>
+      <changefreq>weekly</changefreq>
+      <priority>0.9</priority>
+   </url>
+   <url>
+      <loc>https://copilotodeviagem.com.br/roteiros/lisboa/5-dias</loc>
+      <lastmod>2026-08-28</lastmod>
+      <changefreq>weekly</changefreq>
+      <priority>0.9</priority>
+   </url>
+   <url>
+      <loc>https://copilotodeviagem.com.br/roteiros/paris/7-dias</loc>
+      <lastmod>2026-08-28</lastmod>
+      <changefreq>weekly</changefreq>
+      <priority>0.9</priority>
+   </url>
+   <url>
+      <loc>https://copilotodeviagem.com.br/roteiros/orlando/7-dias</loc>
+      <lastmod>2026-08-28</lastmod>
+      <changefreq>weekly</changefreq>
+      <priority>0.9</priority>
+   </url>
+   <url>
+      <loc>https://copilotodeviagem.com.br/roteiros/santiago/4-dias</loc>
+      <lastmod>2026-08-28</lastmod>
+      <changefreq>weekly</changefreq>
+      <priority>0.9</priority>
+   </url>
+   <url>
+      <loc>https://copilotodeviagem.com.br/roteiros/barcelona/5-dias</loc>
+      <lastmod>2026-08-28</lastmod>
+      <changefreq>weekly</changefreq>
+      <priority>0.9</priority>
+   </url>
+   <url>
+      <loc>https://copilotodeviagem.com.br/roteiros/toquio/7-dias</loc>
+      <lastmod>2026-08-28</lastmod>
+      <changefreq>weekly</changefreq>
+      <priority>0.9</priority>
+   </url>
+   <url>
+      <loc>https://copilotodeviagem.com.br/roteiros/londres/5-dias</loc>
+      <lastmod>2026-08-28</lastmod>
+      <changefreq>weekly</changefreq>
+      <priority>0.9</priority>
    </url>
 </urlset>

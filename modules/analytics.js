@@ -11,9 +11,13 @@
 
 // ── Eventos válidos (taxonomia única) ────────────────────────────────────────
 export const EVENTS = {
-  // Aquisição
+  // Aquisição & SEO Programático
   LANDING_VIEW:           'landing_view',
   CTA_START_TRIP:         'cta_start_trip',
+  SEO_LANDING_VIEW:       'seo_landing_view',
+  ITINERARY_CLONE_STARTED: 'itinerary_clone_started',
+  SIGNUP_FROM_ITINERARY:  'signup_from_itinerary',
+  TRIP_CREATED_FROM_ITINERARY: 'trip_created_from_itinerary',
   // Viagem
   TRIP_CREATED:           'trip_created',
   TRIP_ARCHIVED:          'trip_archived',
@@ -26,12 +30,15 @@ export const EVENTS = {
   TRIP_PLAN_GENERATED:    'trip_plan_generated',
   TRIP_BRAIN_ACTION:      'trip_brain_action',
   AI_MESSAGE_SENT:        'ai_message_sent',
-  // CoPiloto Proativo (somente metadados; nunca conteúdo da viagem)
+  // CoPiloto Proativo & Motores Operacionais
   PROACTIVE_ENGINE_EVALUATED: 'proactive_engine_evaluated',
-  PROACTIVE_INSIGHT_SHOWN: 'proactive_insight_shown',
-  PROACTIVE_INSIGHT_OPENED: 'proactive_insight_opened',
-  PROACTIVE_INSIGHT_SNOOZED: 'proactive_insight_snoozed',
-  PROACTIVE_INSIGHT_DISMISSED: 'proactive_insight_dismissed',
+  PROACTIVE_ITEM_CREATED: 'proactive_item_created',
+  PROACTIVE_ITEM_SEEN: 'proactive_item_seen',
+  PROACTIVE_ITEM_OPENED: 'proactive_item_opened',
+  PROACTIVE_ITEM_DISMISSED: 'proactive_item_dismissed',
+  PROACTIVE_ACTION_TAKEN: 'proactive_action_taken',
+  REPLANNING_PROPOSAL_CREATED: 'replanning_proposal_created',
+  REPLANNING_PROPOSAL_APPLIED: 'replanning_proposal_applied',
   // Progresso
   READINESS_PROGRESS:     'readiness_progress',
   // Parceiros

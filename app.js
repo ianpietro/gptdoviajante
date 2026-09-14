@@ -14,19 +14,84 @@ import {
   supabase
 } from './auth.js';
 import { AFFILIATE_CONFIG, BYPASS_LOGIN, FEATURES, APP_VERSION, MAX_OFFLINE_DOCUMENT_SIZE, MAX_OFFLINE_DOCUMENT_TOTAL_SIZE } from './config.js';
-import { normalizeTripState as pureNormalizeTripState, checkDuplicateDocument, inferTripFromDocuments, calculateReadinessScore, calculateCountdown } from './modules/stateManager.js';
-import { applyActions, undoLastActions } from './modules/actionEngine.js';
+import { normalizeTripState as pureNormalizeTripState, checkDuplicateDocument, inferTripFromDocuments, calculateReadinessScore, calculateCountdown, getSuggestedTripStatus } from './modules/stateManager.js?v=3.0.0-rc.20-calendar-aware';
+import { applyActions, undoLastActions } from './modules/actionEngine.js?v=3.0.0-rc.20-calendar-aware';
 import { partnerConfig, buildAffiliateLink, evaluateTripOpportunities, analytics as legacyAnalytics } from './modules/partnerEngine.js';
 import { plans, getEntitlements, getUserPlanState } from './modules/entitlementEngine.js';
 import { track as trackEvent, trackFirstValue, EVENTS } from './modules/analytics.js';
 import { initErrorHandler } from './modules/errorHandler.js';
 import { buildProactiveInsights, filterInactiveInsights } from './modules/proactiveEngine.js';
+import { detectTripRisks } from './modules/riskEngine.js';
+import { generateReplanningProposal, applyReplanningProposal } from './modules/replanningEngine.js';
+import { generatePublicItineraryModel, clonePublicItinerary, generateItineraryJsonLd } from './modules/publicItineraryEngine.js';
+import { generateReferralCode, parseAttributionParams, processAffiliateReward, calculateNorthStarMetrics } from './modules/growthEngine.js';
+import { INSPIRATIONS_DATA, getInspirations, getInspirationBySlug, getInspirationById, cloneInspirationToTrip } from './modules/inspirationsEngine.js';
+import { ensureAutoPackingList } from './modules/packingEngine.js?v=3.0.0-rc.20-calendar-aware';
+import { applyTripDateContext, applyForecastContext } from './modules/tripContextEngine.js?v=2.2.0-rc.19-localized-navigation';
+import { buildItineraryGenerationPrompt, extractGeneratedItinerary, validateAndNormalizeItinerary } from './modules/itineraryGenerationEngine.js?v=3.0.0-rc.20-calendar-aware';
+import { evaluateDayRouteQuality } from './modules/logisticsEngine.js';
+import { inferTransportCommands, applyTransportCommandsToTrip, applyTransportCommandToTrip } from './modules/transportContextEngine.js?v=3.0.0-rc.6-transport-plan';
+import { inferPlanningPreferences, applyPlanningPreferencesToTrip, inferConversationTripFacts, applyConversationTripFacts } from './modules/planningContextEngine.js?v=3.0.0-rc.20-calendar-aware';
+import { downloadItineraryPdf } from './modules/pdfExportEnginePremium.js';
+import { cleanTripDestination, buildContextualMapQuery, buildGoogleMapsSearchUrl } from './modules/mapContextEngine.js?v=3.0.0-rc.17-map-context';
+import { alignTripToCalendarCommitments } from './modules/calendarEngine.js?v=3.0.0-rc.20-calendar-aware';
 
 const CHECKOUT_URL = 'https://pay.kirvano.com/8c50a730-069a-40e8-bed3-078c03089d1d';
 window.analytics = legacyAnalytics;
 
-// Expõe versão globalmente para logs, analytics e error handler
+// Expõe versão e navegadores globalmente para logs, analytics, error handler e inline HTML onclicks
 window.APP_VERSION = APP_VERSION;
+// _appSwitchTab is checked first by the head nav script — hand control over to real app.js functions
+window._appSwitchTab = switchTab;
+window._appShowMyTrips = showMyTripsScreen;
+window._appOpenTutorial = openTutorial;
+window.switchTab = switchTab;
+window.showMyTripsScreen = showMyTripsScreen;
+window.openTutorial = openTutorial;
+
+const NAVIGATION_LABELS = {
+  pt: { home: 'Hoje', inspiracoes: 'Inspirações', roteiro: 'Roteiro', orcamento: 'Orçamento', mala: 'Mala', logistica: 'Carteira', chat: 'Orbia' },
+  en: { home: 'Today', inspiracoes: 'Inspiration', roteiro: 'Itinerary', orcamento: 'Budget', mala: 'Packing', logistica: 'Wallet', chat: 'Orbia' },
+  es: { home: 'Hoy', inspiracoes: 'Inspiración', roteiro: 'Itinerario', orcamento: 'Presupuesto', mala: 'Equipaje', logistica: 'Cartera', chat: 'Orbia' }
+};
+
+function applyNavigationLocale(locale = document.documentElement.lang || navigator.language || 'pt-BR') {
+  const language = String(locale).toLowerCase().split('-')[0];
+  const labels = NAVIGATION_LABELS[language] || NAVIGATION_LABELS.pt;
+  document.querySelectorAll('.bottom-nav-btn[data-tab]').forEach(button => {
+    const label = labels[button.dataset.tab];
+    const text = button.querySelector('span');
+    if (label && text) text.textContent = label;
+  });
+}
+window.applyNavigationLocale = applyNavigationLocale;
+
+window.showToast = function(message, type = 'info') {
+  document.querySelectorAll('.orbia-toast').forEach(item => item.remove());
+  const toast = document.createElement('div');
+  const allowedType = ['success', 'error', 'warning', 'info'].includes(type) ? type : 'info';
+  toast.className = `orbia-toast orbia-toast-${allowedType}`;
+  toast.setAttribute('role', allowedType === 'error' ? 'alert' : 'status');
+  toast.setAttribute('aria-live', allowedType === 'error' ? 'assertive' : 'polite');
+
+  const icon = document.createElement('i');
+  icon.className = `fa-solid ${allowedType === 'success' ? 'fa-check' : allowedType === 'error' ? 'fa-rotate-right' : allowedType === 'warning' ? 'fa-triangle-exclamation' : 'fa-circle-info'}`;
+  icon.setAttribute('aria-hidden', 'true');
+  const text = document.createElement('span');
+  text.textContent = String(message || 'Tudo certo.');
+  const close = document.createElement('button');
+  close.type = 'button';
+  close.className = 'orbia-toast-close';
+  close.setAttribute('aria-label', 'Fechar aviso');
+  close.innerHTML = '<i class="fa-solid fa-times" aria-hidden="true"></i>';
+  close.addEventListener('click', () => toast.remove());
+
+  toast.append(icon, text, close);
+  document.body.appendChild(toast);
+  requestAnimationFrame(() => toast.classList.add('is-visible'));
+  window.setTimeout(() => toast.remove(), allowedType === 'error' ? 7000 : 5000);
+  return toast;
+};
 
 // Inicializa tratamento centralizado de erros
 const APP_ENV = BYPASS_LOGIN ? 'development' : 'production';
@@ -136,8 +201,23 @@ window.inferTripFromDocuments = inferTripFromDocuments;
 let chatHistory = [];
 let travelChatHistory = [];
 let activeTripId = null;
+let tripsList = [];
+let isUiInitialized = false;
+let travelMode = false;
+let chatTripCreationInProgress = false;
 const proactiveShownThisSession = new Set();
 const proactiveSyncRequested = new Set();
+
+function sanitizePersistedChatHistory(history) {
+  if (!Array.isArray(history)) return [];
+  const technicalError = /failed to fetch|acesso n[aã]o autorizado|network\s*error|erro\s+\d{3}\s+na comunica[cç][aã]o/i;
+  return history.map(message => {
+    if (!message || message.role !== 'assistant') return message;
+    if (technicalError.test(String(message.content || ''))) return null;
+    const cleanContent = stripJsonCodeBlock(message.content);
+    return cleanContent.trim() ? { ...message, content: cleanContent } : null;
+  }).filter(Boolean);
+}
 
 // Instrumentation for debug (development-only logging)
 const DEBUG_MODE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
@@ -222,6 +302,7 @@ function selectActiveTrip(id) {
 // Wrapper to normalize and log
 function normalizeTripState(trip) {
   const norm = pureNormalizeTripState(trip);
+  ensureAutoPackingList(norm);
   logDebug("trip_normalized", { id: norm.id, title: norm.tripTitle });
   return norm;
 }
@@ -374,8 +455,9 @@ async function clearUserOfflineCache(userId) {
 }
 
 function getDestinationSuffix() {
-  if (!tripData.tripTitle) return "";
-  let title = tripData.tripTitle;
+  const sourceDestination = tripData.destination || tripData.tripTitle;
+  if (!sourceDestination) return "";
+  let title = cleanTripDestination(sourceDestination);
   
   // Cut at colon or hyphens
   const separators = [":", " - ", " – "];
@@ -554,6 +636,7 @@ function getSharedDataFromUrl() {
 function setupSharedViewUI() {
   const salesBanner = document.getElementById("sharedViewSalesBanner");
   if (salesBanner) salesBanner.classList.remove("hidden");
+  document.getElementById('sharedItineraryCta')?.classList.remove('hidden');
 
   const chatBtn = document.querySelector('.bottom-nav-btn[data-tab="chat"]');
   const naViagemBtn = document.querySelector('.bottom-nav-btn[data-tab="naviagem"]');
@@ -593,17 +676,544 @@ function setupSharedViewUI() {
   switchTab('home');
 }
 
-// Initialize
-async function init() {
-  // Inicialização do tema (Claro/Escuro)
-  const savedTheme = localStorage.getItem("gptViajante_theme");
-  if (savedTheme === "light") {
-    document.body.classList.add("light-theme");
-    const toggleThemeBtn = document.getElementById("toggleThemeBtn");
-    if (toggleThemeBtn) {
-      toggleThemeBtn.innerHTML = `<i class="fa-solid fa-moon"></i> Tema Escuro`;
+function handleSeoCustomizationAction(urlParams) {
+  if (!urlParams) return;
+  const action = urlParams.get("action");
+  
+  if (action === "clone_inspiration") {
+    const inspId = urlParams.get("id");
+    if (inspId && typeof window.cloneInspirationAndOpen === 'function') {
+      window.history.replaceState({}, document.title, window.location.pathname);
+      window.cloneInspirationAndOpen(inspId);
+      return;
     }
   }
+
+  if (action !== "customize_seo") return;
+
+  const destination = urlParams.get("destination") || "Buenos Aires";
+  const days = parseInt(urlParams.get("days"), 10) || 3;
+
+  logDebug("SEO_CUSTOMIZATION_ACTION", { destination, days });
+
+  try {
+    // Limpa parâmetros da URL para evitar loops ao recarregar a página
+    window.history.replaceState({}, document.title, window.location.pathname);
+
+    // Verifica se já existe uma viagem cadastrada para este destino
+    let targetTrip = (tripsList || []).find(t => 
+      t.destination && t.destination.toLowerCase().includes(destination.toLowerCase())
+    );
+
+    if (!targetTrip) {
+      const today = new Date();
+      const startDateStr = today.toISOString().split('T')[0];
+      const endDateObj = new Date();
+      endDateObj.setDate(today.getDate() + days);
+      const endDateStr = endDateObj.toISOString().split('T')[0];
+
+      targetTrip = normalizeTripState({
+        id: 'trip_seo_' + Date.now(),
+        tripTitle: `Viagem para ${destination}`,
+        destination: destination,
+        infoDates: `${days} dias`,
+        start_date: startDateStr,
+        end_date: endDateStr,
+        status: 'planning',
+        itinerary: [],
+        expenses: [],
+        packing: [],
+        documents: [],
+        flights: [],
+        members: ["Você"]
+      });
+
+      if (!tripsList) tripsList = [];
+      tripsList.unshift(targetTrip);
+      localStorage.setItem(getUserStorageKey("gptViajante_trips"), JSON.stringify(tripsList));
+    }
+
+    // Define como viagem ativa
+    setActiveTripId(targetTrip.id);
+    tripData = targetTrip;
+    
+    // Oculta tela de login e modais, exibe o container do app
+    const loginScreen = document.getElementById("loginScreen");
+    const appContainer = document.querySelector(".app-container");
+    if (loginScreen) loginScreen.classList.add("hidden");
+    if (appContainer) appContainer.classList.remove("hidden");
+
+    document.querySelectorAll(".modal-overlay").forEach(m => m.classList.add("hidden"));
+    document.body.style.overflow = '';
+
+    // Renderiza dashboard
+    renderTimeline();
+    renderFlights();
+    renderSplitwise();
+    renderPackingChecklist();
+    checkItineraryStatus();
+    renderBudgetFromState();
+
+    if (typeof window.showToast === 'function') {
+      window.showToast(`✨ Roteiro para ${destination} carregado no CoPiloto!`, 'success');
+    }
+  } catch (error) {
+    console.error('Falha ao personalizar roteiro vindo da página pública:', error);
+    if (typeof window.showToast === 'function') {
+      window.showToast('Não foi possível carregar esse roteiro agora.', 'error');
+    }
+  }
+}
+
+// ── Controller de Inspirações ─────────────────────────────────────────────────
+let activeInspirationCategory = 'all';
+
+window.renderInspirationsGrid = function() {
+  const container = document.getElementById("inspirationsGrid");
+  if (!container) return;
+
+  const searchVal = document.getElementById("inspirationSearchInput")?.value || '';
+  const paceVal = document.getElementById("inspirationPaceFilter")?.value || 'all';
+
+  const inspirations = getInspirations({
+    search: searchVal,
+    category: activeInspirationCategory,
+    pace: paceVal
+  });
+
+  if (!inspirations || inspirations.length === 0) {
+    container.innerHTML = `
+      <div style="grid-column: 1 / -1; text-align: center; padding: 40px 20px; background: var(--bg-card); border-radius: 16px; border: 1px solid var(--border-color);">
+        <i class="fa-solid fa-lightbulb" style="font-size: 2.5rem; color: var(--text-muted); margin-bottom: 12px;"></i>
+        <h3 style="margin: 0 0 6px; font-size: 1.1rem; color: var(--text-main);">Nenhuma inspiração encontrada</h3>
+        <p style="margin: 0; font-size: 0.85rem; color: var(--text-muted);">Tente buscar por outro destino ou limpe os filtros selecionados.</p>
+      </div>
+    `;
+    return;
+  }
+
+  const paceMap = { light: 'Leve', balanced: 'Equilibrado', intense: 'Intenso' };
+  const budgetMap = { budget: '€', moderate: '€€', luxury: '€€€' };
+  const profileLabelMap = {
+    first_trip: 'Primeira viagem',
+    culture: 'Cultura',
+    food: 'Gastronomia',
+    couple: 'Romântica',
+    slow_travel: 'Sem correria',
+    budget: 'Econômica'
+  };
+
+  container.innerHTML = inspirations.map(insp => {
+    const totalExp = (insp.itinerary || []).reduce((acc, d) => acc + (d.activities || []).length, 0);
+    const totalReservations = (insp.itinerary || []).reduce((acc, d) => acc + (d.activities || []).filter(a => a.booking_required || a.booking_recommended).length, 0);
+    const tags = (insp.traveler_profiles || []).slice(0, 3).map(p => profileLabelMap[p] || p);
+
+    return `
+      <article class="inspiration-card glass-panel" style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 20px; overflow: hidden; display: flex; flex-direction: column; box-shadow: var(--shadow-sm); transition: transform 0.2s;">
+        <div style="position: relative; height: 180px; width: 100%; overflow: hidden;">
+          <img src="${insp.hero_image_url}" alt="${escapeHtml(insp.title)}" style="width: 100%; height: 100%; object-fit: cover;">
+          <div style="position: absolute; inset: 0; background: linear-gradient(180deg, transparent 40%, rgba(17,24,39,0.85) 100%);"></div>
+          ${insp.copilot_pick ? `
+            <span style="position: absolute; top: 12px; left: 12px; background: rgba(233, 120, 69, 0.92); color: #FFFFFF; font-size: 0.68rem; font-weight: 800; padding: 4px 10px; border-radius: 50px; display: inline-flex; align-items: center; gap: 4px; backdrop-filter: blur(4px); shadow: 0 2px 8px rgba(0,0,0,0.15);">
+              <i class="fa-solid fa-star" style="color: var(--veroa-sun);"></i> Escolha do CoPiloto
+            </span>
+          ` : ''}
+          <div style="position: absolute; bottom: 12px; left: 14px; color: #FFFFFF;">
+            <span style="font-size: 0.72rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; background: rgba(0,0,0,0.5); padding: 2px 8px; border-radius: 4px;">
+              ${escapeHtml(insp.destination_city)}, ${escapeHtml(insp.country)}
+            </span>
+          </div>
+        </div>
+
+        <div style="padding: 20px; flex: 1; display: flex; flex-direction: column; gap: 12px;">
+          <div>
+            <h3 style="margin: 0 0 6px; font-size: 1.15rem; font-weight: 800; color: var(--text-main); line-height: 1.3;">${escapeHtml(insp.title)}</h3>
+            <p style="margin: 0; font-size: 0.84rem; color: var(--text-secondary); line-height: 1.45;">"${escapeHtml(insp.short_description)}"</p>
+          </div>
+
+          <div style="font-size: 0.78rem; color: var(--primary); font-weight: 700; display: flex; align-items: center; gap: 6px;">
+            <i class="fa-regular fa-calendar"></i> ${insp.duration_days} dias · ${paceMap[insp.pace] || 'Equilibrado'}
+          </div>
+
+          <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+            ${tags.map(t => `<span style="font-size: 0.68rem; font-weight: 700; background: rgba(17,24,39,0.06); color: var(--text-main); padding: 3px 8px; border-radius: 6px;">${escapeHtml(t)}</span>`).join('')}
+          </div>
+
+          <div style="font-size: 0.78rem; color: var(--text-muted); padding-top: 10px; border-top: 1px dashed var(--border-color); display: flex; flex-direction: column; gap: 4px;">
+            <span><i class="fa-solid fa-compass" style="color: var(--veroa-orange);"></i> <strong style="color: var(--veroa-orange);">${totalExp} experiências</strong> ativas</span>
+            <span><i class="fa-solid fa-wallet" style="color: var(--primary);"></i> <strong>${budgetMap[insp.budget_level] || '€€'}</strong> · ~$${insp.estimated_budget_min}–$${insp.estimated_budget_max}/dia</span>
+            ${totalReservations > 0 ? `<span><i class="fa-solid fa-bookmark" style="color: var(--veroa-sun);"></i> <strong>${totalReservations} reservas recomendadas</strong></span>` : ''}
+          </div>
+
+          <div style="display: flex; gap: 10px; margin-top: auto; padding-top: 8px;">
+            <button type="button" class="btn btn-secondary btn-sm btn-insp-view" data-id="${insp.id}" style="flex: 1; padding: 10px; border-radius: 50px; font-weight: 700; font-size: 0.82rem;">
+              Ver Roteiro
+            </button>
+            <button type="button" class="btn btn-primary btn-sm btn-insp-clone" data-id="${insp.id}" style="flex: 1; padding: 10px; border-radius: 50px; font-weight: 800; font-size: 0.82rem; background: var(--accent); border: none; color: white;">
+              Personalizar
+            </button>
+          </div>
+        </div>
+      </article>
+    `;
+  }).join('');
+
+  container.querySelectorAll(".btn-insp-view").forEach(b => {
+    b.addEventListener("click", () => window.openInspirationDetailModal(b.dataset.id));
+  });
+
+  container.querySelectorAll(".btn-insp-clone").forEach(b => {
+    b.addEventListener("click", () => window.cloneInspirationAndOpen(b.dataset.id));
+  });
+};
+
+function setupInspirationsFilterListeners() {
+  const searchInput = document.getElementById("inspirationSearchInput");
+  const paceSelect = document.getElementById("inspirationPaceFilter");
+  
+  if (searchInput) searchInput.addEventListener("input", () => window.renderInspirationsGrid());
+  if (paceSelect) paceSelect.addEventListener("change", () => window.renderInspirationsGrid());
+
+  document.querySelectorAll(".insp-pill").forEach(pill => {
+    pill.addEventListener("click", () => {
+      document.querySelectorAll(".insp-pill").forEach(p => p.classList.remove("active"));
+      pill.classList.add("active");
+      activeInspirationCategory = pill.dataset.category || 'all';
+      window.renderInspirationsGrid();
+    });
+  });
+
+  const adminBtn = document.getElementById("openInspirationsAdminBtn");
+  if (adminBtn) {
+    if (BYPASS_LOGIN || (currentUser && (currentUser.role === 'admin' || currentUser.email === 'iancapo@gmail.com'))) {
+      adminBtn.classList.remove("hidden");
+      adminBtn.onclick = () => window.openInspirationsAdminModal();
+    } else {
+      adminBtn.classList.add("hidden");
+    }
+  }
+}
+
+let inspirationLeafletMap = null;
+
+window.renderInspirationMap = function(insp, targetDayNumber = 'all') {
+  const mapContainer = document.getElementById("inspirationMapContainer");
+  if (!mapContainer) return;
+
+  if (typeof L === 'undefined') {
+    mapContainer.innerHTML = `<div style="padding: 20px; text-align: center; color: var(--text-muted);">Mapa indisponível no momento.</div>`;
+    return;
+  }
+
+  if (inspirationLeafletMap) {
+    inspirationLeafletMap.remove();
+    inspirationLeafletMap = null;
+  }
+
+  const validActivities = [];
+  (insp.itinerary || []).forEach(day => {
+    if (targetDayNumber !== 'all' && Number(targetDayNumber) !== Number(day.day_number)) return;
+    (day.activities || []).forEach(act => {
+      if (typeof act.lat === 'number' && typeof act.lng === 'number') {
+        validActivities.push({ ...act, day_number: day.day_number });
+      }
+    });
+  });
+
+  if (validActivities.length === 0) {
+    mapContainer.innerHTML = `<div style="padding: 30px; text-align: center; color: var(--text-muted); font-size: 0.85rem;"><i class="fa-solid fa-map-pin" style="margin-bottom: 8px; font-size: 1.5rem; color: var(--primary);"></i><br>Sem coordenadas verificadas para este filtro.</div>`;
+    return;
+  }
+
+  mapContainer.innerHTML = `<div id="leafletMapInner" style="width: 100%; height: 260px; border-radius: 14px;"></div>`;
+  const mapInner = document.getElementById("leafletMapInner");
+
+  const centerLat = validActivities[0].lat;
+  const centerLng = validActivities[0].lng;
+
+  inspirationLeafletMap = L.map(mapInner).setView([centerLat, centerLng], 13);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 18,
+    attribution: '© OpenStreetMap'
+  }).addTo(inspirationLeafletMap);
+
+  validActivities.forEach(act => {
+    L.marker([act.lat, act.lng])
+      .addTo(inspirationLeafletMap)
+      .bindPopup(`<b>Dia ${act.day_number}: ${escapeHtml(act.name)}</b><br>${escapeHtml(act.description || '')}`);
+  });
+};
+
+window.openInspirationDetailModal = function(inspId) {
+  const insp = getInspirationById(inspId) || INSPIRATIONS_DATA[0];
+  const modal = document.getElementById("inspirationDetailModal");
+  if (!modal) return;
+
+  const titleEl = document.getElementById("inspDetailTitle");
+  const subEl = document.getElementById("inspDetailSubtitle");
+  const badgeEl = document.getElementById("inspDetailBadge");
+  const bodyEl = document.getElementById("inspDetailBody");
+  const cloneBtn = document.getElementById("cloneInspModalBtn");
+
+  if (titleEl) titleEl.textContent = insp.title;
+  if (subEl) subEl.textContent = insp.short_description;
+  if (badgeEl) {
+    badgeEl.innerHTML = insp.copilot_pick 
+      ? `<span style="background: rgba(200,90,50,0.12); color: var(--primary); font-size: 0.75rem; font-weight: 800; padding: 4px 10px; border-radius: 50px;"><i class="fa-solid fa-star"></i> Escolha do CoPiloto</span>` 
+      : '';
+  }
+
+  const paceMap = { light: 'Leve', balanced: 'Equilibrado', intense: 'Intenso' };
+  const totalReservations = (insp.itinerary || []).reduce((acc, d) => acc + (d.activities || []).filter(a => a.booking_required || a.booking_recommended).length, 0);
+
+  if (bodyEl) {
+    bodyEl.innerHTML = `
+      <div style="display: flex; gap: 10px; flex-wrap: wrap; background: rgba(17,24,39,0.04); padding: 14px; border-radius: 14px;">
+        <div style="font-size: 0.82rem; font-weight: 700; color: var(--text-main);"><i class="fa-regular fa-calendar"></i> ${insp.duration_days} Dias de Viagem</div>
+        <div style="font-size: 0.82rem; font-weight: 700; color: var(--text-main);"><i class="fa-solid fa-gauge-high"></i> Ritmo ${paceMap[insp.pace] || 'Equilibrado'}</div>
+        <div style="font-size: 0.82rem; font-weight: 700; color: var(--text-main);"><i class="fa-solid fa-wallet"></i> ~$${insp.estimated_budget_min}–$${insp.estimated_budget_max}/dia</div>
+        <div style="font-size: 0.82rem; font-weight: 700; color: var(--text-main);"><i class="fa-solid fa-bookmark"></i> ${totalReservations} reservas recomendadas</div>
+      </div>
+
+      <!-- Para quem é -->
+      <div style="background: #FFFFFF; border: 1px solid var(--border-color); border-radius: 16px; padding: 18px;">
+        <h4 style="margin: 0 0 12px; font-size: 1rem; font-weight: 800; color: var(--text-main); display: flex; align-items: center; gap: 8px;">
+          <i class="fa-solid fa-user-check" style="color: var(--primary);"></i> Este roteiro funciona bem para você se:
+        </h4>
+        <ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px;">
+          ${(insp.best_for || []).map(b => `<li style="font-size: 0.85rem; color: var(--text-secondary); display: flex; align-items: center; gap: 8px;"><i class="fa-solid fa-check" style="color: var(--accent);"></i> ${escapeHtml(b)}</li>`).join('')}
+        </ul>
+      </div>
+
+      <!-- Por que funciona -->
+      <div style="background: rgba(200,90,50,0.06); border: 1px solid rgba(200,90,50,0.2); border-radius: 14px; padding: 16px;">
+        <strong style="color: var(--primary); font-size: 0.85rem; display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
+          <i class="fa-solid fa-lightbulb"></i> Por que montamos assim (Nota do CoPiloto)
+        </strong>
+        <p style="margin: 0; font-size: 0.82rem; color: var(--text-secondary); line-height: 1.45;">${escapeHtml(insp.why_this_works || insp.planning_rationale)}</p>
+      </div>
+
+      <!-- Mapa Interativo de Atividades Verificadas -->
+      <div style="background: #FFFFFF; border: 1px solid var(--border-color); border-radius: 16px; padding: 18px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+          <h4 style="margin: 0; font-size: 1rem; font-weight: 800; color: var(--text-main);"><i class="fa-solid fa-map-location-dot" style="color: var(--primary);"></i> Mapa do Roteiro</h4>
+          <div id="inspMapDayFilterRow" style="display: flex; gap: 4px;">
+            <button type="button" class="btn btn-secondary btn-xs insp-map-day-btn active" data-day="all">Todos</button>
+            ${(insp.itinerary || []).map(d => `<button type="button" class="btn btn-secondary btn-xs insp-map-day-btn" data-day="${d.day_number}">Dia ${d.day_number}</button>`).join('')}
+          </div>
+        </div>
+        <div id="inspirationMapContainer"></div>
+      </div>
+
+      <!-- Itinerário Dia a Dia -->
+      <div style="display: flex; flex-direction: column; gap: 18px;">
+        <h4 style="margin: 0; font-size: 1.1rem; font-weight: 800; color: var(--text-main);">Itinerário Detalhado Dia a Dia</h4>
+        ${(insp.itinerary || []).map(day => `
+          <div style="background: #FFFFFF; border: 1px solid var(--border-color); border-radius: 16px; padding: 18px;">
+            <div style="border-bottom: 1px solid var(--border-color); padding-bottom: 10px; margin-bottom: 14px;">
+              <span style="font-size: 0.7rem; font-weight: 800; background: rgba(200,90,50,0.1); color: var(--primary); padding: 3px 8px; border-radius: 4px;">DIA ${day.day_number}</span>
+              <h5 style="margin: 4px 0 2px; font-size: 1.05rem; font-weight: 800;">${escapeHtml(day.title)}</h5>
+              <span style="font-size: 0.8rem; color: var(--text-muted);">${escapeHtml(day.summary)}</span>
+              ${day.rain_plan ? `<div style="margin-top: 8px; padding: 6px 10px; background: rgba(217,119,6,0.08); border-radius: 6px; font-size: 0.76rem; color: #92400e;"><strong>🌧️ Plano B (Chuva):</strong> ${escapeHtml(day.rain_plan)}</div>` : ''}
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+              ${(day.activities || []).map(act => `
+                <div style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px; padding: 12px; display: grid; grid-template-columns: 65px 1fr; gap: 12px;">
+                  <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; font-weight: 700; color: var(--primary); text-align: center;">${act.start_time || '09:00'}</div>
+                  <div>
+                    <h6 style="margin: 0 0 4px; font-size: 0.95rem; font-weight: 800;">${escapeHtml(act.name)}</h6>
+                    <p style="margin: 0 0 6px; font-size: 0.8rem; color: var(--text-secondary);">${escapeHtml(act.description)}</p>
+                    <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                      ${act.priority === 'must_do' ? `<span style="font-size: 0.65rem; font-weight: 800; background: #fee2e2; color: #991b1b; padding: 2px 6px; border-radius: 4px;">Essencial</span>` : ''}
+                      ${act.flexibility === 'fixed' ? `<span style="font-size: 0.65rem; font-weight: 800; background: #e0f2fe; color: #075985; padding: 2px 6px; border-radius: 4px;">Horário Fixo</span>` : ''}
+                      ${act.booking_required ? `<span style="font-size: 0.65rem; font-weight: 800; background: #fef3c7; color: #92400e; padding: 2px 6px; border-radius: 4px;">Reserva Importante</span>` : ''}
+                    </div>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  // Render Leaflet Map
+  setTimeout(() => window.renderInspirationMap(insp, 'all'), 100);
+
+  // Hook day buttons
+  document.querySelectorAll(".insp-map-day-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".insp-map-day-btn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      window.renderInspirationMap(insp, btn.dataset.day);
+    });
+  });
+
+  if (cloneBtn) {
+    cloneBtn.onclick = () => {
+      modal.classList.add("hidden");
+      window.openPersonalizationFlow(insp.id);
+    };
+  }
+
+  const closeBtn1 = document.getElementById("closeInspDetailBtn");
+  const closeBtn2 = document.getElementById("closeInspModalBottomBtn");
+  const closeModal = () => {
+    modal.classList.add("hidden");
+    document.body.style.overflow = '';
+  };
+
+  if (closeBtn1) closeBtn1.onclick = closeModal;
+  if (closeBtn2) closeBtn2.onclick = closeModal;
+
+  modal.classList.remove("hidden");
+  document.body.style.overflow = 'hidden';
+};
+
+// ── Personalização Guiada (Guided Personalization Flow) ──────────────────────
+
+let activePersonalizationInspId = null;
+
+window.openPersonalizationFlow = function(inspId) {
+  activePersonalizationInspId = inspId;
+  const insp = getInspirationById(inspId) || INSPIRATIONS_DATA[0];
+  const modal = document.getElementById("inspirationPersonalizationModal");
+  if (!modal) return;
+
+  const titleEl = document.getElementById("personalizationModalTitle");
+  if (titleEl) titleEl.textContent = `Personalizar Roteiro para ${insp.destination_city}`;
+
+  const today = new Date().toISOString().split('T')[0];
+  const startDateInput = document.getElementById("persStartDate");
+  if (startDateInput && !startDateInput.value) startDateInput.value = today;
+
+  const submitBtn = document.getElementById("submitPersBtn");
+  if (submitBtn) {
+    submitBtn.onclick = () => window.confirmPersonalizedTrip(inspId);
+  }
+
+  const cancelBtn = document.getElementById("cancelPersBtn");
+  const closeBtn = document.getElementById("closePersonalizationModalBtn");
+  const closeModal = () => {
+    modal.classList.add("hidden");
+    document.body.style.overflow = '';
+  };
+  if (cancelBtn) cancelBtn.onclick = closeModal;
+  if (closeBtn) closeBtn.onclick = closeModal;
+
+  modal.classList.remove("hidden");
+  document.body.style.overflow = 'hidden';
+};
+
+window.confirmPersonalizedTrip = function(inspId) {
+  const startDate = document.getElementById("persStartDate")?.value || new Date().toISOString().split('T')[0];
+  const travelers = document.getElementById("persTravelers")?.value || '2';
+  const pace = document.getElementById("persPace")?.value || 'balanced';
+  const hotel = document.getElementById("persHotel")?.value || '';
+  const mustDo = document.getElementById("persMustDo")?.value || '';
+
+  const personalizationData = { startDate, travelers, pace, hotel, mustDo };
+
+  const clonedTrip = cloneInspirationToTrip(inspId, currentUser, personalizationData);
+  
+  if (!tripsList) tripsList = [];
+  tripsList.unshift(clonedTrip);
+  localStorage.setItem(getUserStorageKey("gptViajante_trips"), JSON.stringify(tripsList));
+
+  setActiveTripId(clonedTrip.id);
+  tripData = clonedTrip;
+  saveState();
+
+  const modal = document.getElementById("inspirationPersonalizationModal");
+  if (modal) modal.classList.add("hidden");
+  document.body.style.overflow = '';
+
+  switchTab('home');
+
+  if (typeof window.showToast === 'function') {
+    window.showToast(`✨ Viagem adaptada para ${clonedTrip.destination} criada com sucesso!`, 'success');
+  }
+};
+
+window.cloneInspirationAndOpen = function(inspId) {
+  window.openPersonalizationFlow(inspId);
+};
+
+// ── Painel Administrativo de Inspirações ──────────────────────────────────────
+
+window.openInspirationsAdminModal = function() {
+  const modal = document.getElementById("inspirationAdminModal");
+  const body = document.getElementById("adminModalBody");
+  if (!modal || !body) return;
+
+  const inspirations = INSPIRATIONS_DATA;
+
+  body.innerHTML = `
+    <div style="display: flex; flex-direction: column; gap: 16px;">
+      <h4 style="margin: 0; font-size: 1rem; font-weight: 800; color: var(--text-main);">Catálogo e Status de Publicação</h4>
+      
+      <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem; text-align: left;">
+        <thead>
+          <tr style="border-bottom: 2px solid var(--border-color); background: rgba(17,24,39,0.04);">
+            <th style="padding: 10px;">Roteiro / Destino</th>
+            <th style="padding: 10px;">Status</th>
+            <th style="padding: 10px;">Quality Score</th>
+            <th style="padding: 10px;">Riscos & Logística</th>
+            <th style="padding: 10px;">Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${inspirations.map(insp => {
+            const val = validateInspirationWithRealEngines(insp);
+            return `
+              <tr style="border-bottom: 1px solid var(--border-color);">
+                <td style="padding: 10px; font-weight: 700;">${escapeHtml(insp.title)}<br><span style="font-size: 0.75rem; color: var(--text-muted);">${insp.destination_city}, ${insp.country}</span></td>
+                <td style="padding: 10px;">
+                  <span style="font-size: 0.72rem; font-weight: 800; padding: 3px 8px; border-radius: 4px; ${insp.status === 'published' ? 'background: #dcfce7; color: #166534;' : 'background: #f3f4f6; color: #4b5563;'}">
+                    ${insp.status.toUpperCase()}
+                  </span>
+                </td>
+                <td style="padding: 10px; font-weight: 800; color: ${val.qualityScore >= 85 ? 'var(--accent)' : '#dc2626'};">
+                  ${val.qualityScore}/100
+                </td>
+                <td style="padding: 10px; font-size: 0.78rem;">
+                  ${val.criticalRisks.length > 0 ? `<span style="color: #dc2626; font-weight: 700;"><i class="fa-solid fa-triangle-exclamation"></i> ${val.criticalRisks.length} riscos críticos</span>` : `<span style="color: var(--accent);"><i class="fa-solid fa-circle-check"></i> Sem riscos críticos</span>`}
+                </td>
+                <td style="padding: 10px;">
+                  ${insp.status === 'published' ? `
+                    <button type="button" class="btn btn-secondary btn-xs" onclick="alert('Roteiro despublicado no banco de dados.')">Despublicar</button>
+                  ` : `
+                    <button type="button" class="btn btn-primary btn-xs" ${val.publicationBlocked ? 'disabled title="Bloqueado por Quality Score < 85 ou risco crítico"' : ''} onclick="alert('Publicação efetuada com sucesso!')">Publicar</button>
+                  `}
+                </td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+
+  const closeBtn1 = document.getElementById("closeAdminModalBtn");
+  const closeBtn2 = document.getElementById("closeAdminModalBottomBtn");
+  const closeModal = () => {
+    modal.classList.add("hidden");
+    document.body.style.overflow = '';
+  };
+  if (closeBtn1) closeBtn1.onclick = closeModal;
+  if (closeBtn2) closeBtn2.onclick = closeModal;
+
+  modal.classList.remove("hidden");
+  document.body.style.overflow = 'hidden';
+};
+
+// Initialize
+async function init() {
+  // Orbia Travel usa uma identidade visual única e clara em todas as telas.
+  document.body.classList.add("light-theme");
+  localStorage.removeItem("gptViajante_theme");
 
   const urlParams = new URLSearchParams(window.location.search);
   
@@ -780,8 +1390,22 @@ async function init() {
   }
   
   setupAuthUI();
+  applyNavigationLocale();
   setupAuthStateListener(handleUserLoggedIn, handleUserLoggedOut);
   setupPaywallListeners();
+  setupInspirationsFilterListeners();
+
+  // Always initialize UI listeners, navigation delegation, and bottom nav on page startup
+  if (!isUiInitialized) {
+    setupGlobalNavigationDelegation();
+    setupUIEventListeners();
+    setupTutorialListeners();
+    setupBottomNav();
+    isUiInitialized = true;
+  }
+
+  // Process SEO CTA customization action if coming from /api/roteiro-seo
+  handleSeoCustomizationAction(urlParams);
 
   enableDragToScroll(document.getElementById("chatMessages"));
   enableDragToScroll(document.getElementById("travelChatMessages"));
@@ -823,7 +1447,13 @@ async function init() {
   const closeModalBtn = document.getElementById("closeCreateTripModal");
   const createModal = document.getElementById("createTripModal");
   const createForm = document.getElementById("createTripForm");
+  const createWithChatBtn = document.getElementById("createTripWithChatBtn");
   const backHeroBtn = document.getElementById("backToMyTripsHeroBtn");
+  if (backHeroBtn) {
+    backHeroBtn.addEventListener("click", () => {
+      showMyTripsScreen();
+    });
+  }
 
   window.showCreateTripStep = (step) => {
     document.querySelectorAll('.create-trip-step').forEach(el => el.classList.add('hidden'));
@@ -851,6 +1481,10 @@ async function init() {
       window.showCreateTripStep(1);
       window.setTimeout(() => createModal.querySelector('.create-trip-step:not(.hidden) button')?.focus(), 0);
     });
+  }
+
+  if (createWithChatBtn) {
+    createWithChatBtn.addEventListener('click', () => startTripViaChat());
   }
 
   const hideModal = () => {
@@ -1240,8 +1874,6 @@ function getTripStorageKey(baseKey, tripId) {
   return targetId ? `${userKey}_${targetId}` : userKey;
 }
 
-let tripsList = [];
-
 async function loadTrips() {
   const cachedTrips = localStorage.getItem(getUserStorageKey("gptViajante_trips"));
   if (cachedTrips) {
@@ -1343,23 +1975,11 @@ async function loadTripById(id) {
   return null;
 }
 
-import { getSuggestedTripStatus } from './modules/stateManager.js';
-
 async function createTrip(destination, startDate, endDate) {
   logDebug("create_trip_started", { destination, startDate, endDate });
   const suggestedStatus = getSuggestedTripStatus(startDate, endDate);
   
-  let dateText = "A definir";
-  if (startDate) {
-    const sDate = new Date(startDate);
-    const options = { day: '2-digit', month: 'short' };
-    let text = sDate.toLocaleDateString('pt-BR', options);
-    if (endDate) {
-      const eDate = new Date(endDate);
-      text += ` a ${eDate.toLocaleDateString('pt-BR', options)}`;
-    }
-    dateText = text;
-  }
+  const dateText = startDate ? formatTripDateRange(startDate, endDate) : "A definir";
 
   const rawTrip = {
     tripTitle: destination,
@@ -1368,11 +1988,13 @@ async function createTrip(destination, startDate, endDate) {
     start_date: startDate,
     end_date: endDate,
     infoDates: dateText,
-    status: suggestedStatus
+    status: suggestedStatus,
+    packing: []
   };
 
   const newTrip = normalizeTripState(rawTrip);
   newTrip.id = 'temp_' + Date.now();
+  if (startDate) applyTripDateContext(newTrip);
 
   if (!BYPASS_LOGIN && currentUser && currentUser.id && navigator.onLine) {
     try {
@@ -1426,6 +2048,39 @@ async function createTrip(destination, startDate, endDate) {
   selectActiveTrip(newTrip.id);
   await loadState();
   switchTab('home');
+  if (startDate && endDate) {
+    window.setTimeout(() => openItineraryGeneratorModal(), 0);
+  }
+}
+
+async function startTripViaChat(initialMessage = '') {
+  if (chatTripCreationInProgress) return;
+  chatTripCreationInProgress = true;
+  try {
+    document.getElementById('createTripModal')?.classList.add('hidden');
+    const destinationMatch = String(initialMessage || '').match(/(?:viagem\s+)?para\s+([^,.!?]+)/i);
+    const initialDestination = destinationMatch?.[1]?.trim() || '';
+    await createTrip(initialDestination || 'Nova viagem', null, null);
+    tripData.tripTitle = initialDestination ? `Viagem para ${initialDestination}` : 'Nova viagem';
+    tripData.destination = initialDestination || '';
+    tripData.tripSubtitle = 'Criando sua viagem em conversa com a Orbia';
+    tripData.preferences = {
+      ...(tripData.preferences || {}),
+      creation_mode: 'chat_onboarding',
+      creation_stage: initialDestination ? 'dates' : 'destination'
+    };
+    const welcome = initialDestination
+      ? `Vamos criar sua viagem para **${initialDestination}**. Quais são as datas de ida e volta?`
+      : 'Vamos criar sua viagem juntos. **Para onde você quer viajar?**';
+    const welcomeTime = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    chatHistory = [{ role: 'assistant', content: welcome, time: welcomeTime }];
+    saveState();
+    switchTab('chat');
+    renderChatHistory('plan');
+    window.setTimeout(() => document.getElementById('chatInput')?.focus(), 0);
+  } finally {
+    chatTripCreationInProgress = false;
+  }
 }
 
 async function archiveTrip(id) {
@@ -1458,19 +2113,27 @@ async function archiveTrip(id) {
 function showMyTripsScreen() {
   logDebug("show_my_trips_screen_triggered");
   
-  document.getElementById("myTripsSection").classList.remove("hidden");
-  document.getElementById("dashboardContent").classList.add("trips-view");
-  
-  document.getElementById("bottomNav").style.display = "none";
-  document.getElementById("planChatPanel").classList.add("hidden");
-  document.getElementById("travelChatPanel").classList.add("hidden");
-  
-  const tabs = ['roteiro', 'orcamento', 'mala', 'logistica'];
-  tabs.forEach(t => {
-    const el = document.getElementById(t + "Panel");
-    if (el) el.classList.add("hidden");
+  const chatSidebar = document.getElementById('chatSidebar');
+  const dashboardContent = document.getElementById('dashboardContent');
+  if (chatSidebar) chatSidebar.style.display = 'none';
+  if (dashboardContent) {
+    dashboardContent.style.display = 'block';
+    dashboardContent.classList.add('trips-view');
+  }
+
+  const sectionsToHide = ['homeSection', 'inspirationsSection', 'logisticaSection', 'itinerarySection', 'budgetSection', 'packingSection', 'planChatPanel', 'travelChatPanel'];
+  sectionsToHide.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.classList.add('hidden');
   });
-  
+
+  const myTripsSection = document.getElementById("myTripsSection");
+  if (myTripsSection) myTripsSection.classList.remove("hidden");
+
+  const bottomNav = document.getElementById("bottomNav");
+  if (bottomNav) bottomNav.style.setProperty('display', 'flex', 'important');
+  document.body.classList.add('no-active-trip');
+
   const backBtn = document.getElementById("backToMyTripsHeroBtn");
   if (backBtn) backBtn.style.display = "none";
   
@@ -1598,9 +2261,82 @@ async function openTripPanel(id) {
   switchTab('home');
 }
 
+function getPlanTrips() {
+  return (tripsList || []).filter(trip => trip && trip.id && trip.status !== 'archived');
+}
+
+function renderPlanTripSelector() {
+  const switcher = document.getElementById('planTripSwitcher');
+  const select = document.getElementById('planTripSelect');
+  const activeName = document.getElementById('activePlanTripName');
+  const meta = document.getElementById('planTripSwitcherMeta');
+  if (!switcher || !select || !activeName || !meta) return;
+
+  if (isSharedView) {
+    switcher.classList.add('hidden');
+    return;
+  }
+  switcher.classList.remove('hidden');
+
+  const availableTrips = getPlanTrips();
+  const currentId = String(getActiveTripId() || tripData.id || '');
+  select.innerHTML = availableTrips.map(trip => {
+    const title = trip.tripTitle || trip.destination || 'Viagem sem título';
+    const dates = trip.infoDates && trip.infoDates !== 'A definir' ? ` · ${trip.infoDates}` : '';
+    return `<option value="${escapeHtml(trip.id)}">${escapeHtml(title + dates)}</option>`;
+  }).join('');
+
+  if (availableTrips.some(trip => String(trip.id) === currentId)) select.value = currentId;
+  select.disabled = availableTrips.length < 2;
+  activeName.textContent = tripData.tripTitle || tripData.destination || 'Minha viagem';
+  meta.textContent = availableTrips.length === 1
+    ? 'Esta viagem abastece todas as abas'
+    : `${availableTrips.length} viagens disponíveis · usada em todas as abas`;
+}
+
+let planTripSwitchInProgress = false;
+async function switchPlanTrip(id) {
+  if (!id || planTripSwitchInProgress || String(id) === String(getActiveTripId())) return;
+  const select = document.getElementById('planTripSelect');
+  planTripSwitchInProgress = true;
+  if (select) {
+    select.disabled = true;
+    select.setAttribute('aria-busy', 'true');
+  }
+
+  try {
+    const selectedTrip = await loadTripById(id);
+    if (!selectedTrip) throw new Error('Viagem não encontrada.');
+
+    setActiveTripId(id);
+    tripData = normalizeTripState(selectedTrip);
+    localStorage.setItem(getTripStorageKey('gptViajante_tripData', id), JSON.stringify(tripData));
+    activeFilter = 'all';
+    mobileShowAllDays = false;
+
+    await loadState();
+    setupCountdown();
+    renderDashboard();
+    switchTab('home');
+    renderPlanTripSelector();
+    window.showToast?.(`${tripData.tripTitle || 'Viagem'} definida como viagem ativa.`, 'success');
+  } catch (error) {
+    console.error('Falha ao trocar a viagem no Plan:', error);
+    window.showToast?.('Não foi possível abrir essa viagem agora.', 'error');
+    renderPlanTripSelector();
+  } finally {
+    planTripSwitchInProgress = false;
+    if (select) {
+      select.removeAttribute('aria-busy');
+      select.disabled = getPlanTrips().length < 2;
+    }
+  }
+}
+
 window.showMyTripsScreen = showMyTripsScreen;
 window.archiveTrip = archiveTrip;
 window.openTripPanel = openTripPanel;
+window.switchPlanTrip = switchPlanTrip;
 
 async function loadState() {
   await loadTrips();
@@ -1621,7 +2357,7 @@ async function loadState() {
   // Ensure myTripsSection is hidden when inside an active trip
   document.getElementById("myTripsSection").classList.add("hidden");
   document.getElementById("dashboardContent").classList.remove("trips-view");
-  document.getElementById("bottomNav").style.display = "flex";
+  document.getElementById("bottomNav")?.style.setProperty('display', 'flex', 'important');
   const backBtn = document.getElementById("backToMyTripsHeroBtn");
   if (backBtn) backBtn.style.display = "inline-flex";
 
@@ -1632,14 +2368,16 @@ async function loadState() {
     const savedTrip = localStorage.getItem(getTripStorageKey("gptViajante_tripData", activeTripId));
 
     if (savedHistory) {
-      chatHistory = JSON.parse(savedHistory);
+      chatHistory = sanitizePersistedChatHistory(JSON.parse(savedHistory));
+      localStorage.setItem(getTripStorageKey("gptViajante_chatHistory", activeTripId), JSON.stringify(chatHistory));
       renderChatHistory('plan');
     } else {
       chatHistory = [];
     }
 
     if (savedTravelHistory) {
-      travelChatHistory = JSON.parse(savedTravelHistory);
+      travelChatHistory = sanitizePersistedChatHistory(JSON.parse(savedTravelHistory));
+      localStorage.setItem(getTripStorageKey("gptViajante_travelChatHistory", activeTripId), JSON.stringify(travelChatHistory));
       renderChatHistory('travel');
     } else {
       travelChatHistory = [];
@@ -1647,6 +2385,11 @@ async function loadState() {
 
     if (savedTrip) {
       tripData = normalizeTripState(JSON.parse(savedTrip));
+      const recoveredTrip = recoverCoreTripFactsFromHistory(tripData, chatHistory);
+      if (JSON.stringify(recoveredTrip) !== JSON.stringify(tripData)) {
+        tripData = recoveredTrip;
+        localStorage.setItem(getTripStorageKey("gptViajante_tripData", activeTripId), JSON.stringify(tripData));
+      }
     } else {
       tripData = normalizeTripState({});
     }
@@ -1676,7 +2419,8 @@ async function loadState() {
 
     if (savedHistory) {
       try {
-        chatHistory = JSON.parse(savedHistory);
+        chatHistory = sanitizePersistedChatHistory(JSON.parse(savedHistory));
+        localStorage.setItem(getTripStorageKey("gptViajante_chatHistory", activeTripId), JSON.stringify(chatHistory));
         renderChatHistory('plan');
       } catch (e) {
         console.warn("Failed to parse cached chatHistory:", e);
@@ -1685,7 +2429,8 @@ async function loadState() {
 
     if (savedTravelHistory) {
       try {
-        travelChatHistory = JSON.parse(savedTravelHistory);
+        travelChatHistory = sanitizePersistedChatHistory(JSON.parse(savedTravelHistory));
+        localStorage.setItem(getTripStorageKey("gptViajante_travelChatHistory", activeTripId), JSON.stringify(travelChatHistory));
         renderChatHistory('travel');
       } catch (e) {
         console.warn("Failed to parse cached travelChatHistory:", e);
@@ -1754,7 +2499,7 @@ async function loadState() {
           }
 
           // Map DB schema to front-end tripData structure
-          const remoteTripData = normalizeTripState({
+          let remoteTripData = normalizeTripState({
             id: activeTrip.id,
             tripTitle: activeTrip.title,
             tripSubtitle: activeTrip.subtitle,
@@ -1778,6 +2523,7 @@ async function loadState() {
             expenses: activeTrip.expenses,
             documents: []
           });
+          const shouldSyncGeneratedPacking = (!Array.isArray(activeTrip.packing) || activeTrip.packing.length === 0) && remoteTripData.packing.length > 0;
 
           // 2. Fetch Chat Histories and Documents in parallel to save HTTP round-trips
           const [chatRes, docsRes] = await Promise.all([
@@ -1801,6 +2547,12 @@ async function loadState() {
               remoteTravelChatHistory = travelChat.messages;
             }
           }
+
+          // Recover facts that older AI replies left only in the conversation
+          // (dates, group and accommodation) before comparing/saving the trip.
+          const remoteTripBeforeFactRecovery = JSON.stringify(remoteTripData);
+          remoteTripData = recoverCoreTripFactsFromHistory(remoteTripData, remoteChatHistory);
+          const shouldSyncRecoveredFacts = remoteTripBeforeFactRecovery !== JSON.stringify(remoteTripData);
 
           if (docsRes.data) {
             remoteTripData.documents = docsRes.data.map(d => ({
@@ -1841,6 +2593,7 @@ async function loadState() {
             localStorage.setItem(getTripStorageKey("gptViajante_chatHistory", activeTripId), JSON.stringify(chatHistory));
             localStorage.setItem(getTripStorageKey("gptViajante_travelChatHistory", activeTripId), JSON.stringify(travelChatHistory));
             localStorage.setItem(getTripStorageKey("gptViajante_tripData", activeTripId), JSON.stringify(tripData));
+            if (shouldSyncGeneratedPacking || shouldSyncRecoveredFacts) saveState();
           } else {
             console.log("State is already in sync with Supabase.");
           }
@@ -1857,9 +2610,23 @@ async function loadState() {
   tripData.members = tripData.members || ["Você"];
   tripData.expenses = tripData.expenses || [];
   tripData.documents = tripData.documents || [];
+
+  // One-time, idempotent recovery for trips created before the core-facts
+  // synchronizer existed. This immediately repairs the dashboard on reload.
+  tripData = recoverCoreTripFactsFromHistory(tripData, chatHistory);
+
+  // Migra viagens antigas que já têm destino e data, mas ainda nasceram sem mala.
+  // A lista preenchida pelo viajante nunca é substituída.
+  localStorage.setItem(getTripStorageKey("gptViajante_tripData", activeTripId), JSON.stringify(tripData));
+  const tripIndex = tripsList.findIndex(trip => trip.id === tripData.id);
+  if (tripIndex >= 0) {
+    tripsList[tripIndex] = tripData;
+    localStorage.setItem(getUserStorageKey("gptViajante_trips"), JSON.stringify(tripsList));
+  }
   
   renderFlights();
   renderSplitwise();
+  renderPackingChecklist();
   checkItineraryStatus();
 }
 
@@ -1958,9 +2725,64 @@ async function saveState() {
 // ==========================================================================
 // 2. BOTTOM NAVIGATION (ALL SCREEN SIZES)
 // ==========================================================================
-let travelMode = false;
+function setupGlobalNavigationDelegation() {
+  window._realSwitchTab = switchTab;
+  window.switchTab = switchTab;
+  window._realShowMyTripsScreen = showMyTripsScreen;
+  window.showMyTripsScreen = showMyTripsScreen;
+  window._realOpenTutorial = openTutorial;
+  window.openTutorial = openTutorial;
+
+  if (window._pendingTab) {
+    const pending = window._pendingTab;
+    delete window._pendingTab;
+    switchTab(pending);
+  }
+  if (window._pendingShowMyTrips) {
+    delete window._pendingShowMyTrips;
+    showMyTripsScreen();
+  }
+  if (window._pendingOpenTutorial) {
+    delete window._pendingOpenTutorial;
+    openTutorial();
+  }
+
+  if (window._globalNavDelegationSetup) return;
+  window._globalNavDelegationSetup = true;
+
+  // Use CAPTURING phase (true) so the event is captured at the document root
+  // BEFORE any lower element can block propagation or consume the click
+  document.addEventListener('click', (e) => {
+    const navBtn = e.target.closest('.bottom-nav-btn, [data-tab]');
+    if (navBtn && navBtn.dataset.tab) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      switchTab(navBtn.dataset.tab);
+      return;
+    }
+
+    const myTripsBtn = e.target.closest('#backToMyTripsHeroBtn, #backToTripsBtn, .back-to-trips-btn');
+    if (myTripsBtn) {
+      showMyTripsScreen();
+      return;
+    }
+
+    const tutorialBtn = e.target.closest('#tutorialBtn, .tutorial-trigger-btn');
+    if (tutorialBtn) {
+      openTutorial();
+      return;
+    }
+
+    const brandBtn = e.target.closest('.app-brand');
+    if (brandBtn) {
+      switchTab('home');
+      return;
+    }
+  }, true);
+}
 
 function setupBottomNav() {
+  setupGlobalNavigationDelegation();
   const chatSidebar = document.getElementById('chatSidebar');
   const dashboardContent = document.getElementById('dashboardContent');
   const myTripsSection = document.getElementById('myTripsSection');
@@ -1968,7 +2790,7 @@ function setupBottomNav() {
 
   document.querySelectorAll('.bottom-nav-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      switchTab(btn.dataset.tab);
+      if (btn.dataset.tab) switchTab(btn.dataset.tab);
     });
   });
 
@@ -1976,17 +2798,36 @@ function setupBottomNav() {
     chatSidebar.style.display = 'none';
     dashboardContent.style.display = 'block';
     dashboardContent.classList.add('trips-view');
-    if (bottomNav) bottomNav.style.display = 'none';
+    if (bottomNav) bottomNav.style.setProperty('display', 'flex', 'important');
     return;
   }
 
   // The Home button is active in the initial markup, so the visible surface
   // must match it. Chat remains one explicit navigation action away.
-  if (bottomNav) bottomNav.style.display = 'flex';
+  if (bottomNav) bottomNav.style.setProperty('display', 'flex', 'important');
   switchTab('home');
 }
 
 function switchTab(tab) {
+  const hasActiveTrip = Boolean(getActiveTripId() || tripData?.id);
+  if (!hasActiveTrip) {
+    if (tab === 'chat') {
+      startTripViaChat();
+      return;
+    }
+    if (tab === 'home') {
+      showMyTripsScreen();
+      return;
+    }
+    if (tab !== 'inspiracoes') {
+      showMyTripsScreen();
+      document.getElementById('openCreateTripModalBtn')?.click();
+      window.showToast?.('Crie uma viagem para liberar esta área.', 'info');
+      return;
+    }
+  }
+  document.body.dataset.activeTab = tab;
+  document.body.classList.toggle('no-active-trip', !hasActiveTrip);
   const chatSidebar = document.getElementById('chatSidebar');
   const dashboardContent = document.getElementById('dashboardContent');
   const allBtns = document.querySelectorAll('.bottom-nav-btn');
@@ -1995,6 +2836,10 @@ function switchTab(tab) {
   const modeLabel = document.getElementById('chatModeLabel');
 
   dashboardContent.classList.remove('trips-view');
+  const myTripsSection = document.getElementById('myTripsSection');
+  if (myTripsSection) myTripsSection.classList.add('hidden');
+  const bottomNav = document.getElementById('bottomNav');
+  if (bottomNav) bottomNav.style.setProperty('display', 'flex', 'important');
 
   allBtns.forEach(b => b.classList.remove('active'));
   const activeBtn = document.querySelector(`.bottom-nav-btn[data-tab="${tab}"]`);
@@ -2025,6 +2870,7 @@ function switchTab(tab) {
     
     const sectionMap = {
       home: 'homeSection',
+      inspiracoes: 'inspirationsSection',
       logistica: 'logisticaSection',
       roteiro: 'itinerarySection',
       orcamento: 'budgetSection',
@@ -2055,9 +2901,18 @@ function switchTab(tab) {
     }
     
     if (tab === 'home') {
-      if (typeof renderHomeDashboard === 'function') {
-        renderHomeDashboard();
-      }
+      renderPlanTripSelector();
+      if (typeof renderHomeDashboard === 'function') renderHomeDashboard();
+    } else if (tab === 'inspiracoes') {
+      if (typeof window.renderInspirationsGrid === 'function') window.renderInspirationsGrid();
+    } else if (tab === 'orcamento') {
+      if (typeof renderBudget === 'function') renderBudget();
+    } else if (tab === 'mala') {
+      renderPackingChecklist();
+    } else if (tab === 'logistica') {
+      if (typeof renderDocuments === 'function') renderDocuments();
+    } else if (tab === 'roteiro') {
+      if (typeof renderTimeline === 'function') renderTimeline();
     }
     
     // Reset scroll to top of the dashboard content
@@ -2071,6 +2926,7 @@ function switchTab(tab) {
     window.visualViewport.dispatchEvent(new Event('resize'));
   }
 }
+window.switchTab = switchTab;
 
 function setTravelMode(active) {
   travelMode = active;
@@ -2087,6 +2943,16 @@ function setTravelMode(active) {
 // ==========================================================================
 let currentTutorialSlide = 0;
 const TUTORIAL_TOTAL_SLIDES = 8;
+const TUTORIAL_STEP_LABELS = [
+  'Comece por aqui',
+  'Viagem ativa',
+  'Inspirações',
+  'Roteiro',
+  'Orçamento',
+  'Mala',
+  'Carteira',
+  'VEROA'
+];
 
 function openTutorial() {
   const modal = document.getElementById('tutorialModal');
@@ -2094,7 +2960,10 @@ function openTutorial() {
   modal.classList.remove('hidden');
   goToSlide(0);
   document.body.style.overflow = 'hidden';
+  document.getElementById('tutorialClose')?.focus();
 }
+window.openTutorial = openTutorial;
+window.showMyTripsScreen = showMyTripsScreen;
 
 function closeTutorial() {
   const modal = document.getElementById('tutorialModal');
@@ -2114,7 +2983,13 @@ function goToSlide(n) {
   // Update dots
   document.querySelectorAll('.tut-dot').forEach((dot, i) => {
     dot.classList.toggle('active', i === currentTutorialSlide);
+    dot.setAttribute('aria-current', i === currentTutorialSlide ? 'step' : 'false');
   });
+
+  const stepLabel = document.getElementById('tutorialStepLabel');
+  const progressBar = document.getElementById('tutorialProgressBar');
+  if (stepLabel) stepLabel.textContent = `${TUTORIAL_STEP_LABELS[currentTutorialSlide]} · ${currentTutorialSlide + 1} de ${TUTORIAL_TOTAL_SLIDES}`;
+  if (progressBar) progressBar.style.width = `${((currentTutorialSlide + 1) / TUTORIAL_TOTAL_SLIDES) * 100}%`;
 
   // Show/hide finish button on last slide
   const finishBtn = document.getElementById('tutFinish');
@@ -2136,6 +3011,9 @@ function goToSlide(n) {
     prevBtn.style.opacity = currentTutorialSlide === 0 ? '0.3' : '';
     prevBtn.style.pointerEvents = currentTutorialSlide === 0 ? 'none' : '';
   }
+
+  const tutorialCard = document.querySelector('.tutorial-card');
+  if (tutorialCard) tutorialCard.scrollTop = 0;
 }
 
 // Wire tutorial controls (called after DOM is ready)
@@ -2147,6 +3025,9 @@ function setupTutorialListeners() {
   const overlay = document.getElementById('tutorialModal');
   const card = overlay?.querySelector('.tutorial-card');
 
+  if (!overlay || overlay.dataset.tutorialReady === 'true') return;
+  overlay.dataset.tutorialReady = 'true';
+
   if (closeBtn) closeBtn.addEventListener('click', closeTutorial);
   if (finishBtn) finishBtn.addEventListener('click', closeTutorial);
   if (prevBtn) prevBtn.addEventListener('click', () => goToSlide(currentTutorialSlide - 1));
@@ -2157,12 +3038,18 @@ function setupTutorialListeners() {
     dot.addEventListener('click', () => goToSlide(parseInt(dot.dataset.dot)));
   });
 
-  // Close on overlay click (not on card click)
-  if (overlay) {
-    overlay.addEventListener('click', (e) => {
-      if (card && !card.contains(e.target)) closeTutorial();
+  overlay.querySelectorAll('[data-tutorial-tab]').forEach(button => {
+    button.addEventListener('click', () => {
+      const targetTab = button.dataset.tutorialTab;
+      closeTutorial();
+      if (targetTab) switchTab(targetTab);
     });
-  }
+  });
+
+  // Close on overlay click (not on card click)
+  overlay.addEventListener('click', (e) => {
+    if (card && !card.contains(e.target)) closeTutorial();
+  });
 
   // Keyboard navigation
   document.addEventListener('keydown', (e) => {
@@ -2187,6 +3074,11 @@ function setupUIEventListeners() {
   const closeLightbox = document.getElementById("closeLightbox");
   const lightbox = document.getElementById("galleryLightbox");
   const logoutBtn = document.getElementById("logoutBtn");
+  const planTripSelect = document.getElementById('planTripSelect');
+  const manageTripsFromPlanBtn = document.getElementById('manageTripsFromPlanBtn');
+
+  planTripSelect?.addEventListener('change', event => switchPlanTrip(event.target.value));
+  manageTripsFromPlanBtn?.addEventListener('click', showMyTripsScreen);
 
   // Autoresize chat textarea
   if (chatInput) {
@@ -2376,10 +3268,6 @@ function setupUIEventListeners() {
   if (travelFileInput) travelFileInput.addEventListener("change", (e) => handleFileSelect(e, 'travel'));
   if (travelCameraInput) travelCameraInput.addEventListener("change", (e) => handleFileSelect(e, 'travel'));
 
-  // Export PDF
-  const exportPdfBtn = document.getElementById("exportPdfBtn");
-  if (exportPdfBtn) exportPdfBtn.addEventListener("click", exportAsPdf);
-
   // Close Lightbox
   if (closeLightbox && lightbox) {
     closeLightbox.addEventListener("click", () => { lightbox.style.display = "none"; });
@@ -2505,28 +3393,6 @@ function setupUIEventListeners() {
     saveHotelBtn.addEventListener("click", handleSaveHotelAndSync);
   }
 
-  // Alternador de Tema (Claro/Escuro)
-  const toggleThemeBtn = document.getElementById("toggleThemeBtn");
-  if (toggleThemeBtn) {
-    if (document.body.classList.contains("light-theme")) {
-      toggleThemeBtn.innerHTML = `<i class="fa-solid fa-moon"></i> Tema Escuro`;
-    } else {
-      toggleThemeBtn.innerHTML = `<i class="fa-solid fa-sun"></i> Tema Claro`;
-    }
-
-    toggleThemeBtn.addEventListener("click", () => {
-      const isLight = document.body.classList.toggle("light-theme");
-      if (isLight) {
-        localStorage.setItem("gptViajante_theme", "light");
-        toggleThemeBtn.innerHTML = `<i class="fa-solid fa-moon"></i> Tema Escuro`;
-      } else {
-        localStorage.setItem("gptViajante_theme", "dark");
-        toggleThemeBtn.innerHTML = `<i class="fa-solid fa-sun"></i> Tema Claro`;
-      }
-      const settingsPanel = document.getElementById("settingsPanel");
-      if (settingsPanel) settingsPanel.classList.add("hidden");
-    });
-  }
 }
 
 async function handleFlightSearchSubmit(e) {
@@ -2776,8 +3642,8 @@ function autoInjectPlaceLinks(html) {
       ? tripData.tripTitle.split(',')[0].trim()
       : '';
 
-    const query = dest ? `${cleanLabel}, ${dest}` : cleanLabel;
-    const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
+    const query = buildContextualMapQuery([cleanLabel], dest);
+    const mapsUrl = buildGoogleMapsSearchUrl([cleanLabel], dest);
     const taUrl   = `https://www.tripadvisor.com.br/Search?q=${encodeURIComponent(query)}`;
 
     return `<strong>${label}</strong>` +
@@ -2937,7 +3803,56 @@ function stripJsonCodeBlock(text) {
       }
     }
   }
+  // 4. Remove payloads de ações que vieram sem bloco Markdown após um texto legível.
+  // Alguns provedores podem devolver "resposta para o usuário" + JSON bruto.
+  const embedded = findEmbeddedActionJson(cleaned);
+  for (const item of [...embedded].reverse()) {
+    cleaned = cleaned.slice(0, item.start) + cleaned.slice(item.end);
+  }
+  cleaned = cleaned
+    .replace(/^\s*(?:```|~~~)?\s*json\s*(?:```|~~~)?\s*$/gim, '')
+    .replace(/^\s*(?:```|~~~)\s*$/gm, '')
+    .replace(/\n{3,}/g, '\n\n');
   return cleaned.trim();
+}
+
+function findEmbeddedActionJson(text) {
+  const source = String(text || '');
+  const found = [];
+  for (let start = 0; start < source.length; start++) {
+    if (source[start] !== '{' && source[start] !== '[') continue;
+    const stack = [];
+    let inString = false;
+    let escaped = false;
+    for (let cursor = start; cursor < source.length; cursor++) {
+      const char = source[cursor];
+      if (inString) {
+        if (escaped) escaped = false;
+        else if (char === '\\') escaped = true;
+        else if (char === '"') inString = false;
+        continue;
+      }
+      if (char === '"') { inString = true; continue; }
+      if (char === '{' || char === '[') stack.push(char);
+      else if (char === '}' || char === ']') {
+        const opening = stack.pop();
+        if ((opening === '{' && char !== '}') || (opening === '[' && char !== ']')) break;
+        if (stack.length === 0) {
+          const candidate = source.slice(start, cursor + 1);
+          try {
+            const value = JSON.parse(candidate);
+            const looksLikeActions = Array.isArray(value)
+              ? value.some(item => item?.operation && item?.type)
+              : Array.isArray(value?.actions) || (value?.operation && value?.type);
+            if (looksLikeActions) found.push({ start, end: cursor + 1, value });
+          } catch (_) {}
+          if (found.at(-1)?.start === start) start = cursor;
+          break;
+        }
+      }
+    }
+  }
+  return found;
 }
 
 function extractJsonFromReply(replyContent) {
@@ -2971,7 +3886,11 @@ function extractJsonFromReply(replyContent) {
     }
   }
 
-  // 3. Fallback: try parsing the whole string
+  // 3. Aceita payload de ações anexado sem cercas de código.
+  const embedded = findEmbeddedActionJson(replyContent);
+  if (embedded.length > 0) return embedded[0].value;
+
+  // 4. Fallback: try parsing the whole string
   try {
     return JSON.parse(replyContent.trim());
   } catch (e) {
@@ -2982,14 +3901,85 @@ function extractJsonFromReply(replyContent) {
 }
 
 
+function applyNaturalLanguageTransportUpdate(message) {
+  const commands = inferTransportCommands(message).map(command => ({ ...command, source: 'ai_chat' }));
+  if (commands.length === 0) return null;
+  const result = applyTransportCommandsToTrip(tripData, commands);
+  if (!result.changed) return null;
+  tripData = pureNormalizeTripState(result.trip);
+  saveState();
+  renderDashboard();
+  renderDocuments();
+  const impact = result.itineraryChanged ? ' Roteiro e deslocamentos locais adaptados.' : '';
+  const labels = result.commands.map(command => command.label).join(' + ');
+  window.showToast?.(`${labels} salvos no plano de transporte.${impact}`, 'success');
+  return result;
+}
+
+function applyNaturalLanguagePlanningUpdate(message) {
+  const inferred = inferPlanningPreferences(message);
+  const preferenceResult = inferred ? applyPlanningPreferencesToTrip(tripData, inferred) : { trip: tripData, changed: false };
+  const conversationFacts = inferConversationTripFacts(chatHistory, preferenceResult.trip);
+  const factsResult = applyConversationTripFacts(preferenceResult.trip, conversationFacts);
+  if (!preferenceResult.changed && !factsResult.changed) return null;
+  tripData = pureNormalizeTripState(factsResult.trip);
+  saveState();
+  renderDashboard();
+  return { changed: true, inferred, facts: conversationFacts };
+}
+
+function recoverCoreTripFactsFromHistory(baseTrip, history = chatHistory) {
+  const facts = inferConversationTripFacts(history, baseTrip);
+  const recovered = applyConversationTripFacts(baseTrip, facts);
+  let nextTrip = recovered.changed ? recovered.trip : baseTrip;
+  for (const message of history || []) {
+    if (message?.role === 'user' && message?.content) {
+      nextTrip = alignTripToCalendarCommitments(nextTrip, message.content);
+    }
+  }
+  return pureNormalizeTripState(nextTrip);
+}
+
+function getTransportChatConfirmation(result) {
+  if (!result?.changed) return '';
+  const roleNames = { arrival: 'Chegada', local: 'No destino', departure: 'Volta', entire_trip: 'Chegada e mobilidade local', specific_leg: 'Trecho específico' };
+  const summary = result.commands.map(command => `**${roleNames[command.scope] || 'Transporte'}:** ${command.label}`).join(' · ');
+  const itineraryText = result.itineraryChanged ? ' Também adaptei os deslocamentos locais do roteiro atual.' : '';
+  return `🧭 **Plano de transporte atualizado:** ${summary}.${itineraryText}`;
+}
+
+function isCreateTripIntent(message) {
+  const text = String(message || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  return /\b(criar|cadastrar|adicionar|comecar|planejar)\b.{0,28}\b(nova|outra|minha)\s+viagem\b|\bquero\s+(?:uma\s+)?nova\s+viagem\b/.test(text);
+}
+
+function openCreateTripFlowFromChat(message) {
+  startTripViaChat(message);
+}
+
+const chatRequestInFlight = { plan: false, travel: false };
+
+function setChatRequestBusy(mode, busy) {
+  chatRequestInFlight[mode] = busy;
+  const button = document.getElementById(mode === 'travel' ? 'travelSendBtn' : 'sendBtn');
+  const input = document.getElementById(mode === 'travel' ? 'travelChatInput' : 'chatInput');
+  if (button) {
+    button.disabled = busy;
+    button.setAttribute('aria-busy', String(busy));
+  }
+  if (input) input.setAttribute('aria-busy', String(busy));
+}
+
 // Sending and Receiving Message (Planning Chat)
 async function handleUserSendMessage() {
+  if (chatRequestInFlight.plan) return;
   if (!window.checkAiLimit()) return;
   const chatInput = document.getElementById("chatInput");
   const text = chatInput.value.trim();
   
   const currentAttachment = planAttachment;
   if (!text && !currentAttachment) return;
+  setChatRequestBusy('plan', true);
 
   const now = new Date();
   const timeStr = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
@@ -3015,11 +4005,36 @@ async function handleUserSendMessage() {
     };
   }
   chatHistory.push(userMsgObject);
-  saveState();
+  if (isCreateTripIntent(text)) {
+    const replyTime = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    const localReply = 'Claro — abri a criação de uma nova viagem. Informe o destino e as datas para começarmos.';
+    appendMessageBubble('assistant', localReply, replyTime, 'plan');
+    chatHistory.push({ role: 'assistant', content: localReply, time: replyTime });
+    saveState();
+    window.setTimeout(() => openCreateTripFlowFromChat(text), 250);
+    setChatRequestBusy('plan', false);
+    return;
+  }
+  let transportSync = null;
+  try {
+    applyNaturalLanguagePlanningUpdate(text);
+    transportSync = applyNaturalLanguageTransportUpdate(text);
+    saveState();
+  } catch (error) {
+    if (chatHistory.at(-1)?.role === 'user' && chatHistory.at(-1)?.content === text) chatHistory.pop();
+    userMsgEl?.remove();
+    if (!chatInput.value) chatInput.value = text;
+    chatInput.dispatchEvent(new Event('input', { bubbles: true }));
+    appendMessageBubble('assistant', '⚠️ Não consegui preparar essa alteração. Seu pedido continua no campo para você tentar novamente.', null, 'plan');
+    setChatRequestBusy('plan', false);
+    console.error('Chat preparation error:', error);
+    return;
+  }
 
   if (!navigator.onLine) {
     const replyTime = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-    const offlineReply = `📴 **Modo Offline Ativado:** Identifiquei que você está sem conexão com a internet no momento. O assistente de Inteligência Artificial precisa de conexão para processar mensagens e atualizar o roteiro. \n\nNo entanto, **todo o restante do aplicativo está disponível offline!** Você pode visualizar e editar seu cronograma, mala de viagem, logística de voos e controle de gastos. Suas alterações serão guardadas localmente e sincronizadas assim que a internet retornar.`;
+    const offlineTransport = getTransportChatConfirmation(transportSync);
+    const offlineReply = `${offlineTransport ? `${offlineTransport}\n\n` : ''}📴 **Modo Offline:** a mudança ficou salva neste aparelho. Quando a conexão voltar, o CoPiloto poderá complementar a resposta.`;
     const assistantMsgEl = appendMessageBubble("assistant", offlineReply, replyTime, 'plan');
     if (assistantMsgEl) {
       const container = document.getElementById("chatMessages");
@@ -3027,6 +4042,7 @@ async function handleUserSendMessage() {
     }
     chatHistory.push({ role: "assistant", content: offlineReply, time: replyTime });
     saveState();
+    setChatRequestBusy('plan', false);
     return;
   }
 
@@ -3047,12 +4063,17 @@ async function handleUserSendMessage() {
           hotelLink: tripData.hotelLink,
           flights: tripData.flights,
           budget: tripData.budget,
-          dates: tripData.infoDates,
+          dates: { start: tripData.start_date, end: tripData.end_date, label: tripData.infoDates },
+          start_date: tripData.start_date,
+          end_date: tripData.end_date,
           destination: tripData.tripTitle,
           itinerary: tripData.itinerary,
           packing: tripData.packing,
           expenses: tripData.expenses,
           reservations: tripData.reservations,
+          primaryTransport: tripData.primaryTransport,
+          transportPlan: tripData.transportPlan,
+          preferences: tripData.preferences,
           members: tripData.members,
           accommodations: tripData.accommodations,
           ai_context: tripData.ai_context
@@ -3076,13 +4097,19 @@ async function handleUserSendMessage() {
     if (response.status === 401 || response.status === 403) {
       const errData = await response.json().catch(() => ({}));
       removeTypingIndicator('plan');
-      appendMessageBubble("assistant", `⚠️ **Acesso Não Autorizado:** ${errData.error || "Seu e-mail não está cadastrado."}`, null, 'plan');
+      const isLocalPreview = ['localhost', '127.0.0.1', '0.0.0.0'].includes(window.location.hostname);
+      const accessMessage = isLocalPreview
+        ? '🧪 **Prévia local:** a interface está funcionando, mas o CoPiloto inteligente só responde quando o ambiente local está conectado aos serviços autenticados.'
+        : `⚠️ **Acesso Não Autorizado:** ${errData.error || "Sua sessão expirou. Entre novamente."}`;
+      appendMessageBubble("assistant", accessMessage, null, 'plan');
       return;
     }
     if (!response.ok) {
       // Read the server's JSON error body before throwing so we can surface it
       const errData = await response.json().catch(() => ({}));
-      throw new Error(errData.error || `Erro ${response.status} na comunicação com o servidor.`);
+      const requestError = new Error(errData.error || 'O serviço inteligente está temporariamente indisponível.');
+      requestError.code = errData.code || `HTTP_${response.status}`;
+      throw requestError;
     }
 
     const data = await response.json();
@@ -3092,10 +4119,11 @@ async function handleUserSendMessage() {
     const replyContent = data.content;
     const parsedData = extractJsonFromReply(replyContent);
     if (parsedData) {
-      try { updateDashboardData(parsedData); } catch (err) { console.warn(err); }
+      try { updateDashboardData(parsedData, false, text); } catch (err) { console.warn(err); }
     }
 
-    const cleanReply = stripJsonCodeBlock(replyContent);
+    const transportConfirmation = getTransportChatConfirmation(transportSync);
+    const cleanReply = `${transportConfirmation ? `${transportConfirmation}\n\n` : ''}${stripJsonCodeBlock(replyContent)}`;
     const replyTime = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     const assistantMsgEl = appendMessageBubble("assistant", cleanReply, replyTime, 'plan');
     if (assistantMsgEl) {
@@ -3107,19 +4135,33 @@ async function handleUserSendMessage() {
 
   } catch (error) {
     removeTypingIndicator('plan');
-    appendMessageBubble("assistant", `❌ ${error.message}`, null, 'plan');
+    if (chatHistory.at(-1)?.role === 'user' && chatHistory.at(-1)?.content === text) chatHistory.pop();
+    userMsgEl?.remove();
+    if (!chatInput.value) chatInput.value = text;
+    chatInput.dispatchEvent(new Event('input', { bubbles: true }));
+    saveState();
+    const friendlyMessage = error.code === 'ITINERARY_RESEARCH_UNAVAILABLE' || error.code === 'ITINERARY_QUALITY_REJECTED'
+      ? error.message
+      : (error instanceof TypeError || /failed to fetch|network/i.test(error.message || '')
+        ? 'Não consegui conectar ao CoPiloto agora. Seu pedido foi mantido no campo; confira sua conexão e tente novamente.'
+        : 'O CoPiloto está temporariamente indisponível. Seu pedido foi mantido no campo para tentar novamente.');
+    appendMessageBubble("assistant", `⚠️ ${friendlyMessage}`, null, 'plan');
     console.error("Chat error:", error);
+  } finally {
+    setChatRequestBusy('plan', false);
   }
 }
 
 // Sending and Receiving Message (Travel Chat)
 async function handleTravelSendMessage() {
+  if (chatRequestInFlight.travel) return;
   if (!window.checkAiLimit()) return;
   const input = document.getElementById("travelChatInput");
   const text = input.value.trim();
   
   const currentAttachment = travelAttachment;
   if (!text && !currentAttachment) return;
+  setChatRequestBusy('travel', true);
 
   const now = new Date();
   const timeStr = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
@@ -3143,11 +4185,26 @@ async function handleTravelSendMessage() {
     };
   }
   travelChatHistory.push(userMsgObject);
-  saveState();
+  let transportSync = null;
+  try {
+    applyNaturalLanguagePlanningUpdate(text);
+    transportSync = applyNaturalLanguageTransportUpdate(text);
+    saveState();
+  } catch (error) {
+    if (travelChatHistory.at(-1)?.role === 'user' && travelChatHistory.at(-1)?.content === text) travelChatHistory.pop();
+    userMsgEl?.remove();
+    if (!input.value) input.value = text;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    appendMessageBubble('assistant', '⚠️ Não consegui preparar essa alteração. Seu pedido continua no campo para você tentar novamente.', null, 'travel');
+    setChatRequestBusy('travel', false);
+    console.error('Travel chat preparation error:', error);
+    return;
+  }
 
   if (!navigator.onLine) {
     const replyTime = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-    const offlineReply = `📴 **Modo Offline Ativado:** Identifiquei que você está sem conexão com a internet no momento. O assistente de Inteligência Artificial precisa de conexão para responder e atualizar as informações de viagem. \n\nNo entanto, **todo o restante do aplicativo está disponível offline!** Você pode visualizar e editar seu cronograma, mala de viagem, logística de voos e controle de gastos. Suas alterações serão guardadas localmente e sincronizadas assim que a internet retornar.`;
+    const offlineTransport = getTransportChatConfirmation(transportSync);
+    const offlineReply = `${offlineTransport ? `${offlineTransport}\n\n` : ''}📴 **Modo Offline:** a mudança ficou salva neste aparelho. Quando a conexão voltar, o CoPiloto poderá complementar a resposta.`;
     const assistantMsgEl = appendMessageBubble("assistant", offlineReply, replyTime, 'travel');
     if (assistantMsgEl) {
       const container = document.getElementById("travelChatMessages");
@@ -3155,6 +4212,7 @@ async function handleTravelSendMessage() {
     }
     travelChatHistory.push({ role: "assistant", content: offlineReply, time: replyTime });
     saveState();
+    setChatRequestBusy('travel', false);
     return;
   }
 
@@ -3175,12 +4233,17 @@ async function handleTravelSendMessage() {
           hotelLink: tripData.hotelLink,
           flights: tripData.flights,
           budget: tripData.budget,
-          dates: tripData.infoDates,
+          dates: { start: tripData.start_date, end: tripData.end_date, label: tripData.infoDates },
+          start_date: tripData.start_date,
+          end_date: tripData.end_date,
           destination: tripData.tripTitle,
           itinerary: tripData.itinerary,
           packing: tripData.packing,
           expenses: tripData.expenses,
           reservations: tripData.reservations,
+          primaryTransport: tripData.primaryTransport,
+          transportPlan: tripData.transportPlan,
+          preferences: tripData.preferences,
           members: tripData.members,
           accommodations: tripData.accommodations,
           ai_context: tripData.ai_context
@@ -3204,13 +4267,17 @@ async function handleTravelSendMessage() {
     if (response.status === 401 || response.status === 403) {
       const errData = await response.json().catch(() => ({}));
       removeTypingIndicator('travel');
-      appendMessageBubble("assistant", `⚠️ **Acesso Não Autorizado:** ${errData.error || "Seu e-mail não está cadastrado."}`, null, 'travel');
+      const isLocalPreview = ['localhost', '127.0.0.1', '0.0.0.0'].includes(window.location.hostname);
+      const accessMessage = isLocalPreview
+        ? '🧪 **Prévia local:** a interface está funcionando, mas o CoPiloto inteligente só responde quando o ambiente local está conectado aos serviços autenticados.'
+        : `⚠️ **Acesso Não Autorizado:** ${errData.error || "Sua sessão expirou. Entre novamente."}`;
+      appendMessageBubble("assistant", accessMessage, null, 'travel');
       return;
     }
     if (!response.ok) {
       // Read the server's JSON error body before throwing so we can surface it
       const errData = await response.json().catch(() => ({}));
-      throw new Error(errData.error || `Erro ${response.status} na comunicação com o servidor.`);
+      throw new Error('O serviço inteligente está temporariamente indisponível.');
     }
 
     const data = await response.json();
@@ -3220,10 +4287,11 @@ async function handleTravelSendMessage() {
     const replyContent = data.content;
     const parsedData = extractJsonFromReply(replyContent);
     if (parsedData) {
-      try { updateDashboardData(parsedData); } catch (err) { console.warn(err); }
+      try { updateDashboardData(parsedData, false, text); } catch (err) { console.warn(err); }
     }
 
-    const cleanReply = stripJsonCodeBlock(replyContent);
+    const transportConfirmation = getTransportChatConfirmation(transportSync);
+    const cleanReply = `${transportConfirmation ? `${transportConfirmation}\n\n` : ''}${stripJsonCodeBlock(replyContent)}`;
     const replyTime = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     const assistantMsgEl = appendMessageBubble("assistant", cleanReply, replyTime, 'travel');
     if (assistantMsgEl) {
@@ -3235,19 +4303,30 @@ async function handleTravelSendMessage() {
 
   } catch (error) {
     removeTypingIndicator('travel');
-    appendMessageBubble("assistant", `❌ ${error.message}`, null, 'travel');
+    if (travelChatHistory.at(-1)?.role === 'user' && travelChatHistory.at(-1)?.content === text) travelChatHistory.pop();
+    userMsgEl?.remove();
+    if (!input.value) input.value = text;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    saveState();
+    const friendlyMessage = error instanceof TypeError || /failed to fetch|network/i.test(error.message || '')
+      ? 'Não consegui conectar ao CoPiloto agora. Seu pedido foi mantido no campo; confira sua conexão e tente novamente.'
+      : 'O CoPiloto está temporariamente indisponível. Seu pedido foi mantido no campo para tentar novamente.';
+    appendMessageBubble("assistant", `⚠️ ${friendlyMessage}`, null, 'travel');
     console.error("Travel chat error:", error);
+  } finally {
+    setChatRequestBusy('travel', false);
   }
 }
 
 // ==========================================================================
 // 5. DASHBOARD STATE SYNC & RENDERING
 // ==========================================================================
-function updateDashboardData(newJson, skipLogisticsUpdate = false) {
+function updateDashboardData(newJson, skipLogisticsUpdate = false, calendarRequest = '') {
+  const previousDateSignature = `${tripData.destination || ''}|${tripData.start_date || ''}|${tripData.end_date || ''}`;
   if (newJson.actions && Array.isArray(newJson.actions)) {
     try {
       tripData = applyActions(newJson.actions, tripData);
-      showUndoToast();
+      showUndoToast(newJson.actions);
     } catch(e) {
       console.error("Action Engine Error:", e);
     }
@@ -3280,6 +4359,12 @@ function updateDashboardData(newJson, skipLogisticsUpdate = false) {
       if (newJson.flights) tripData.flights = newJson.flights;
     }
   }
+  if (calendarRequest) tripData = alignTripToCalendarCommitments(tripData, calendarRequest);
+
+  const nextDateSignature = `${tripData.destination || ''}|${tripData.start_date || ''}|${tripData.end_date || ''}`;
+  if (previousDateSignature !== nextDateSignature && tripData.destination && tripData.start_date && tripData.end_date) {
+    applyTripDateContext(tripData);
+  }
 
   // Persist State
   saveState();
@@ -3290,15 +4375,112 @@ function updateDashboardData(newJson, skipLogisticsUpdate = false) {
   logDebug("chat_state_updated", { id: tripData.id, updatedFields: Object.keys(newJson) });
 }
 
-window.showUndoToast = function() {
-  const toast = document.getElementById('undoToast');
-  if (toast) {
-    toast.classList.remove('hidden');
-    setTimeout(() => {
-      toast.classList.add('hidden');
-    }, 10000);
+function formatActionConfirmationText(actionsOrMsg) {
+  if (typeof actionsOrMsg === 'string') {
+    return { text: actionsOrMsg, tab: null, btnLabel: null };
   }
+  if (!Array.isArray(actionsOrMsg) || actionsOrMsg.length === 0) {
+    return { text: 'Alteração salva com sucesso', tab: null, btnLabel: null };
+  }
+
+  const primaryAction = actionsOrMsg[0];
+  const { type, operation, data } = primaryAction || {};
+
+  if (type === 'accommodations') {
+    return {
+      text: operation === 'delete' ? 'Hospedagem removida da Carteira' : 'Hospedagem atualizada na Carteira',
+      tab: 'logistica',
+      btnLabel: 'Ver na Carteira'
+    };
+  }
+  if (type === 'itinerary') {
+    const dayNum = (data && data.dayNum) ? `Dia ${data.dayNum} do ` : '';
+    return {
+      text: `${dayNum}Roteiro atualizado com sucesso`,
+      tab: 'roteiro',
+      btnLabel: 'Abrir Roteiro'
+    };
+  }
+  if (type === 'packing') {
+    const count = Array.isArray(data) ? data.length : 1;
+    return {
+      text: operation === 'delete' ? 'Item removido da Mala' : (count > 1 ? `${count} itens adicionados à Mala` : 'Mala atualizada com sucesso'),
+      tab: 'mala',
+      btnLabel: 'Ver Mala'
+    };
+  }
+  if (type === 'expenses' || type === 'budget') {
+    return {
+      text: type === 'expenses' ? 'Despesa registrada no Orçamento' : 'Orçamento da viagem atualizado',
+      tab: 'orcamento',
+      btnLabel: 'Ver Orçamento'
+    };
+  }
+  if (type === 'flights') {
+    return {
+      text: 'Voo salvo na Carteira de Viagem',
+      tab: 'logistica',
+      btnLabel: 'Ver na Carteira'
+    };
+  }
+  if (type === 'reservations' || type === 'documents') {
+    return {
+      text: 'Documento/Reserva salvo na Carteira',
+      tab: 'logistica',
+      btnLabel: 'Ver na Carteira'
+    };
+  }
+  if (type === 'preferences') {
+    return {
+      text: 'Preferências de viagem atualizadas',
+      tab: 'home',
+      btnLabel: 'Ver Painel'
+    };
+  }
+
+  return { text: 'Viagem atualizada com sucesso', tab: null, btnLabel: null };
 }
+
+window.formatActionConfirmationText = formatActionConfirmationText;
+
+window.showUndoToast = function(actionsOrMsg) {
+  const toast = document.getElementById('undoToast');
+  if (!toast) return;
+
+  const info = formatActionConfirmationText(actionsOrMsg);
+  const textEl = document.getElementById('undoToastText') || toast.querySelector('span');
+  if (textEl) {
+    textEl.textContent = info.text;
+  }
+
+  let ctaBtn = document.getElementById('undoToastCtaBtn');
+  if (info.tab && info.btnLabel) {
+    if (!ctaBtn) {
+      ctaBtn = document.createElement('button');
+      ctaBtn.id = 'undoToastCtaBtn';
+      ctaBtn.type = 'button';
+      ctaBtn.className = 'undo-toast-cta';
+      const undoBtn = document.getElementById('undoBtn');
+      if (undoBtn && undoBtn.parentElement) {
+        undoBtn.parentElement.insertBefore(ctaBtn, undoBtn);
+      }
+    }
+    ctaBtn.classList.remove('hidden');
+    ctaBtn.textContent = info.btnLabel;
+    ctaBtn.onclick = () => {
+      if (typeof switchTab === 'function') switchTab(info.tab);
+      toast.classList.add('hidden');
+    };
+  } else if (ctaBtn) {
+    ctaBtn.classList.add('hidden');
+  }
+
+  toast.classList.remove('hidden');
+  clearTimeout(window._undoToastTimer);
+  window._undoToastTimer = setTimeout(() => {
+    toast.classList.add('hidden');
+  }, 10000);
+};
 
 window.handleUndo = function() {
   try {
@@ -3387,7 +4569,10 @@ const getWMOWeatherDescription = (code) => {
 let lastFetchedWeatherTripId = null;
 
 const fetchRealWeatherForecast = async () => {
-  const city = tripData.tripTitle ? tripData.tripTitle.split(',')[0].trim() : '';
+  const city = String(tripData.destination || tripData.tripTitle || '')
+    .replace(/^viagem\s+(?:para|a)\s+/i, '')
+    .split(',')[0]
+    .trim();
   if (!city || city === "Minha Próxima Viagem" || city === "A definir") return;
 
   const cacheKey = (tripData.id || "temp") + "_" + city;
@@ -3405,6 +4590,7 @@ const fetchRealWeatherForecast = async () => {
     const lon = loc.longitude;
 
     let weatherText = "";
+    let forecastContext = null;
     const targetDateObj = parseLocalDate(tripData.targetDate);
 
     if (targetDateObj) {
@@ -3437,12 +4623,13 @@ const fetchRealWeatherForecast = async () => {
             const weatherDesc = getWMOWeatherDescription(mostCommonCode);
 
             weatherText = `${avgMin}°C a ${avgMax}°C (${weatherDesc.emoji} ${weatherDesc.text})`;
+            forecastContext = { summary: weatherText, codes, avgMin, avgMax, startDate: start_date, endDate: end_date };
           }
         }
       }
     }
 
-    if (!weatherText) {
+    if (!weatherText && !targetDateObj) {
       const currentUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true&timezone=auto`;
       const currentRes = await fetch(currentUrl);
       if (currentRes.ok) {
@@ -3457,6 +4644,14 @@ const fetchRealWeatherForecast = async () => {
     }
 
     if (weatherText) {
+      if (forecastContext && tripData.date_context) {
+        applyForecastContext(tripData, forecastContext);
+        syncActiveTripSummary();
+        saveState();
+        renderTripDateContext();
+        renderTimeline();
+        window.renderHomeDashboard?.();
+      }
       const infoWeatherEl = document.getElementById("infoWeather");
       if (infoWeatherEl) {
         infoWeatherEl.innerHTML = `<span class="weather-forecast" title="Previsão real obtida de satélite">${weatherText}</span>`;
@@ -3470,6 +4665,7 @@ const fetchRealWeatherForecast = async () => {
 
 function renderDashboard() {
   window.renderAffiliates();
+  renderPlanTripSelector();
 
   // Ensure budget object exists
   tripData.budget = tripData.budget || { hospedagem: 0, alimentacao: 0, passeios: 0, compras: 0 };
@@ -3481,7 +4677,7 @@ function renderDashboard() {
                       (tripData.budget.compras || 0);
 
   if (totalBudget === 0) {
-    const numDays = (tripData.itinerary && tripData.itinerary.length > 0) ? tripData.itinerary.length : 5;
+    const numDays = tripData.date_context?.days || ((tripData.itinerary && tripData.itinerary.length > 0) ? tripData.itinerary.length : 5);
     const thresholds = tripData.budgetThresholds || { economico: 150, intermediario: 450 };
     const dailyEst = thresholds.economico ? thresholds.economico * 2 : 300; 
     const estimatedTotal = dailyEst * numDays;
@@ -3490,6 +4686,15 @@ function renderDashboard() {
     tripData.budget.alimentacao = Math.round(estimatedTotal * 0.30);
     tripData.budget.passeios = Math.round(estimatedTotal * 0.20);
     tripData.budget.compras = Math.round(estimatedTotal * 0.10);
+    tripData.budget_generation_source = 'automatic';
+    tripData.budget_context = tripData.budget_context || {
+      days: numDays,
+      dailyEstimate: dailyEst,
+      seasonFactor: 1,
+      recommendedTotal: estimatedTotal,
+      autoApplied: true,
+      updatedAt: new Date().toISOString()
+    };
     
     saveState();
   }
@@ -3497,7 +4702,9 @@ function renderDashboard() {
   // 1. Text Info Fields
   document.getElementById("tripTitle").textContent = tripData.tripTitle;
   document.getElementById("tripSubtitle").textContent = tripData.tripSubtitle;
-  document.getElementById("infoDates").textContent = tripData.infoDates;
+  document.getElementById("infoDates").textContent = tripData.start_date
+    ? formatTripDateRange(tripData.start_date, tripData.end_date)
+    : tripData.infoDates;
   document.getElementById("infoWeather").textContent = tripData.infoWeather;
   document.getElementById("infoGroup").textContent = tripData.infoGroup;
 
@@ -3527,6 +4734,7 @@ function renderDashboard() {
 
   // 2. Budget controls reflect saved state without writing back during render.
   renderBudgetFromState();
+  renderTripDateContext();
 
   // 3. Render Timeline
   renderTimeline();
@@ -3547,6 +4755,181 @@ function renderDashboard() {
   fetchRealWeatherForecast();
 }
 
+function getRouteActivityLocation(activity) {
+  if (!activity || typeof activity !== 'object') return null;
+  const source = activity.location && typeof activity.location === 'object' ? activity.location : activity;
+  const lat = Number(source.lat);
+  const lng = Number(source.lng);
+  return Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
+}
+
+function formatRouteMinutes(minutes) {
+  const safeMinutes = Math.max(0, Math.round(Number(minutes) || 0));
+  if (safeMinutes < 60) return `${safeMinutes} min`;
+  const hours = Math.floor(safeMinutes / 60);
+  const rest = safeMinutes % 60;
+  return rest ? `${hours}h ${rest}min` : `${hours}h`;
+}
+
+function buildPrivateRouteSvg(routeDays, allLocatedActivities) {
+  const width = 1000;
+  const height = 360;
+  const paddingX = 75;
+  const paddingY = 48;
+  const lats = allLocatedActivities.map(activity => activity._routeLocation.lat);
+  const lngs = allLocatedActivities.map(activity => activity._routeLocation.lng);
+  const minLat = Math.min(...lats);
+  const maxLat = Math.max(...lats);
+  const minLng = Math.min(...lngs);
+  const maxLng = Math.max(...lngs);
+  const latRange = Math.max(maxLat - minLat, 0.002);
+  const lngRange = Math.max(maxLng - minLng, 0.002);
+  const project = location => ({
+    x: paddingX + ((location.lng - minLng) / lngRange) * (width - paddingX * 2),
+    y: paddingY + (1 - ((location.lat - minLat) / latRange)) * (height - paddingY * 2)
+  });
+  const colors = ['#E97845', '#536A79', '#2F8F83', '#D69A2D', '#7B61A8'];
+
+  const routeLayers = routeDays.map((routeDay, dayIndex) => {
+    const color = colors[dayIndex % colors.length];
+    const points = routeDay.locatedActivities.map(activity => project(activity._routeLocation));
+    const line = points.length > 1
+      ? `<polyline points="${points.map(point => `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(' ')}" fill="none" stroke="${color}" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" opacity=".82"/>`
+      : '';
+    const markers = routeDay.locatedActivities.map((activity, activityIndex) => {
+      const point = project(activity._routeLocation);
+      const label = activeFilter === 'all' ? `${routeDay.dayNumber}.${activityIndex + 1}` : String(activityIndex + 1);
+      return `
+        <g class="private-route-point" transform="translate(${point.x.toFixed(1)} ${point.y.toFixed(1)})">
+          <title>${escapeHtml(activity._routeTitle)}${activity._routeTime ? ` — ${escapeHtml(activity._routeTime)}` : ''}</title>
+          <circle r="22" fill="#FFFFFF" opacity=".96"/>
+          <circle r="17" fill="${color}"/>
+          <text text-anchor="middle" dominant-baseline="central" fill="#FFFFFF" font-size="12" font-weight="800">${label}</text>
+        </g>`;
+    }).join('');
+    return `${line}${markers}`;
+  }).join('');
+
+  return `
+    <svg class="private-route-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Mapa privado com a sequência das atrações">
+      <defs>
+        <pattern id="routeGrid" width="42" height="42" patternUnits="userSpaceOnUse">
+          <path d="M 42 0 L 0 0 0 42" fill="none" stroke="#BFD0D5" stroke-width="1" opacity=".55"/>
+        </pattern>
+        <filter id="routeShadow" x="-30%" y="-30%" width="160%" height="160%">
+          <feDropShadow dx="0" dy="4" stdDeviation="5" flood-color="#344A59" flood-opacity=".22"/>
+        </filter>
+      </defs>
+      <rect width="1000" height="360" fill="#EEF4F3"/>
+      <rect width="1000" height="360" fill="url(#routeGrid)"/>
+      <path d="M-50 285 C140 210 265 345 455 252 S750 160 1050 225" fill="none" stroke="#D3E1E2" stroke-width="28" opacity=".9"/>
+      <path d="M120 -30 C180 95 390 105 430 390" fill="none" stroke="#DCE7E8" stroke-width="17" opacity=".95"/>
+      <g filter="url(#routeShadow)">${routeLayers}</g>
+      <g transform="translate(22 24)">
+        <rect width="184" height="34" rx="17" fill="#FFFFFF" opacity=".94"/>
+        <text x="16" y="22" fill="#536A79" font-size="13" font-weight="700">🔒 Mapa privado do roteiro</text>
+      </g>
+    </svg>`;
+}
+
+function renderDayRouteMap() {
+  const mapContainer = document.getElementById('dayMapVisual');
+  const qualityBadge = document.getElementById('routeQualityBadge');
+  const recommendations = document.getElementById('logisticsRecommendations');
+  if (!mapContainer || !qualityBadge || !recommendations) return;
+
+  const selectedDays = (tripData.itinerary || []).filter((day, index) => {
+    const dayNumber = Number(day.dayNum || day.dayNumber) || index + 1;
+    return activeFilter === 'all' || Number(activeFilter) === dayNumber;
+  });
+
+  const routeDays = selectedDays.map((day, dayIndex) => {
+    const originalIndex = (tripData.itinerary || []).indexOf(day);
+    const dayNumber = Number(day.dayNum || day.dayNumber) || originalIndex + 1 || dayIndex + 1;
+    const activities = (day.activities || []).map((activity, activityIndex) => ({
+      ...activity,
+      _routeTitle: activity.title || activity.name || `Parada ${activityIndex + 1}`,
+      _routeTime: activity.time || activity.start_time || '',
+      _routeLocation: getRouteActivityLocation(activity)
+    }));
+    const locatedActivities = activities.filter(activity => activity._routeLocation);
+    const quality = locatedActivities.length >= 2
+      ? evaluateDayRouteQuality(locatedActivities.map(activity => ({ ...activity, location: activity._routeLocation })))
+      : null;
+    return { day, dayNumber, activities, locatedActivities, quality };
+  });
+
+  const calculatedDays = routeDays.filter(routeDay => routeDay.quality);
+  const allLocatedActivities = routeDays.flatMap(routeDay => routeDay.locatedActivities);
+  const allActivities = routeDays.flatMap(routeDay => routeDay.activities);
+  const totalDistance = calculatedDays.reduce((total, routeDay) => total + routeDay.quality.totalDistanceKm, 0);
+  const totalMinutes = calculatedDays.reduce((total, routeDay) => total + routeDay.quality.estimatedTravelTimeMins, 0);
+  const score = calculatedDays.length
+    ? Math.round(calculatedDays.reduce((total, routeDay) => total + routeDay.quality.score, 0) / calculatedDays.length)
+    : null;
+
+  if (score === null) {
+    qualityBadge.innerHTML = '<i class="fa-solid fa-location-dot"></i> Rota sem coordenadas';
+    qualityBadge.className = 'route-quality-badge route-quality-unavailable';
+  } else {
+    const scoreClass = score >= 85 ? 'route-quality-good' : score >= 65 ? 'route-quality-medium' : 'route-quality-low';
+    qualityBadge.innerHTML = `<i class="fa-solid fa-shield-halved"></i> Qualidade calculada: ${score}/100`;
+    qualityBadge.className = `route-quality-badge ${scoreClass}`;
+  }
+
+  const stopListHtml = routeDays.map(routeDay => `
+    <div class="route-day-summary">
+      <strong>${escapeHtml(routeDay.day.dateLabel || routeDay.day.date || `Dia ${routeDay.dayNumber}`)}</strong>
+      <div class="route-stop-flow">
+        ${routeDay.activities.map((activity, index) => `
+          <span class="route-stop-chip ${activity._routeLocation ? '' : 'route-stop-no-coordinates'}" title="${activity._routeLocation ? 'Localização confirmada' : 'Sem coordenadas'}">
+            <b>${index + 1}</b>${escapeHtml(activity._routeTime ? `${activity._routeTime} · ${activity._routeTitle}` : activity._routeTitle)}
+          </span>
+        `).join('<i class="fa-solid fa-chevron-right route-flow-arrow" aria-hidden="true"></i>')}
+      </div>
+    </div>
+  `).join('');
+
+  const metricHtml = score === null
+    ? '<span><i class="fa-solid fa-circle-info"></i> Adicione localizações às atividades para calcular distância e tempo.</span>'
+    : `
+      <span><i class="fa-solid fa-route"></i> ${totalDistance.toFixed(1)} km entre as paradas</span>
+      <span><i class="fa-regular fa-clock"></i> Cerca de ${formatRouteMinutes(totalMinutes)} de deslocamento</span>
+      <span><i class="fa-solid fa-location-dot"></i> ${allLocatedActivities.length} pontos mapeados</span>
+    `;
+
+  recommendations.innerHTML = `
+    <div class="route-metrics" aria-label="Resumo calculado da rota">${metricHtml}</div>
+    <div class="route-sequence" aria-label="Sequência das atrações">${stopListHtml}</div>
+  `;
+
+  if (allActivities.length === 0) {
+    mapContainer.innerHTML = `
+      <div class="route-map-empty">
+        <i class="fa-solid fa-map-location-dot"></i>
+        <strong>Nenhuma atração neste filtro</strong>
+        <span>Escolha outro dia para visualizar a rota.</span>
+      </div>`;
+    return;
+  }
+
+  if (allLocatedActivities.length === 0) {
+    mapContainer.innerHTML = `
+      <div class="route-map-fallback" role="img" aria-label="Sequência visual das atrações sem coordenadas">
+        <div class="route-fallback-line"></div>
+        ${allActivities.slice(0, 8).map((activity, index) => `
+          <div class="route-fallback-stop">
+            <span>${index + 1}</span>
+            <small>${escapeHtml(activity._routeTitle)}</small>
+          </div>
+        `).join('')}
+      </div>`;
+    return;
+  }
+
+  mapContainer.innerHTML = buildPrivateRouteSvg(routeDays, allLocatedActivities);
+}
+
 // Timeline dia a dia
 function renderTimeline() {
   const container = document.getElementById("timelineContainer");
@@ -3559,12 +4942,14 @@ function renderTimeline() {
     container.classList.add("hidden");
     const optBanner = document.getElementById("itineraryOptimizationBanner");
     if (optBanner) optBanner.classList.add("hidden");
+    document.getElementById('smartMapSection')?.classList.add('hidden');
     return;
   }
 
   emptyState.classList.add("hidden");
   nav.classList.remove("hidden");
   container.classList.remove("hidden");
+  document.getElementById('smartMapSection')?.classList.remove('hidden');
 
   // Default to first day on mobile devices to prevent DOM load lags on initial load
   if (activeFilter === 'all' && window.innerWidth <= 768 && tripData.itinerary && tripData.itinerary.length > 0 && !mobileShowAllDays) {
@@ -3601,6 +4986,7 @@ function renderTimeline() {
   nav.innerHTML = `<button class="timeline-btn ${activeFilter === 'all' ? 'active' : ''}" onclick="filterTimeline('all')">Todos os Dias</button>`;
   
   container.innerHTML = "";
+  renderDayRouteMap();
 
   // Helper to classify turn
   const getTurnForActivity = (act, idx, total) => {
@@ -3762,10 +5148,35 @@ function renderTimeline() {
     `;
   };
 
+  const getRestaurantRecommendationsHtml = (act) => {
+    const options = Array.isArray(act.restaurant_options) ? act.restaurant_options : [];
+    if (!options.length) return '';
+    const cards = options.map((option, index) => {
+      const mapUrl = buildGoogleMapsSearchUrl([option.name, option.address], getDestinationSuffix());
+      return `
+        <article class="restaurant-recommendation-card">
+          <div class="restaurant-recommendation-top">
+            <span>${index === 0 ? 'RECOMENDAÇÃO PRINCIPAL' : 'BOA ALTERNATIVA'}</span>
+            <strong>${escapeHtml(option.price_level || '$$')}</strong>
+          </div>
+          <h5>${escapeHtml(option.name)}</h5>
+          <p class="restaurant-dish"><i class="fa-solid fa-utensils"></i> Peça: <strong>${escapeHtml(option.dish)}</strong></p>
+          <p>${escapeHtml(option.why)}</p>
+          <div class="restaurant-recommendation-footer">
+            <small><i class="fa-solid fa-location-dot"></i> ${escapeHtml(option.address)}</small>
+            <a href="${mapUrl}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()"><i class="fa-solid fa-map"></i> Ver no mapa</a>
+          </div>
+          ${option.verification_note ? `<small class="restaurant-verification"><i class="fa-solid fa-circle-check"></i> ${escapeHtml(option.verification_note)}</small>` : ''}
+        </article>`;
+    }).join('');
+    return `<section class="restaurant-recommendations" onclick="event.stopPropagation()"><div class="restaurant-recommendations-title"><i class="fa-solid fa-bowl-food"></i><strong>Onde comer</strong><span>2 sugestões selecionadas</span></div><div class="restaurant-recommendations-grid">${cards}</div></section>`;
+  };
+
   tripData.itinerary.forEach((day, dayIndex) => {
     const dayNumber = Number(day.dayNum) || dayIndex + 1;
     // Add Nav Button
-    nav.innerHTML += `<button class="timeline-btn ${activeFilter == dayNumber ? 'active' : ''}" onclick="filterTimeline(${dayNumber})">Dia ${dayNumber}</button>`;
+    const navDayLabel = day.date && day.weekday ? `${day.date.slice(0, 5)} · ${day.weekday.replace('-feira', '')}` : `Dia ${dayNumber}`;
+    nav.innerHTML += `<button class="timeline-btn ${activeFilter == dayNumber ? 'active' : ''}" onclick="filterTimeline(${dayNumber})">${escapeHtml(navDayLabel)}</button>`;
 
     if (activeFilter !== 'all' && activeFilter != dayNumber) return;
 
@@ -3788,6 +5199,7 @@ function renderTimeline() {
         
         sortedActivities.forEach(act => {
           const bookingHtml = getBookingHtml(act);
+          const restaurantHtml = getRestaurantRecommendationsHtml(act);
 
           calendarActsHtml += `
             <div class="calendar-activity-item" onclick="event.stopPropagation()">
@@ -3801,6 +5213,7 @@ function renderTimeline() {
                   <a href="${getActivityMapLink(act.title, dayCity)}" target="_blank" rel="noopener noreferrer" class="act-map-link" onclick="event.stopPropagation()" title="Ver no Google Maps"><i class="fa-solid fa-location-dot"></i></a>
                 </div>
                 <p>${escapeHtml(act.desc)}</p>
+                ${restaurantHtml}
                 ${bookingHtml}
               </div>
             </div>
@@ -3838,6 +5251,7 @@ function renderTimeline() {
             
             turnActs.forEach(act => {
               const bookingHtml = getBookingHtml(act);
+              const restaurantHtml = getRestaurantRecommendationsHtml(act);
 
               turnActsHtml += `
                 <div class="activity-block">
@@ -3848,6 +5262,7 @@ function renderTimeline() {
                       <a href="${getActivityMapLink(act.title, dayCity)}" target="_blank" rel="noopener noreferrer" class="act-map-link" onclick="event.stopPropagation()" title="Ver no Google Maps"><i class="fa-solid fa-location-dot"></i></a>
                     </div>
                     <p>${escapeHtml(act.desc)}</p>
+                    ${restaurantHtml}
                     ${bookingHtml}
                   </div>
                 </div>
@@ -3874,13 +5289,30 @@ function renderTimeline() {
       <div class="timeline-bullet"></div>
       <div class="glass-panel timeline-card" onclick="toggleCard(this)">
         <div class="timeline-header">
-          <span class="timeline-day">DIA ${dayNumber} - ${escapeHtml(day.dayTitle || 'Explorações')}</span>
-          <span class="timeline-date">${escapeHtml(day.date || '')}</span>
+          <span class="timeline-day">${escapeHtml(day.dateLabel || day.date || `Dia ${dayNumber}`)}</span>
+          <span class="timeline-date">${escapeHtml(day.dayTitle || 'Explorações')}</span>
         </div>
+        ${day.dayStory ? `
+          <div class="day-story">
+            <span class="day-story-label"><i class="fa-solid fa-route"></i> O fio deste dia</span>
+            <p>${escapeHtml(day.dayStory)}</p>
+          </div>` : ''}
         <h3><i class="fa-solid fa-compass" style="color: var(--secondary); margin-right: 8px;"></i> Programação</h3>
         
         <div class="timeline-expandable">
           ${activitiesHtml}
+          ${day.climate_plan ? `
+            <div class="day-climate-plan">
+              <i class="fa-solid fa-cloud-sun-rain"></i>
+              <div><strong>Plano B para o clima</strong><span>${escapeHtml(day.climate_plan)}</span></div>
+            </div>` : ''}
+
+          ${(day.highlight || day.localSecret || day.logistics) ? `
+            <div class="day-soul-grid">
+              ${day.highlight ? `<article class="day-soul-card day-soul-highlight"><i class="fa-solid fa-star"></i><div><strong>Destaque de hoje</strong><p>${escapeHtml(day.highlight)}</p></div></article>` : ''}
+              ${day.localSecret ? `<article class="day-soul-card day-soul-secret"><i class="fa-solid fa-key"></i><div><strong>Segredo local</strong><p>${escapeHtml(day.localSecret)}</p></div></article>` : ''}
+              ${day.logistics ? `<article class="day-soul-card day-soul-logistics"><i class="fa-solid fa-person-walking-luggage"></i><div><strong>Logística do dia</strong><p>${escapeHtml(day.logistics)}</p></div></article>` : ''}
+            </div>` : ''}
           
           <div class="timeline-footer-details">
             <div class="footer-detail-item">
@@ -4082,6 +5514,7 @@ function updateBudget(shouldPersist = true) {
     tripData.budget.alimentacao = slideAlimentacao;
     tripData.budget.passeios = slidePasseios;
     tripData.budget.compras = slideCompras;
+    tripData.budget_user_modified_at = new Date().toISOString();
     saveState();
   }
 }
@@ -4111,7 +5544,10 @@ function renderPackingChecklist() {
       titleParts.push(tripData.infoDates);
     }
     if (tripData.itinerary && tripData.itinerary.length > 0) {
-      titleParts.push(`${tripData.itinerary.length} ${tripData.itinerary.length === 1 ? 'dia' : 'dias'}`);
+      const itineraryDays = `${tripData.itinerary.length} ${tripData.itinerary.length === 1 ? 'dia' : 'dias'}`;
+      if (!titleParts.some(part => String(part).toLowerCase().includes(itineraryDays.toLowerCase()))) {
+        titleParts.push(itineraryDays);
+      }
     }
     titleTextEl.textContent = titleParts.join(" - ");
   }
@@ -4199,6 +5635,59 @@ function formatBytes(bytes, decimals = 1) {
 let activeDocumentCategory = "Todos";
 let documentSearchQuery = "";
 
+const RESERVATION_TYPE_CONFIG = {
+  "Passagem Aérea": { mode: "flight", title: "Voo para o destino", providerLabel: "Companhia aérea", providerPlaceholder: "Ex: LATAM, GOL, Azul", referenceLabel: "Localizador", referencePlaceholder: "Ex: ABC123", startLabel: "Partida *", endLabel: "Chegada", defaultScope: "arrival" },
+  "Transporte — Ônibus": { mode: "bus", title: "Ônibus para o destino", providerLabel: "Empresa de ônibus", providerPlaceholder: "Ex: Andorinha, Cometa", referenceLabel: "Bilhete / Localizador", referencePlaceholder: "Opcional", startLabel: "Embarque *", endLabel: "Chegada", defaultScope: "arrival" },
+  "Transporte — Trem": { mode: "train", title: "Trem para o destino", providerLabel: "Operadora ferroviária", providerPlaceholder: "Ex: Trenitalia, Eurostar", referenceLabel: "Bilhete / Localizador", referencePlaceholder: "Opcional", startLabel: "Embarque *", endLabel: "Chegada", defaultScope: "specific_leg" },
+  "Transporte — Carro próprio": { mode: "own_car", title: "Viagem de carro próprio", providerLabel: "Veículo / Modelo", providerPlaceholder: "Ex: Honda HR-V", referenceLabel: "Placa", referencePlaceholder: "Opcional", startLabel: "Saída *", endLabel: "Retorno", defaultScope: "entire_trip" },
+  "Transporte — Carro alugado": { mode: "rental_car", title: "Carro alugado no destino", providerLabel: "Locadora", providerPlaceholder: "Ex: Localiza, Movida", referenceLabel: "Código da reserva", referencePlaceholder: "Opcional", startLabel: "Retirada *", endLabel: "Devolução", defaultScope: "local" },
+  "Transporte — Táxi / Aplicativo": { mode: "ride_hailing", title: "Mobilidade por Uber, 99 ou táxi", providerLabel: "Aplicativo preferido", providerPlaceholder: "Ex: Uber, 99, Cabify", referenceLabel: "Observação", referencePlaceholder: "Opcional", startLabel: "Disponível a partir de *", endLabel: "Até" , defaultScope: "local" },
+  "Transporte — Transporte público": { mode: "public_transit", title: "Mobilidade por transporte público", providerLabel: "Passe / Sistema", providerPlaceholder: "Ex: metrô e ônibus locais", referenceLabel: "Cartão / Passe", referencePlaceholder: "Opcional", startLabel: "A partir de *", endLabel: "Até", defaultScope: "local" },
+  "Transporte — Transfer": { mode: "transfer", title: "Transfer reservado", providerLabel: "Empresa / Motorista", providerPlaceholder: "Ex: empresa local", referenceLabel: "Código / Contato", referencePlaceholder: "Opcional", startLabel: "Saída *", endLabel: "Chegada", defaultScope: "specific_leg" },
+  "Transporte — Barco / Navio": { mode: "boat", title: "Travessia de barco", providerLabel: "Companhia / Operadora", providerPlaceholder: "Ex: companhia marítima", referenceLabel: "Bilhete / Cabine", referencePlaceholder: "Opcional", startLabel: "Embarque *", endLabel: "Chegada", defaultScope: "specific_leg" },
+  "Transporte — Outro": { mode: "other_transport", title: "Transporte da viagem", providerLabel: "Empresa / Responsável", providerPlaceholder: "Opcional", referenceLabel: "Código / Referência", referencePlaceholder: "Opcional", startLabel: "Início *", endLabel: "Fim", defaultScope: "specific_leg" }
+};
+
+function isTransportReservationType(type) {
+  return Boolean(RESERVATION_TYPE_CONFIG[type] || type === "flight");
+}
+
+function updateReservationFormForType() {
+  const typeInput = document.getElementById("resTypeInput");
+  const form = document.getElementById("reservationForm");
+  if (!typeInput || !form) return;
+
+  const config = RESERVATION_TYPE_CONFIG[typeInput.value];
+  document.getElementById("resTransportFields")?.classList.toggle("hidden", !config);
+
+  const titleInput = document.getElementById("resTitleInput");
+  const previousSuggestion = form.dataset.suggestedTitle || "";
+  if (config) {
+    if (titleInput && (!titleInput.value.trim() || titleInput.value === previousSuggestion)) titleInput.value = config.title;
+    form.dataset.suggestedTitle = config.title;
+    if (titleInput) titleInput.placeholder = config.title;
+    const scopeInput = document.getElementById("resTransportScopeInput");
+    if (scopeInput && (!scopeInput.dataset.touched || !scopeInput.value)) scopeInput.value = config.defaultScope;
+  } else {
+    if (titleInput && titleInput.value === previousSuggestion) titleInput.value = "";
+    form.dataset.suggestedTitle = "";
+    if (titleInput) titleInput.placeholder = typeInput.value === "Hospedagem" ? "Ex: Hotel, pousada ou apartamento" : "Dê um nome fácil de reconhecer";
+  }
+
+  const providerLabel = document.getElementById("resProviderLabel");
+  const providerInput = document.getElementById("resProviderInput");
+  const referenceLabel = document.getElementById("resReferenceLabel");
+  const referenceInput = document.getElementById("resReferenceInput");
+  const startLabel = document.getElementById("resStartDateLabel");
+  const endLabel = document.getElementById("resEndDateLabel");
+  if (providerLabel) providerLabel.textContent = config?.providerLabel || "Empresa / Provedor";
+  if (providerInput) providerInput.placeholder = config?.providerPlaceholder || "Ex: Booking, Civitatis";
+  if (referenceLabel) referenceLabel.textContent = config?.referenceLabel || "Código de reserva";
+  if (referenceInput) referenceInput.placeholder = config?.referencePlaceholder || "Ex: ABC123";
+  if (startLabel) startLabel.textContent = config?.startLabel || "Data de início *";
+  if (endLabel) endLabel.textContent = config?.endLabel || "Data de fim";
+}
+
 // Attach event listeners for category filters and search
 function setupReservationFilters() {
   const categoryBtns = document.querySelectorAll(".category-filters .btn-sub-tab");
@@ -4224,10 +5713,23 @@ function setupReservationFilters() {
     openResModalBtn.addEventListener("click", () => {
       document.getElementById("reservationForm").reset();
       document.getElementById("editReservationId").value = "";
+      document.getElementById("reservationForm").dataset.suggestedTitle = "";
+      document.getElementById("resTransportScopeInput")?.removeAttribute("data-touched");
+      const startInput = document.getElementById("resStartDateInput");
+      const endInput = document.getElementById("resEndDateInput");
+      if (startInput && tripData?.start_date) startInput.value = `${tripData.start_date}T08:00`;
+      if (endInput && tripData?.end_date) endInput.value = `${tripData.end_date}T18:00`;
+      updateReservationFormForType();
       document.getElementById("reservationModal").classList.remove("hidden");
       document.getElementById("resTypeInput")?.focus();
     });
   }
+
+  const resTypeInput = document.getElementById("resTypeInput");
+  if (resTypeInput) resTypeInput.addEventListener("change", updateReservationFormForType);
+  document.getElementById("resTransportScopeInput")?.addEventListener("change", event => {
+    event.target.dataset.touched = "true";
+  });
 
   const closeResModalBtn = document.getElementById("closeReservationModal");
   if (closeResModalBtn) {
@@ -4266,6 +5768,10 @@ function saveReservation() {
   const start = document.getElementById("resStartDateInput").value;
   const end = document.getElementById("resEndDateInput").value;
   const notes = document.getElementById("resNotesInput").value.trim();
+  const transportConfig = RESERVATION_TYPE_CONFIG[type] || null;
+  const origin = transportConfig ? document.getElementById("resOriginInput")?.value.trim() || "" : "";
+  const destination = transportConfig ? document.getElementById("resDestinationInput")?.value.trim() || "" : "";
+  const transportScope = transportConfig ? document.getElementById("resTransportScopeInput")?.value || transportConfig.defaultScope : "";
 
   if (!title || !start) return;
   if (end && new Date(end) < new Date(start)) {
@@ -4286,6 +5792,10 @@ function saveReservation() {
       res.start_datetime = start;
       res.end_datetime = end;
       res.notes = notes;
+      res.transport_mode = transportConfig?.mode || null;
+      res.transport_scope = transportScope || null;
+      res.origin = origin;
+      res.destination = destination;
     }
   } else {
     const newRes = {
@@ -4298,14 +5808,34 @@ function saveReservation() {
       start_datetime: start,
       end_datetime: end,
       notes: notes,
+      transport_mode: transportConfig?.mode || null,
+      transport_scope: transportScope || null,
+      origin,
+      destination,
       is_favorite: false,
       created_at: new Date().toISOString()
     };
     tripData.reservations.push(newRes);
   }
+
+  if (transportConfig) {
+    const transportResult = applyTransportCommandToTrip(tripData, {
+      mode: transportConfig.mode,
+      label: type === "Passagem Aérea" ? "Avião" : type.replace("Transporte — ", ""),
+      title,
+      type,
+      provider,
+      origin,
+      destination,
+      scope: transportScope,
+      source: 'manual'
+    });
+    tripData = pureNormalizeTripState(transportResult.trip);
+  }
   
   saveState();
   renderDocuments();
+  if (typeof renderHomeDashboard === "function") renderHomeDashboard();
   document.getElementById("reservationModal").classList.add("hidden");
 }
 
@@ -4326,26 +5856,44 @@ function renderDocuments() {
 
   const docs = tripData.documents || [];
   const res = tripData.reservations || [];
+  const accs = tripData.accommodations || [];
 
   let combined = [
     ...docs.map(d => ({ ...d, _isDoc: true })),
-    ...res.map(r => ({ ...r, _isDoc: false }))
+    ...res.map(r => ({ ...r, _isDoc: false })),
+    ...accs.map((a, idx) => ({
+      id: a.id || `acc_${idx}`,
+      title: a.name || a.title || 'Hospedagem',
+      name: a.name || a.title || 'Hospedagem',
+      provider: a.address || 'Hospedagem',
+      address: a.address || '',
+      reference: a.confirmationCode || a.reference || '',
+      type: 'Hospedagem',
+      category: 'Hospedagem',
+      bookingUrl: a.bookingUrl || a.url || '',
+      url: a.bookingUrl || a.url || '',
+      checkIn: a.checkIn || a.start_datetime || '',
+      checkOut: a.checkOut || a.end_datetime || '',
+      notes: a.notes || '',
+      _isAcc: true,
+      _accIndex: idx
+    }))
   ];
 
   if (activeDocumentCategory !== "Todos") {
     combined = combined.filter(item => {
       const itemType = item.type || item.category || "";
-      if (activeDocumentCategory === "Passagem Aérea") return itemType.includes("Passagem") || itemType.includes("Voo");
-      if (activeDocumentCategory === "Hospedagem") return itemType.includes("Hospedagem") || itemType.includes("Hotel");
+      if (activeDocumentCategory === "Transporte") return isTransportReservationType(itemType) || Boolean(item.transport_mode);
+      if (activeDocumentCategory === "Hospedagem") return itemType.includes("Hospedagem") || itemType.includes("Hotel") || item._isAcc;
       if (activeDocumentCategory === "Ingresso") return itemType.includes("Ingresso");
       if (activeDocumentCategory === "Seguro Viagem") return itemType.includes("Seguro");
-      return itemType.includes("Outros") || (!itemType.includes("Passagem") && !itemType.includes("Voo") && !itemType.includes("Hospedagem") && !itemType.includes("Hotel") && !itemType.includes("Ingresso") && !itemType.includes("Seguro"));
+      return itemType.includes("Outros") || (!isTransportReservationType(itemType) && !item.transport_mode && !itemType.includes("Hospedagem") && !itemType.includes("Hotel") && !itemType.includes("Ingresso") && !itemType.includes("Seguro"));
     });
   }
 
   if (documentSearchQuery) {
     combined = combined.filter(item => {
-      const text = `${item.title || item.name || ""} ${item.provider || ""} ${item.reference || ""}`.toLowerCase();
+      const text = `${item.title || item.name || ""} ${item.provider || ""} ${item.reference || ""} ${item.address || ""}`.toLowerCase();
       return text.includes(documentSearchQuery);
     });
   }
@@ -4354,8 +5902,8 @@ function renderDocuments() {
   
   if (tripData.start_date && (new Date(tripData.start_date) <= now)) {
     combined.sort((a, b) => {
-      const dateA = new Date(a.start_datetime || a.created_at || a.date || 0);
-      const dateB = new Date(b.start_datetime || b.created_at || b.date || 0);
+      const dateA = new Date(a.start_datetime || a.checkIn || a.created_at || a.date || 0);
+      const dateB = new Date(b.start_datetime || b.checkIn || b.created_at || b.date || 0);
       return dateA - dateB;
     });
   } else {
@@ -4384,23 +5932,41 @@ function renderDocuments() {
     }
 
     const title = escapeHtml(item.title || item.name || "Sem título");
-    const provider = escapeHtml(item.provider || (item._isDoc ? "Arquivo" : "Reserva"));
+    const provider = escapeHtml(item.provider || (item._isDoc ? "Arquivo" : item._isAcc ? "Hospedagem" : String(item.type || "Reserva").replace("Transporte — ", "")));
     const refCode = item.reference ? `Ref: ${escapeHtml(item.reference)}` : "";
     const favIcon = item.is_favorite ? '<i class="fa-solid fa-star" style="color: #fbbf24;"></i>' : '<i class="fa-regular fa-star"></i>';
     
     let dateStr = "";
-    if (item.start_datetime) {
-      const dt = new Date(item.start_datetime);
-      dateStr = dt.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
-      if (item.end_datetime) {
-        const et = new Date(item.end_datetime);
-        dateStr += " - " + et.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+    if (item.start_datetime || item.checkIn) {
+      const dtStr = item.start_datetime || item.checkIn;
+      const dt = new Date(dtStr.includes('T') ? dtStr : `${dtStr}T00:00:00`);
+      dateStr = isNaN(dt.getTime()) ? dtStr : dt.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+      if (item.end_datetime || item.checkOut) {
+        const etStr = item.end_datetime || item.checkOut;
+        const et = new Date(etStr.includes('T') ? etStr : `${etStr}T00:00:00`);
+        dateStr += " - " + (isNaN(et.getTime()) ? etStr : et.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }));
       }
     } else if (item.date) {
       dateStr = escapeHtml(item.date);
     }
 
-    const iconTypeClass = item._isDoc ? (item.type === 'pdf' ? 'fa-file-pdf' : 'fa-file-image') : 'fa-ticket';
+    const transportIconMap = { flight: 'fa-plane', bus: 'fa-bus', train: 'fa-train', own_car: 'fa-car', rental_car: 'fa-car-side', transfer: 'fa-taxi', boat: 'fa-ship', other_transport: 'fa-route' };
+    const iconTypeClass = item._isAcc
+      ? 'fa-hotel'
+      : (item._isDoc
+        ? (item.type === 'pdf' ? 'fa-file-pdf' : 'fa-file-image')
+        : (transportIconMap[item.transport_mode] || (item.type === 'Passagem Aérea' ? 'fa-plane' : 'fa-ticket')));
+
+    const mapSearchUrl = item._isAcc && (item.address || item.name || item.title)
+      ? buildGoogleMapsSearchUrl([item.name || item.title || '', item.address || ''], getDestinationSuffix())
+      : null;
+    const mapBtnHtml = mapSearchUrl
+      ? `<a href="${mapSearchUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm" style="padding: 6px 10px; font-size: 0.78rem;" title="Ver no Google Maps"><i class="fa-solid fa-map-location-dot"></i> Mapa</a>`
+      : '';
+
+    const urlBtnHtml = (item.bookingUrl || item.url) && !blockView
+      ? `<a href="${escapeHtml(item.bookingUrl || item.url)}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm" style="padding: 6px 10px; font-size: 0.78rem;" title="Abrir reserva"><i class="fa-solid fa-arrow-up-right-from-square"></i></a>`
+      : '';
 
     return `
       <div class="glass-panel" style="padding: 16px; display: flex; flex-direction: column; gap: 12px; position: relative;">
@@ -4414,6 +5980,7 @@ function renderDocuments() {
           <div style="flex: 1; min-width: 0;">
             <h4 style="margin: 0; font-size: 0.95rem; font-weight: 700; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 24px;">${title}</h4>
             <p style="margin: 2px 0 0; font-size: 0.75rem; color: var(--text-muted);">${provider} ${refCode ? '• ' + refCode : ''}</p>
+            ${item.transport_mode && (item.origin || item.destination) ? `<p style="margin: 3px 0 0; font-size: 0.7rem; color: var(--orbia-berilo);"><i class="fa-solid fa-route"></i> ${escapeHtml(item.origin || 'Origem')} → ${escapeHtml(item.destination || 'Destino')}</p>` : ''}
           </div>
         </div>
         
@@ -4425,6 +5992,8 @@ function renderDocuments() {
             </div>
           </div>
           <div style="display: flex; gap: 8px;">
+            ${mapBtnHtml}
+            ${urlBtnHtml}
             ${blockView ? 
               `<button type="button" class="btn btn-secondary btn-sm" disabled style="opacity: 0.5; cursor: not-allowed;" title="Visualização bloqueada em modo compartilhado"><i class="fa-solid fa-lock"></i></button>`
             : 
@@ -4433,7 +6002,7 @@ function renderDocuments() {
               : '')
             }
             ${window.isSharedView ? '' : `
-              <button type="button" class="flight-action-btn delete reservation-delete-btn" data-item-index="${itemIndex}" aria-label="Excluir ${item._isDoc ? 'documento' : 'reserva'}" style="padding: 6px; font-size: 0.8rem;">
+              <button type="button" class="flight-action-btn delete reservation-delete-btn" data-item-index="${itemIndex}" aria-label="Excluir ${item._isDoc ? 'documento' : item._isAcc ? 'hospedagem' : 'reserva'}" style="padding: 6px; font-size: 0.8rem;">
                 <i class="fa-solid fa-trash"></i>
               </button>
             `}
@@ -4446,19 +6015,39 @@ function renderDocuments() {
   container.querySelectorAll(".reservation-favorite-btn").forEach(button => {
     button.addEventListener("click", () => {
       const item = combined[Number(button.dataset.itemIndex)];
-      if (item) toggleFavoriteReservation(item.id, item._isDoc);
+      if (item && !item._isAcc) toggleFavoriteReservation(item.id, item._isDoc);
     });
   });
   container.querySelectorAll(".reservation-view-btn").forEach(button => {
     button.addEventListener("click", () => {
       const item = combined[Number(button.dataset.itemIndex)];
-      if (item) viewDocument(item.id);
+      if (item && item._isDoc) viewDocument(item.id);
     });
   });
   container.querySelectorAll(".reservation-delete-btn").forEach(button => {
     button.addEventListener("click", () => {
       const item = combined[Number(button.dataset.itemIndex)];
-      if (item) deleteDocumentOrRes(item.id, item._isDoc);
+      if (!item) return;
+      if (item._isAcc) {
+        if (confirm(`Excluir hospedagem "${item.title || item.name}"?`)) {
+          if (tripData.accommodations && item._accIndex !== undefined) {
+            tripData.accommodations.splice(item._accIndex, 1);
+            if (tripData.accommodations.length === 0) {
+              tripData.infoHotel = "A definir";
+              tripData.hotelLink = "";
+            } else {
+              const primary = tripData.accommodations[0];
+              const parts = [primary.name, primary.address].filter(Boolean);
+              tripData.infoHotel = parts.join(' - ');
+              tripData.hotelLink = primary.bookingUrl || "";
+            }
+          }
+          saveState();
+          renderDashboard();
+        }
+      } else {
+        deleteDocumentOrRes(item.id, item._isDoc);
+      }
     });
   });
 
@@ -4488,6 +6077,7 @@ function deleteDocumentOrRes(id, isDoc) {
     if (isDoc) {
       deleteDocument(id);
     } else {
+      if (tripData.primaryTransport?.reservation_id === id) delete tripData.primaryTransport;
       tripData.reservations = tripData.reservations.filter(r => r.id !== id);
       saveState();
       renderDocuments();
@@ -4767,7 +6357,7 @@ function setupCountdown() {
 }
 
 // ==========================================================================
-// 6. PDF EXPORT (via browser print dialog)
+// 6. PDF EXPORT (download direto e independente do diálogo de impressão)
 // ==========================================================================
 function exportAsPdf() {
   if (!tripData.itinerary || tripData.itinerary.length === 0) {
@@ -4775,24 +6365,38 @@ function exportAsPdf() {
     return;
   }
 
-  // Expand all timeline cards so they print fully
-  document.querySelectorAll('.timeline-card').forEach(card => card.classList.add('expanded'));
+  const button = document.getElementById('exportPdfBtn');
+  const originalContent = button?.innerHTML;
+  if (button) {
+    button.disabled = true;
+    button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Gerando PDF...';
+  }
 
-  setTimeout(() => {
-    window.print();
-    // Collapse cards again after print dialog
-    setTimeout(() => {
-      document.querySelectorAll('.timeline-card').forEach(card => card.classList.remove('expanded'));
-    }, 2000);
-  }, 300);
+  try {
+    const result = downloadItineraryPdf(tripData, { checkoutUrl: CHECKOUT_URL });
+    trackEvent('itinerary_pdf_downloaded', {
+      page_count: result.pageCount,
+      shared_view: isSharedView
+    });
+    if (typeof window.showToast === 'function') {
+      window.showToast(`PDF baixado: ${result.filename}`, 'success');
+    }
+  } catch (error) {
+    console.error('Falha ao gerar PDF:', error);
+    alert('⚠️ Não foi possível gerar o PDF agora. Atualize a página e tente novamente.');
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.innerHTML = originalContent || '<i class="fa-solid fa-file-pdf"></i> Baixar Roteiro em PDF';
+    }
+  }
 }
+window.exportAsPdf = exportAsPdf;
 
 // ==========================================================================
 // 7. AUTH LOGIC & USER INTERFACE HANDLERS
 // ==========================================================================
 let isRegisterMode = false;
-
-let isUiInitialized = false;
 
 async function handleUserLoggedIn(user, token) {
   currentUser = user;
@@ -4827,14 +6431,10 @@ async function handleUserLoggedIn(user, token) {
 
   // Transition UI to authenticated dashboard view
   const transitionToApp = () => {
-    const userAvatarEl = document.getElementById("userAvatar");
     const userProfileEl = document.getElementById("userProfile");
     const loginScreenEl = document.getElementById("loginScreen");
     const appContainerEl = document.querySelector(".app-container");
 
-    if (userAvatarEl) {
-      userAvatarEl.src = user.photoURL || user.user_metadata?.avatar_url || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=150";
-    }
     if (userProfileEl) {
       userProfileEl.classList.remove("hidden");
     }
@@ -7003,6 +8603,22 @@ async function handleTextPasteImport() {
         tripData.targetDate = `${hotelData.checkInDate}T12:00:00`;
       }
       
+      tripData.accommodations = tripData.accommodations || [];
+      const accItem = {
+        name: hotelData.hotel || 'Hospedagem',
+        address: hotelData.address || '',
+        bookingUrl: hotelData.hotelLink || '',
+        checkIn: hotelData.checkInDate || '',
+        checkOut: hotelData.checkOutDate || '',
+        confirmationCode: hotelData.confirmationCode || '',
+        notes: hotelData.notes || ''
+      };
+      if (tripData.accommodations.length > 0) {
+        tripData.accommodations[0] = { ...tripData.accommodations[0], ...accItem };
+      } else {
+        tripData.accommodations.push(accItem);
+      }
+
       saveState();
       renderDashboard();
       alert("✓ Hospedagem e hotel atualizados com sucesso!");
@@ -7027,6 +8643,20 @@ async function handleSaveHotelAndSync() {
   tripData.infoHotel = hotelName || "A definir";
   tripData.hotelLink = hotelLink || "";
   
+  if (hotelName && hotelName !== "A definir") {
+    tripData.accommodations = tripData.accommodations || [];
+    if (tripData.accommodations.length > 0) {
+      tripData.accommodations[0].name = hotelName;
+      tripData.accommodations[0].bookingUrl = hotelLink || tripData.accommodations[0].bookingUrl || "";
+    } else {
+      tripData.accommodations.push({
+        name: hotelName,
+        address: "",
+        bookingUrl: hotelLink || ""
+      });
+    }
+  }
+
   saveState();
   renderDashboard();
   
@@ -7071,7 +8701,9 @@ async function triggerAiLogisticsSync() {
           hotelLink: tripData.hotelLink,
           flights: tripData.flights,
           budget: tripData.budget,
-          dates: tripData.infoDates,
+          dates: { start: tripData.start_date, end: tripData.end_date, label: tripData.infoDates },
+          start_date: tripData.start_date,
+          end_date: tripData.end_date,
           destination: tripData.tripTitle,
           itinerary: tripData.itinerary,
           packing: tripData.packing,
@@ -7192,7 +8824,7 @@ function setupVisualViewportListener() {
 
     if (keyboardIsOpen && !isKeyboardOpen) {
       isKeyboardOpen = true;
-      bottomNav.style.display = "none";
+      bottomNav.style.setProperty('display', 'none', 'important');
       chatSidebar.classList.add("keyboard-open");
       // Scroll messages to bottom after layout settles
       requestAnimationFrame(() => {
@@ -7201,7 +8833,7 @@ function setupVisualViewportListener() {
       });
     } else if (!keyboardIsOpen && isKeyboardOpen) {
       isKeyboardOpen = false;
-      bottomNav.style.display = "flex";
+      bottomNav.style.setProperty('display', 'flex', 'important');
       chatSidebar.classList.remove("keyboard-open");
       // Reset app-container to full screen
       appContainer.style.top = "0";
@@ -7751,6 +9383,12 @@ function snoozeProactiveInsight(insight) {
 }
 
 function openProactiveInsight(insight) {
+  if (insight.targetTab === 'replan_proposal') {
+    trackEvent(EVENTS.PROACTIVE_INSIGHT_OPENED, { rule_key: insight.ruleKey, severity: insight.severity, target: insight.targetTab });
+    const proposal = generateReplanningProposal(tripData, insight.trigger || 'user_request', { delayHours: insight.delayHours });
+    openReplanningProposalModal(proposal);
+    return;
+  }
   if (!PROACTIVE_ALLOWED_TABS.has(insight.targetTab)) return;
   trackEvent(EVENTS.PROACTIVE_INSIGHT_OPENED, { rule_key: insight.ruleKey, severity: insight.severity, target: insight.targetTab });
   switchTab(insight.targetTab);
@@ -7847,6 +9485,447 @@ function renderProactiveInsights() {
 
 
 
+function formatTripDateRange(startDate, endDate) {
+  const format = value => {
+    const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    return match ? `${match[3]}-${match[2]}-${match[1]}` : '';
+  };
+  return [format(startDate), format(endDate)].filter(Boolean).join(' a ');
+}
+
+function syncActiveTripSummary() {
+  const index = tripsList.findIndex(trip => String(trip?.id) === String(tripData?.id));
+  if (index >= 0) {
+    tripsList[index] = { ...tripData };
+    localStorage.setItem(getUserStorageKey('gptViajante_trips'), JSON.stringify(tripsList));
+  }
+}
+
+function openTripDatesModal() {
+  const modal = document.getElementById('tripDatesModal');
+  const startInput = document.getElementById('tripStartDateInput');
+  const endInput = document.getElementById('tripEndDateInput');
+  const error = document.getElementById('tripDatesError');
+  if (!modal || !startInput || !endInput) return;
+  startInput.value = tripData.start_date || '';
+  endInput.value = tripData.end_date || tripData.start_date || '';
+  endInput.min = startInput.value;
+  if (error) {
+    error.textContent = '';
+    error.classList.add('hidden');
+  }
+  modal.classList.remove('hidden');
+  window.setTimeout(() => startInput.focus(), 0);
+}
+
+function closeTripDatesModal() {
+  document.getElementById('tripDatesModal')?.classList.add('hidden');
+}
+
+function getActiveTripDestination() {
+  return cleanTripDestination(tripData?.destination || tripData?.tripTitle || '');
+}
+
+function setItineraryGeneratorBusy(isBusy) {
+  const form = document.getElementById('itineraryGeneratorForm');
+  const progress = document.getElementById('itineraryGeneratorProgress');
+  if (form) {
+    form.querySelectorAll('input, select, button').forEach(control => {
+      control.disabled = isBusy;
+    });
+  }
+  progress?.classList.toggle('hidden', !isBusy);
+}
+
+function openItineraryGeneratorModal() {
+  const destination = getActiveTripDestination();
+  const hasDestination = destination && !/^(a definir|minha pr[oó]xima viagem|nova viagem)$/i.test(destination);
+  if (!hasDestination) {
+    window.showToast?.('Primeiro, escolha o destino da viagem.', 'info');
+    showMyTripsScreen();
+    window.setTimeout(() => document.getElementById('openCreateTripModalBtn')?.click(), 0);
+    return;
+  }
+  if (!tripData?.start_date || !tripData?.end_date) {
+    window.showToast?.('Escolha as datas para o Orbia Travel calcular a duração e o clima.', 'info');
+    openTripDatesModal();
+    return;
+  }
+
+  const modal = document.getElementById('itineraryGeneratorModal');
+  if (!modal) return;
+  if (!tripData.date_context) applyTripDateContext(tripData);
+  const context = tripData.date_context;
+  const preferences = tripData.preferences || {};
+  document.getElementById('generatorDestination').textContent = destination;
+  document.getElementById('generatorDates').textContent = `${formatTripDateRange(tripData.start_date, tripData.end_date)} · ${context.days} ${context.days === 1 ? 'dia' : 'dias'}`;
+  document.getElementById('generatorClimate').textContent = `${context.climateIcon || '🌤️'} ${context.climateLabel || 'Clima variável'}`;
+  const pace = preferences.pace || 'moderado';
+  const paceInput = document.querySelector(`input[name="generatorPace"][value="${pace}"]`);
+  if (paceInput) paceInput.checked = true;
+  const budget = document.getElementById('generatorBudgetStyle');
+  if (budget) budget.value = preferences.budget_style || 'conforto';
+  if (Array.isArray(preferences.interests) && preferences.interests.length > 0) {
+    document.querySelectorAll('input[name="generatorInterest"]').forEach(input => {
+      input.checked = preferences.interests.includes(input.value);
+    });
+  }
+  const overwrite = document.getElementById('itineraryGeneratorOverwrite');
+  overwrite?.classList.toggle('hidden', !Array.isArray(tripData.itinerary) || tripData.itinerary.length === 0);
+  const error = document.getElementById('itineraryGeneratorError');
+  if (error) {
+    error.textContent = '';
+    error.classList.add('hidden');
+  }
+  setItineraryGeneratorBusy(false);
+  modal.classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+  window.setTimeout(() => {
+    const card = document.getElementById('itineraryGeneratorCard');
+    if (card) {
+      card.scrollTop = 0;
+      card.focus({ preventScroll: true });
+    }
+  }, 0);
+}
+
+function closeItineraryGeneratorModal() {
+  const modal = document.getElementById('itineraryGeneratorModal');
+  if (modal?.dataset.generating === 'true') return;
+  modal?.classList.add('hidden');
+  document.body.style.overflow = '';
+}
+
+async function generateItineraryFromForm(event) {
+  event?.preventDefault();
+  if (!window.checkAiLimit()) return;
+  const modal = document.getElementById('itineraryGeneratorModal');
+  const error = document.getElementById('itineraryGeneratorError');
+  const progressText = document.getElementById('itineraryGeneratorProgressText');
+  const destination = getActiveTripDestination();
+  if (!tripData.date_context) applyTripDateContext(tripData);
+  const context = tripData.date_context;
+  const pace = document.querySelector('input[name="generatorPace"]:checked')?.value || 'moderado';
+  const budgetStyle = document.getElementById('generatorBudgetStyle')?.value || 'conforto';
+  const interests = Array.from(document.querySelectorAll('input[name="generatorInterest"]:checked')).map(input => input.value);
+
+  if (!navigator.onLine) {
+    error.textContent = 'A geração do roteiro precisa de internet. Conecte-se e tente novamente.';
+    error.classList.remove('hidden');
+    return;
+  }
+
+  error?.classList.add('hidden');
+  modal.dataset.generating = 'true';
+  setItineraryGeneratorBusy(true);
+  if (progressText) progressText.textContent = 'Selecionando os lugares essenciais e agrupando por região.';
+
+  try {
+    const prompt = buildItineraryGenerationPrompt({
+      destination,
+      startDate: tripData.start_date,
+      endDate: tripData.end_date,
+      days: context.days,
+      climate: context,
+      pace,
+      budgetStyle,
+      interests
+    });
+    const token = await getFreshToken();
+    if (progressText) progressText.textContent = 'Equilibrando atrações, gastronomia e alternativas para o clima.';
+    const response = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({
+        messages: [{ role: 'user', content: prompt }],
+        travelMode: false,
+        tripId: tripData.id,
+        tripContext: {
+          id: tripData.id,
+          destination,
+          dates: { start: tripData.start_date, end: tripData.end_date, label: tripData.infoDates },
+          preferences: { pace, budget_style: budgetStyle, interests },
+          climate: {
+            label: context.climateLabel,
+            guidance: context.itineraryGuidance,
+            source: context.climateSource,
+            season: context.season
+          }
+        }
+      })
+    });
+
+    const responseData = await response.json().catch(() => ({}));
+    if (response.status === 429 && responseData.code === 'AI_LIMIT_EXCEEDED') {
+      window.showPaywall('ai_limit', responseData.error);
+      throw new Error('Seu limite de gerações foi atingido.');
+    }
+    if (response.status === 401 || response.status === 403) {
+      throw new Error('Sua sessão com o CoPiloto expirou. Entre novamente e tente gerar o roteiro.');
+    }
+    if (!response.ok) throw new Error(responseData.error || 'O CoPiloto não conseguiu responder agora.');
+
+    const parsed = extractJsonFromReply(responseData.content || '');
+    const itinerary = extractGeneratedItinerary(parsed);
+    const normalized = validateAndNormalizeItinerary(itinerary, {
+      days: context.days,
+      startDate: tripData.start_date,
+      climatePlan: context.dayPlan
+    });
+    const generatedClimatePlans = normalized.map(day => day.climate_plan);
+    tripData = applyActions([{ type: 'itinerary', operation: 'replace', data: normalized }], tripData);
+    tripData.preferences = { ...(tripData.preferences || {}), pace, budget_style: budgetStyle, interests };
+    tripData.itinerary_generation = {
+      generatedAt: new Date().toISOString(),
+      source: 'guided_ai',
+      destination,
+      days: context.days,
+      climateSource: context.climateSource
+    };
+    applyTripDateContext(tripData);
+    tripData.itinerary.forEach((day, index) => {
+      day.climate_plan = generatedClimatePlans[index] || day.climate_plan;
+    });
+    tripData.updatedAt = new Date().toISOString();
+    syncActiveTripSummary();
+    await saveState();
+    renderDashboard();
+    window.renderHomeDashboard?.();
+    renderPlanTripSelector();
+    modal.dataset.generating = 'false';
+    closeItineraryGeneratorModal();
+    switchTab('roteiro');
+    window.showUndoToast?.();
+    window.showToast?.(`Roteiro de ${context.days} ${context.days === 1 ? 'dia' : 'dias'} criado e salvo.`, 'success');
+  } catch (generationError) {
+    console.error('Itinerary generation error:', generationError);
+    if (error) {
+      error.textContent = generationError instanceof TypeError || /failed to fetch|network/i.test(generationError.message || '')
+        ? 'Não consegui conectar ao CoPiloto. Confira sua conexão e tente novamente.'
+        : generationError.message || 'Não foi possível gerar um roteiro completo. Tente novamente.';
+      error.classList.remove('hidden');
+    }
+  } finally {
+    modal.dataset.generating = 'false';
+    setItineraryGeneratorBusy(false);
+  }
+}
+
+function renderTripDateContext() {
+  const context = tripData?.date_context;
+  const itineraryCard = document.getElementById('itineraryClimateContext');
+  const budgetCard = document.getElementById('budgetDateContext');
+
+  if (itineraryCard) {
+    if (!context) {
+      itineraryCard.classList.add('hidden');
+      itineraryCard.replaceChildren();
+    } else {
+      const mismatch = tripData.itinerary_context?.needsRegeneration
+        ? `<div class="trip-context-alert"><i class="fa-solid fa-triangle-exclamation"></i> O período tem ${context.days} dias e o roteiro atual tem ${tripData.itinerary_context.currentDays}. <button type="button" onclick="openItineraryGeneratorModal()">Adaptar roteiro aos ${context.days} dias</button></div>`
+        : '';
+      itineraryCard.classList.remove('hidden');
+      itineraryCard.innerHTML = `
+        <div class="trip-context-icon">${escapeHtml(context.climateIcon)}</div>
+        <div class="trip-context-copy">
+          <div class="trip-context-title-row">
+            <strong>${escapeHtml(context.climateLabel)}</strong>
+            <div class="trip-context-actions">
+              <span class="trip-context-status"><i class="fa-solid fa-shield-halved"></i> Plano B ativo</span>
+              ${Array.isArray(tripData.itinerary) && tripData.itinerary.length > 0 ? '<button type="button" class="trip-context-regenerate" onclick="openItineraryGeneratorModal()"><i class="fa-solid fa-rotate"></i> Refazer roteiro</button>' : ''}
+            </div>
+          </div>
+          <p>${escapeHtml(context.itineraryGuidance)}</p>
+          <small>${context.climateSource === 'forecast' ? 'Previsão para as datas selecionadas.' : 'Tendência sazonal — a previsão real substituirá este contexto quando estiver disponível.'}</small>
+          ${mismatch}
+        </div>`;
+    }
+  }
+
+  if (budgetCard) {
+    const budgetContext = tripData?.budget_context;
+    if (!context || !budgetContext) {
+      budgetCard.classList.add('hidden');
+      budgetCard.replaceChildren();
+    } else {
+      budgetCard.classList.remove('hidden');
+      budgetCard.innerHTML = `
+        <i class="fa-solid fa-calendar-check"></i>
+        <div><strong>Estimativa adaptada para ${context.days} ${context.days === 1 ? 'dia' : 'dias'}</strong>
+        <span>${budgetContext.autoApplied ? `Total sugerido aplicado: R$ ${Number(budgetContext.recommendedTotal).toLocaleString('pt-BR')}.` : `Seus valores manuais foram preservados. Referência atual: R$ ${Number(budgetContext.recommendedTotal).toLocaleString('pt-BR')}.`}</span></div>`;
+    }
+  }
+}
+
+async function saveTripDates(event) {
+  event?.preventDefault();
+  const startInput = document.getElementById('tripStartDateInput');
+  const endInput = document.getElementById('tripEndDateInput');
+  const error = document.getElementById('tripDatesError');
+  const submit = document.querySelector('#tripDatesForm button[type="submit"]');
+  const startDate = startInput?.value || '';
+  const endDate = endInput?.value || '';
+
+  if (!startDate || !endDate || endDate < startDate) {
+    if (error) {
+      error.textContent = !startDate || !endDate ? 'Escolha as datas de ida e volta.' : 'A data de volta não pode ser anterior à ida.';
+      error.classList.remove('hidden');
+    }
+    return;
+  }
+
+  if (submit) submit.disabled = true;
+  const needsFirstItinerary = !Array.isArray(tripData.itinerary) || tripData.itinerary.length === 0;
+  tripData.start_date = startDate;
+  tripData.end_date = endDate;
+  tripData.targetDate = `${startDate}T12:00:00`;
+  tripData.infoDates = formatTripDateRange(startDate, endDate);
+  tripData.status = getSuggestedTripStatus(startDate, endDate, tripData.status);
+  applyTripDateContext(tripData);
+  tripData.updatedAt = new Date().toISOString();
+  syncActiveTripSummary();
+  saveState();
+  setupCountdown();
+  renderDashboard();
+  window.renderHomeDashboard?.();
+  renderPlanTripSelector();
+  closeTripDatesModal();
+  if (submit) submit.disabled = false;
+  window.showToast?.('Datas salvas. Mala, orçamento e roteiro foram adaptados.', 'success');
+  if (needsFirstItinerary) window.setTimeout(() => openItineraryGeneratorModal(), 0);
+}
+
+window.openTripDatesModal = openTripDatesModal;
+window.closeTripDatesModal = closeTripDatesModal;
+window.saveTripDates = saveTripDates;
+window.openItineraryGeneratorModal = openItineraryGeneratorModal;
+window.closeItineraryGeneratorModal = closeItineraryGeneratorModal;
+
+const tripDatesForm = document.getElementById('tripDatesForm');
+if (tripDatesForm && !tripDatesForm.dataset.bound) {
+  tripDatesForm.dataset.bound = 'true';
+  tripDatesForm.addEventListener('submit', saveTripDates);
+  document.getElementById('tripStartDateInput')?.addEventListener('change', event => {
+    const endInput = document.getElementById('tripEndDateInput');
+    if (!endInput) return;
+    endInput.min = event.target.value;
+    if (!endInput.value || endInput.value < event.target.value) endInput.value = event.target.value;
+  });
+  document.getElementById('tripDatesModal')?.addEventListener('click', event => {
+    if (event.target.id === 'tripDatesModal') closeTripDatesModal();
+  });
+}
+
+const itineraryGeneratorForm = document.getElementById('itineraryGeneratorForm');
+if (itineraryGeneratorForm && !itineraryGeneratorForm.dataset.bound) {
+  itineraryGeneratorForm.dataset.bound = 'true';
+  itineraryGeneratorForm.addEventListener('submit', generateItineraryFromForm);
+  document.getElementById('itineraryGeneratorModal')?.addEventListener('click', event => {
+    if (event.target.id === 'itineraryGeneratorModal') closeItineraryGeneratorModal();
+  });
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && !document.getElementById('itineraryGeneratorModal')?.classList.contains('hidden')) {
+      closeItineraryGeneratorModal();
+    }
+  });
+}
+
+function renderReadinessChecklist(readinessData) {
+  const checklist = document.getElementById('readinessChecklist');
+  if (!checklist) return;
+
+  const itemConfig = {
+    dates: {
+      icon: 'fa-calendar-days',
+      completeText: 'Período definido',
+      pendingText: 'Falta definir quando a viagem acontece',
+      completeAction: 'Ajustar',
+      pendingAction: 'Definir',
+      open: () => openTripDatesModal()
+    },
+    transport: {
+      icon: 'fa-plane',
+      completeText: 'Transporte adicionado',
+      pendingText: 'Falta adicionar o transporte principal',
+      completeAction: 'Ver',
+      pendingAction: 'Adicionar',
+      open: () => switchTab('logistica')
+    },
+    hotel: {
+      icon: 'fa-bed',
+      completeText: 'Hospedagem definida',
+      pendingText: 'Falta definir a hospedagem',
+      completeAction: 'Ver',
+      pendingAction: 'Adicionar',
+      open: () => switchTab('logistica')
+    },
+    itinerary: {
+      icon: 'fa-route',
+      completeText: 'Programação criada',
+      pendingText: 'Falta criar o roteiro dia a dia',
+      completeAction: 'Ver roteiro',
+      pendingAction: 'Criar roteiro',
+      open: item => item.complete ? switchTab('roteiro') : openItineraryGeneratorModal()
+    },
+    budget: {
+      icon: 'fa-wallet',
+      completeText: 'Valores planejados',
+      pendingText: 'Falta planejar os gastos',
+      completeAction: 'Ver',
+      pendingAction: 'Definir',
+      open: () => switchTab('orcamento')
+    },
+    packing: {
+      icon: 'fa-suitcase-rolling',
+      completeText: 'Mala praticamente pronta',
+      pendingText: 'Ainda há itens para separar',
+      completeAction: 'Ver',
+      pendingAction: 'Continuar',
+      open: () => switchTab('mala')
+    },
+    documents: {
+      icon: 'fa-folder-open',
+      completeText: 'Documentos ou reservas adicionados',
+      pendingText: 'Faltam documentos e reservas',
+      completeAction: 'Ver',
+      pendingAction: 'Adicionar',
+      open: () => switchTab('logistica')
+    }
+  };
+
+  checklist.replaceChildren();
+  (readinessData.readinessItems || []).forEach(item => {
+    const config = itemConfig[item.id];
+    if (!config) return;
+
+    const row = document.createElement('div');
+    row.className = `readiness-item ${item.complete ? 'is-complete' : 'is-pending'}`;
+
+    const statusIcon = document.createElement('span');
+    statusIcon.className = 'readiness-item-status';
+    statusIcon.setAttribute('aria-hidden', 'true');
+    statusIcon.innerHTML = `<i class="fa-solid ${item.complete ? 'fa-check' : config.icon}"></i>`;
+
+    const content = document.createElement('div');
+    content.className = 'readiness-item-content';
+    const title = document.createElement('strong');
+    title.textContent = item.label;
+    const detail = document.createElement('span');
+    detail.textContent = item.detail || (item.complete ? config.completeText : config.pendingText);
+    content.append(title, detail);
+
+    const action = document.createElement('button');
+    action.type = 'button';
+    action.className = 'readiness-item-action';
+    action.textContent = item.complete ? config.completeAction : config.pendingAction;
+    action.setAttribute('aria-label', `${action.textContent}: ${item.label}`);
+    action.addEventListener('click', () => config.open(item));
+
+    row.append(statusIcon, content, action);
+    checklist.appendChild(row);
+  });
+}
+
 window.renderHomeDashboard = function() {
   if (!tripData) return;
 
@@ -7861,19 +9940,10 @@ window.renderHomeDashboard = function() {
   
   const homeDateRange = document.getElementById('homeDateRange');
   let dateText = "Datas a definir";
-  const formatDateOnly = (value) => {
-    const match = typeof value === 'string' ? value.match(/^(\d{4})-(\d{2})-(\d{2})$/) : null;
-    const date = match
-      ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
-      : new Date(value);
-    return date.toLocaleDateString('pt-BR');
-  };
   if (tripData.start_date && tripData.end_date) {
-    const s = formatDateOnly(tripData.start_date);
-    const e = formatDateOnly(tripData.end_date);
-    dateText = `${s} - ${e}`;
+    dateText = formatTripDateRange(tripData.start_date, tripData.end_date);
   } else if (tripData.start_date) {
-    dateText = "A partir de " + formatDateOnly(tripData.start_date);
+    dateText = "A partir de " + formatTripDateRange(tripData.start_date, null);
   } else if (tripData.infoDates) {
     dateText = tripData.infoDates;
   }
@@ -7915,11 +9985,13 @@ window.renderHomeDashboard = function() {
   if (readinessBar) readinessBar.style.width = `${rData.percentage}%`;
   if (readinessDesc) {
     if (rData.percentage === 100) readinessDesc.textContent = "Tudo pronto! Você está 100% preparado para a viagem.";
-    else if (rData.percentage > 60) readinessDesc.textContent = "Quase lá! Faltam poucos detalhes para sua viagem.";
-    else readinessDesc.textContent = "Complete os itens essenciais para viajar com tranquilidade.";
+    else if (rData.percentage > 60) readinessDesc.textContent = "Quase lá! Veja abaixo os últimos detalhes que faltam.";
+    else readinessDesc.textContent = "Veja abaixo o que já está pronto e o que ainda falta.";
   }
+  renderReadinessChecklist(rData);
 
   renderProactiveInsights();
+  if (typeof renderTodayMode === 'function') renderTodayMode();
   
   // 4. Dynamic Next Step
   const nextStepBanner = document.getElementById('homeNextStepBanner');
@@ -8018,3 +10090,135 @@ window.renderHomeDashboard = function() {
     }
   }
 };
+
+// Global Exposure for Operational Engines & UI Modals
+window.detectTripRisks = detectTripRisks;
+window.generateReplanningProposal = generateReplanningProposal;
+window.applyReplanningProposal = applyReplanningProposal;
+
+window.openReplanningProposalModal = function(proposal) {
+  if (!proposal) return;
+
+  const modal = document.getElementById('replanningProposalModal');
+  const container = document.getElementById('replanModalContent');
+  if (!modal || !container) return;
+
+  container.innerHTML = `
+    <div style="background: rgba(63, 131, 248, 0.08); border: 1px solid rgba(63, 131, 248, 0.3); padding: 14px; border-radius: 8px;">
+      <h4 style="margin: 0 0 6px; font-size: 0.95rem; color: var(--primary-color);">Motivo da Reorganização:</h4>
+      <p style="margin: 0; font-size: 0.85rem; color: var(--text-light); line-height: 1.4;">${proposal.reason || 'Otimização de itinerário.'}</p>
+      <p style="margin: 8px 0 0; font-size: 0.78rem; color: var(--text-muted); font-style: italic;">${proposal.impactSummary || ''}</p>
+    </div>
+
+    ${proposal.kept && proposal.kept.length > 0 ? `
+      <div>
+        <h4 style="margin: 0 0 8px; font-size: 0.85rem; text-transform: uppercase; color: #10b981; letter-spacing: 0.05em;">
+          <i class="fa-solid fa-lock"></i> Mantidos Intactos (${proposal.kept.length})
+        </h4>
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          ${proposal.kept.map(k => `
+            <div style="font-size: 0.8rem; background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.2); padding: 6px 10px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center;">
+              <strong>${k.title}</strong>
+              <span style="font-size: 0.72rem; color: #10b981;">${k.reason}</span>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    ` : ''}
+
+    ${proposal.moved && proposal.moved.length > 0 ? `
+      <div>
+        <h4 style="margin: 0 0 8px; font-size: 0.85rem; text-transform: uppercase; color: #3b82f6; letter-spacing: 0.05em;">
+          <i class="fa-solid fa-right-left"></i> Reagendados (${proposal.moved.length})
+        </h4>
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          ${proposal.moved.map(m => `
+            <div style="font-size: 0.8rem; background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.2); padding: 6px 10px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center;">
+              <strong>${m.title}</strong>
+              <span style="font-size: 0.72rem; color: #3b82f6;">${m.from} ➔ ${m.to}</span>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    ` : ''}
+
+    ${proposal.newSuggestions && proposal.newSuggestions.length > 0 ? `
+      <div>
+        <h4 style="margin: 0 0 8px; font-size: 0.85rem; text-transform: uppercase; color: #8b5cf6; letter-spacing: 0.05em;">
+          <i class="fa-solid fa-lightbulb"></i> Sugestões Adicionadas (${proposal.newSuggestions.length})
+        </h4>
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          ${proposal.newSuggestions.map(s => `
+            <div style="font-size: 0.8rem; background: rgba(139, 92, 246, 0.08); border: 1px solid rgba(139, 92, 246, 0.2); padding: 6px 10px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center;">
+              <strong>${s.title}</strong>
+              <span style="font-size: 0.72rem; color: #8b5cf6;">${s.time || 'Sugerido'}</span>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    ` : ''}
+  `;
+
+  modal.classList.remove('hidden');
+
+  const closeBtn = document.getElementById('closeReplanModalBtn');
+  const cancelBtn = document.getElementById('cancelReplanBtn');
+  const applyBtn = document.getElementById('applyReplanBtn');
+
+  const closeModal = () => modal.classList.add('hidden');
+  if (closeBtn) closeBtn.onclick = closeModal;
+  if (cancelBtn) cancelBtn.onclick = closeModal;
+
+  if (applyBtn) {
+    applyBtn.onclick = async () => {
+      try {
+        tripData = applyReplanningProposal(tripData, proposal);
+        saveState();
+        renderActiveTab();
+        closeModal();
+        trackEvent(EVENTS.REPLANNING_PROPOSAL_APPLIED, { proposalId: proposal.id, trigger: proposal.trigger });
+        showUndoToast('Replanejamento aplicado com sucesso!');
+      } catch (err) {
+        console.error('Error applying replanning proposal:', err);
+      }
+    };
+  }
+
+  trackEvent(EVENTS.REPLANNING_PROPOSAL_CREATED, { proposalId: proposal.id, trigger: proposal.trigger });
+};
+
+window.generatePublicItineraryModel = generatePublicItineraryModel;
+window.clonePublicItinerary = clonePublicItinerary;
+window.generateItineraryJsonLd = generateItineraryJsonLd;
+
+window.cloneCurrentPublicItinerary = function() {
+  if (!tripData) return;
+
+  try {
+    const publicModel = generatePublicItineraryModel(tripData, {
+      title: tripData.tripTitle,
+      description: `Roteiro em ${tripData.destination || tripData.tripTitle}`
+    });
+
+    const clonedTrip = clonePublicItinerary(publicModel, {}, {
+      start_date: new Date().toISOString().slice(0, 10)
+    });
+
+    if (typeof allTrips === 'object' && allTrips !== null) {
+      allTrips[clonedTrip.id] = clonedTrip;
+    }
+    activeTripId = clonedTrip.id;
+    tripData = clonedTrip;
+
+    saveState();
+    switchTab('home');
+    alert('🎉 Roteiro clonado com sucesso! Agora você pode personalizar datas, voos e hotel no seu painel privado.');
+    trackEvent('itinerary_cloned', { source_id: publicModel.publicId, destination: clonedTrip.destination });
+  } catch (err) {
+    console.error('Error cloning public itinerary:', err);
+  }
+};
+
+window.generateReferralCode = generateReferralCode;
+window.parseAttributionParams = parseAttributionParams;
+window.calculateNorthStarMetrics = calculateNorthStarMetrics;

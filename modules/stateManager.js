@@ -1,4 +1,6 @@
-export const CURRENT_STATE_VERSION = 2;
+import { enrichItineraryWithCalendar } from './calendarEngine.js';
+
+export const CURRENT_STATE_VERSION = 3;
 
 function toNonNegativeNumber(value, fallback = 0) {
   const parsed = Number(value);
@@ -8,6 +10,43 @@ function toNonNegativeNumber(value, fallback = 0) {
 function toText(value, fallback = '') {
   if (value === null || value === undefined) return fallback;
   return String(value);
+}
+
+function formatDisplayDate(value) {
+  const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return match ? `${match[3]}-${match[2]}-${match[1]}` : String(value || '');
+}
+
+const TRANSPORT_RESERVATION_TYPES = new Set([
+  'Passagem Aérea', 'flight',
+  'Transporte — Ônibus', 'Transporte — Trem', 'Transporte — Carro próprio',
+  'Transporte — Carro alugado', 'Transporte — Transfer / Táxi / App',
+  'Transporte — Táxi / Aplicativo', 'Transporte — Transporte público', 'Transporte — Transfer',
+  'Transporte — Barco / Navio', 'Transporte — Outro'
+]);
+
+export function isTransportReservation(reservation) {
+  if (!reservation || typeof reservation !== 'object') return false;
+  return Boolean(
+    reservation.transport_mode ||
+    TRANSPORT_RESERVATION_TYPES.has(reservation.type) ||
+    String(reservation.type || '').startsWith('Transporte — ')
+  );
+}
+
+function getPrimaryTransport(tripData) {
+  if (tripData?.transportPlan?.local?.mode) return tripData.transportPlan.local;
+  if (tripData?.transportPlan?.arrival?.mode) return tripData.transportPlan.arrival;
+  if (tripData?.primaryTransport?.mode) return tripData.primaryTransport;
+  const reservation = (tripData?.reservations || []).find(isTransportReservation);
+  if (!reservation) return null;
+  return {
+    mode: reservation.transport_mode || (reservation.type === 'Passagem Aérea' ? 'flight' : 'transport'),
+    label: String(reservation.type || 'Transporte').replace('Transporte — ', ''),
+    title: reservation.title || reservation.name || 'Transporte confirmado',
+    origin: reservation.origin || '',
+    destination: reservation.destination || ''
+  };
 }
 
 export function normalizeTripState(trip) {
@@ -40,6 +79,8 @@ export function normalizeTripState(trip) {
     travelers: [],
     accommodations: [],
     reservations: [],
+    primaryTransport: null,
+    transportPlan: { arrival: null, local: null, local_modes: [], departure: null, segments: [] },
     timezone: "America/Sao_Paulo",
     preferences: { pace: "moderate", interests: [], dietary_restrictions: [] },
     readiness: { packing_percentage: 0, checklist_todo_count: 0, has_missing_documents: false },
@@ -58,7 +99,8 @@ export function normalizeTripState(trip) {
       members: false,
       packing: false,
       documents: false
-    }
+    },
+    attribution: { is_cloned: false, source_itinerary_id: null, source_creator: null, cloned_at: null }
   };
 
   // Inject defaults if properties are missing or undefined
@@ -170,6 +212,11 @@ export function normalizeTripState(trip) {
       ...day,
       dayNum: Number(day.dayNum) || dayIndex + 1,
       dayTitle: toText(day.dayTitle),
+      dayStory: toText(day.dayStory || day.day_story),
+      highlight: toText(day.highlight),
+      localSecret: toText(day.localSecret || day.local_secret),
+      logistics: toText(day.logistics || day.logistica),
+      climate_plan: toText(day.climate_plan || day.climatePlan),
       city: toText(day.city),
       activities: Array.isArray(day.activities)
         ? day.activities.filter(activity => activity && typeof activity === 'object').map(activity => ({
@@ -185,11 +232,23 @@ export function normalizeTripState(trip) {
   if (!normalized.destination) {
     normalized.destination = normalized.tripTitle || "A definir";
   }
+  const normalizedDestination = toText(normalized.destination).trim().replace(/^viagem\s+(?:para|a|em)\s+/i, '');
+  const destinationLooksLikeActivity = /^(?:um|uma|algum|alguma)?\s*(?:show|concerto|festival|teatro|pe[cç]a|stand.?up|restaurante|bar|caf[eé]|museu|passeio|compras?|shopping|jogo|evento)\b/i.test(normalizedDestination);
+  if (normalizedDestination && normalizedDestination !== 'A definir' && normalizedDestination !== 'Minha Próxima Viagem' && !destinationLooksLikeActivity) {
+    normalized.tripTitle = `Viagem para ${normalizedDestination}`;
+  }
   if (!normalized.start_date) {
     normalized.start_date = normalized.targetDate ? normalized.targetDate.split('T')[0] : null;
   }
   if (!normalized.end_date) {
     normalized.end_date = null;
+  }
+  if (normalized.start_date) {
+    normalized.infoDates = `${formatDisplayDate(normalized.start_date)}${normalized.end_date ? ` a ${formatDisplayDate(normalized.end_date)}` : ''}`;
+    normalized.itinerary = enrichItineraryWithCalendar(normalized.itinerary, normalized.start_date, normalized.end_date);
+    normalized.tripCalendar = normalized.itinerary.map(day => ({
+      dayNum: day.dayNum, dateISO: day.dateISO, date: day.date, dateLabel: day.dateLabel, weekday: day.weekday
+    }));
   }
   if (!normalized.status) {
     normalized.status = "planning";
@@ -254,6 +313,136 @@ export function getSuggestedTripStatus(startDateStr, endDateStr, currentStatus) 
   
   return 'planning';
 }
+
+export function recalculateTripContext(oldTrip, newTrip) {
+  if (!newTrip) return newTrip;
+  const oldState = oldTrip || {};
+  const changedFields = [];
+
+  if (oldState.destination !== newTrip.destination) changedFields.push('destino');
+  if (oldState.start_date !== newTrip.start_date || oldState.end_date !== newTrip.end_date) changedFields.push('datas');
+  if (oldState.infoHotel !== newTrip.infoHotel || JSON.stringify(oldState.accommodations) !== JSON.stringify(newTrip.accommodations)) changedFields.push('hospedagem');
+  if (JSON.stringify(oldState.members) !== JSON.stringify(newTrip.members)) changedFields.push('viajantes');
+  if (JSON.stringify(oldState.budget) !== JSON.stringify(newTrip.budget)) changedFields.push('orçamento');
+
+  if (changedFields.length === 0) {
+    newTrip.readiness = calculateReadinessScore(newTrip);
+    return newTrip;
+  }
+
+  // 1. Clima
+  if (changedFields.includes('destino') || changedFields.includes('datas')) {
+    if (newTrip.destination && newTrip.destination !== 'A definir') {
+      newTrip.infoWeather = `Clima previsto para ${newTrip.destination}`;
+    }
+  }
+
+  // 2. Mala — Preservar itens manuais/marcados
+  if (changedFields.includes('destino') || changedFields.includes('datas') || changedFields.includes('viajantes')) {
+    const existingPacking = Array.isArray(oldState.packing) ? oldState.packing : [];
+    const manualItems = [];
+    existingPacking.forEach(cat => {
+      if (cat && Array.isArray(cat.items)) {
+        cat.items.forEach(item => {
+          if (item && (item.checked || item.manual || item.isUserCreated)) {
+            manualItems.push(item);
+          }
+        });
+      }
+    });
+
+    if (manualItems.length > 0) {
+      newTrip.packing = newTrip.packing || [];
+      let manualCat = newTrip.packing.find(c => c.category === 'Meus Itens Manuais');
+      if (!manualCat) {
+        manualCat = { category: 'Meus Itens Manuais', items: [] };
+        newTrip.packing.unshift(manualCat);
+      }
+      manualItems.forEach(mi => {
+        if (!manualCat.items.some(i => i.name === mi.name)) {
+          manualCat.items.push(mi);
+        }
+      });
+    }
+  }
+
+  // 3. Logística & Status
+  if (newTrip.start_date) {
+    const startFmt = formatDisplayDate(newTrip.start_date);
+    const endFmt = newTrip.end_date ? ` a ${formatDisplayDate(newTrip.end_date)}` : '';
+    newTrip.infoDates = `${startFmt}${endFmt}`;
+  }
+  if (Array.isArray(newTrip.members) && newTrip.members.length > 0) {
+    newTrip.infoGroup = newTrip.members.length === 1 ? '1 viajante' : `${newTrip.members.length} viajantes`;
+  }
+  newTrip.status = getSuggestedTripStatus(newTrip.start_date, newTrip.end_date, newTrip.status);
+
+  // 4. Readiness Score
+  newTrip.readiness = calculateReadinessScore(newTrip);
+
+  // 5. Aviso contextual
+  newTrip.recalculationNotice = {
+    triggered: true,
+    message: `Contexto recalculado para (${changedFields.join(', ')}). Clima, mala e modo Hoje atualizados. Itens manuais preservados.`,
+    changedFields
+  };
+
+  return newTrip;
+}
+
+export function validateDiningOptions(diningInput) {
+  const genericPatterns = [
+    /restaurante\s+t[íi]pico/i,
+    /caf[ée]\s+local/i,
+    /restaurante\s+local/i,
+    /comida\s+t[íi]pica\s+local/i,
+    /restaurante\s+da\s+cidade/i,
+    /caf[ée]\s+do\s+centro/i,
+    /bar\s+gen[ée]rico/i
+  ];
+
+  let itemsToTest = [];
+
+  if (typeof diningInput === 'string') {
+    itemsToTest.push({ title: diningInput, desc: diningInput });
+  } else if (Array.isArray(diningInput)) {
+    diningInput.forEach(item => {
+      if (typeof item === 'string') itemsToTest.push({ title: item, desc: item });
+      else if (item && typeof item === 'object') itemsToTest.push(item);
+    });
+  } else if (diningInput && typeof diningInput === 'object') {
+    itemsToTest.push(diningInput);
+  }
+
+  for (const item of itemsToTest) {
+    const fullText = `${item.title || ''} ${item.desc || ''} ${item.name || ''} ${item.justificativa || ''}`;
+    for (const pattern of genericPatterns) {
+      const match = fullText.match(pattern);
+      if (match) {
+        return {
+          valid: false,
+          reason: `Nome genérico de restaurante detectado: "${match[0]}"`,
+          genericNameFound: match[0]
+        };
+      }
+    }
+  }
+
+  // Check requirement for 2 options per meal when structured dining options are passed
+  if (Array.isArray(diningInput) && diningInput.length > 0) {
+    const isMealStructured = diningInput.every(d => d.name || d.title);
+    if (isMealStructured && diningInput.length < 2) {
+      return {
+        valid: false,
+        reason: "Sugestões de refeição devem conter pelo menos 2 opções reais por refeição."
+      };
+    }
+  }
+
+  return { valid: true };
+}
+
+
 
 export function checkDuplicateDocument(trip, doc, type = 'flight') {
   if (!trip) return false;
@@ -331,16 +520,107 @@ export function inferTripFromDocuments(parsedDataList) {
   return { dest, start, end, flights, hotels };
 }
 
+export function calculateOperationalHealthScore(tripData) {
+  if (!tripData) return { score: 0, total: 5, percentage: 0, items: [] };
+
+  const primaryTransport = getPrimaryTransport(tripData);
+  const hasTransport = Boolean((tripData.flights && tripData.flights.length > 0) || primaryTransport);
+
+  const hasHotel = Boolean(
+    (tripData.accommodations && tripData.accommodations.length > 0) ||
+    (tripData.infoHotel && tripData.infoHotel !== 'A definir' && tripData.infoHotel !== 'Não definido')
+  );
+
+  const hasItinerary = Boolean(tripData.itinerary && tripData.itinerary.length > 0);
+
+  const totalBudget = (tripData.budget?.hospedagem || 0) + (tripData.budget?.alimentacao || 0) + (tripData.budget?.passeios || 0) + (tripData.budget?.compras || 0);
+  const hasBudget = totalBudget > 0;
+
+  let totalItems = 0;
+  let packedItems = 0;
+  if (Array.isArray(tripData.packing)) {
+    tripData.packing.forEach(cat => {
+      if (cat && Array.isArray(cat.items)) {
+        cat.items.forEach(i => {
+          totalItems++;
+          if (i && (i.checked || typeof i === 'string')) packedItems++;
+        });
+      }
+    });
+  }
+  const hasPacking = totalItems > 0;
+
+  const items = [
+    {
+      id: 'transport',
+      label: 'Transporte Principal',
+      status: hasTransport ? 'OK' : 'Pendente',
+      currentValue: hasTransport ? (primaryTransport?.title || tripData.flights?.[0]?.flightNumber || `${tripData.flights?.[0]?.from || 'Voo'} → ${tripData.flights?.[0]?.to || 'Confirmado'}`) : 'Nenhum transporte adicionado',
+      actionLabel: hasTransport ? 'Ver na Carteira' : 'Adicionar Transporte',
+      tab: 'logistica'
+    },
+    {
+      id: 'hotel',
+      label: 'Hospedagem Principal',
+      status: hasHotel ? 'OK' : 'Pendente',
+      currentValue: hasHotel ? (tripData.accommodations?.[0]?.name || tripData.infoHotel || 'Hospedagem salva') : 'Hospedagem a definir',
+      actionLabel: hasHotel ? 'Ver na Carteira' : 'Adicionar Hotel',
+      tab: 'logistica'
+    },
+    {
+      id: 'itinerary',
+      label: 'Roteiro Base',
+      status: hasItinerary ? 'OK' : 'Pendente',
+      currentValue: hasItinerary ? `${tripData.itinerary.length} dias programados` : 'Sem roteiro montado',
+      actionLabel: hasItinerary ? 'Abrir Roteiro' : 'Gerar Roteiro',
+      tab: 'roteiro'
+    },
+    {
+      id: 'budget',
+      label: 'Orçamento Definido',
+      status: hasBudget ? 'OK' : 'Pendente',
+      currentValue: hasBudget ? `R$ ${totalBudget.toLocaleString('pt-BR')}` : 'Orçamento a definir',
+      actionLabel: hasBudget ? 'Ver Orçamento' : 'Definir Orçamento',
+      tab: 'orcamento'
+    },
+    {
+      id: 'packing',
+      label: 'Mala / Preparação',
+      status: hasPacking ? 'OK' : 'Pendente',
+      currentValue: hasPacking ? `${packedItems} de ${totalItems} itens marcados` : 'Lista de mala pendente',
+      actionLabel: hasPacking ? 'Ver Mala' : 'Revisar Mala',
+      tab: 'mala'
+    }
+  ];
+
+  const okCount = items.filter(i => i.status === 'OK').length;
+
+  return {
+    score: okCount,
+    total: 5,
+    percentage: Math.round((okCount / 5) * 100),
+    items
+  };
+}
+
 export function calculateReadinessScore(tripData) {
   let totalScore = 0;
   let maxScore = 5; // Base: Dates, Transport, Accommodation, Itinerary, Budget
   
   const hasDates = tripData.start_date ? 1 : 0;
-  const hasTransport = ((tripData.flights && tripData.flights.length > 0) || (tripData.reservations && tripData.reservations.some(r => r.type === "Passagem Aérea" || r.type === "flight"))) ? 1 : 0;
+  const hasTransport = ((tripData.flights && tripData.flights.length > 0) || getPrimaryTransport(tripData)) ? 1 : 0;
   const hasHotel = (tripData.accommodations && tripData.accommodations.length > 0) || (tripData.infoHotel && tripData.infoHotel !== 'A definir' && tripData.infoHotel !== 'Não definido') ? 1 : 0;
   const hasItinerary = (tripData.itinerary && tripData.itinerary.length > 0) ? 1 : 0;
   const hasBudget = (tripData.budget && (tripData.budget.hospedagem > 0 || tripData.budget.alimentacao > 0)) ? 1 : 0;
   
+  const readinessItems = [
+    { id: 'dates', label: 'Datas da viagem', complete: Boolean(hasDates) },
+    { id: 'transport', label: 'Transporte principal', complete: Boolean(hasTransport) },
+    { id: 'hotel', label: 'Hospedagem', complete: Boolean(hasHotel) },
+    { id: 'itinerary', label: 'Roteiro dia a dia', complete: Boolean(hasItinerary) },
+    { id: 'budget', label: 'Orçamento', complete: Boolean(hasBudget) }
+  ];
+
   let packedItems = 0;
   let totalItems = 0;
   if (tripData.packing && tripData.packing.length > 0) {
@@ -351,14 +631,23 @@ export function calculateReadinessScore(tripData) {
         if (typeof item === 'object' && item.checked) packedItems++;
       });
     });
-    if (totalItems > 0 && (packedItems / totalItems) > 0.8) {
+    const packingComplete = totalItems > 0 && (packedItems / totalItems) > 0.8;
+    if (packingComplete) {
       totalScore += 1;
     }
+    readinessItems.push({
+      id: 'packing',
+      label: 'Lista de mala',
+      complete: packingComplete,
+      detail: `${packedItems} de ${totalItems} itens marcados`
+    });
   }
   
-  if ((tripData.documents && tripData.documents.length > 0) || (tripData.reservations && tripData.reservations.length > 0)) {
+  const hasDocuments = (tripData.documents && tripData.documents.length > 0) || (tripData.reservations && tripData.reservations.length > 0);
+  if (hasDocuments) {
     maxScore += 1;
     totalScore += 1;
+    readinessItems.push({ id: 'documents', label: 'Documentos e reservas', complete: true });
   }
   
   totalScore += hasDates + hasTransport + hasHotel + hasItinerary + hasBudget;
@@ -373,7 +662,8 @@ export function calculateReadinessScore(tripData) {
     hasItinerary,
     hasBudget,
     totalItems,
-    packedItems
+    packedItems,
+    readinessItems
   };
 }
 

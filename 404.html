@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Página não encontrada - CoPiloto de Viagem</title>
+  <title>Página não encontrada — Orbia Travel</title>
   
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Sora:wght@600;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <link rel="stylesheet" href="/vendas.css">
+  <link rel="stylesheet" href="/style.v2.css">
   
   <style>
     .not-found-container {
@@ -22,33 +22,37 @@
       padding: 20px;
     }
     .not-found-title {
+      font-family: 'Sora', sans-serif;
       font-size: 6rem;
       font-weight: 800;
-      color: var(--primary);
+      color: var(--orbia-berilo);
       margin-bottom: 0;
       line-height: 1;
     }
     .not-found-subtitle {
-      font-size: 2rem;
+      font-family: 'Sora', sans-serif;
+      font-size: 1.8rem;
       margin-bottom: 20px;
+      color: var(--orbia-oceano);
     }
     .not-found-text {
       font-size: 1.1rem;
-      color: var(--text-light);
+      color: var(--orbia-texto-secundario);
       margin-bottom: 40px;
       max-width: 500px;
     }
   </style>
 </head>
-<body>
+<body style="background: var(--orbia-ceu);">
   <div class="not-found-container container">
+    <img src="/assets/symbol-orbia.svg" style="width: 54px; height: 54px; margin-bottom: 16px;" alt="Orbia Travel">
     <h1 class="not-found-title">404</h1>
-    <h2 class="not-found-subtitle">Ops! Parece que você se perdeu na rota.</h2>
+    <h2 class="not-found-subtitle">Ops! Página não encontrada.</h2>
     <p class="not-found-text">
-      Não conseguimos encontrar o destino que você estava procurando. A página pode ter sido movida ou não existe mais.
+      Não conseguimos encontrar o destino acessado. O Orbia Travel ajuda você a voltar com segurança para sua viagem.
     </p>
-    <a href="/" class="btn btn-primary">
-      <i class="fa-solid fa-plane"></i> Voltar para a Home
+    <a href="/" class="btn btn-primary" style="background: var(--orbia-laranja); color: white; border-radius: 50px; padding: 12px 28px; font-weight: 700;">
+      <i class="fa-solid fa-arrow-left"></i> Voltar para o Orbia Travel
     </a>
   </div>
 </body>

@@ -163,6 +163,140 @@ export function buildProactiveInsights(trip, options = {}) {
     }));
   }
 
+  // 1. TRIP_STARTING_SOON
+  if (daysUntilStart >= 0 && daysUntilStart <= 2) {
+    candidates.push(insight('trip_starting_soon', `${trip.start_date}|${daysUntilStart}`, {
+      severity: 'urgent',
+      priority: 105,
+      title: daysUntilStart === 0 ? 'Sua viagem começa hoje!' : `Sua viagem começa em ${daysUntilStart} dia(s)!`,
+      message: 'Abra o Modo Hoje para acompanhar o que fazer agora.',
+      ctaLabel: 'Ver Modo Hoje',
+      targetTab: 'home',
+      icon: 'fa-plane-departure'
+    }));
+  }
+
+  // 2. UPCOMING_FLIGHT, CHECK_IN_WINDOW & LEAVE_FOR_AIRPORT
+  const flights = Array.isArray(trip.flights) ? trip.flights : [];
+  flights.forEach(f => {
+    const flightDateStr = parseDateOnly(f.date || f.departureDate);
+    if (flightDateStr && today) {
+      const daysToFlight = dayNumber(flightDateStr) - dayNumber(today);
+      // Upcoming flight (< 3 days)
+      if (daysToFlight >= 0 && daysToFlight <= 3) {
+        candidates.push(insight('upcoming_flight', `${f.flightNumber || 'voo'}|${f.date}`, {
+          severity: 'attention',
+          priority: 95,
+          title: `Voo ${f.flightNumber || ''} se aproximando`,
+          message: `Voo agendado para ${f.date} às ${f.departureTime || f.scheduledDeparture || 'horário marcado'}.`,
+          ctaLabel: 'Ver logística',
+          targetTab: 'logistica',
+          icon: 'fa-plane'
+        }));
+      }
+
+      // CHECK_IN_WINDOW (prudent window notification)
+      if (daysToFlight === 0 || daysToFlight === 1) {
+        candidates.push(insight('check_in_window', `${f.flightNumber || 'voo'}|checkin`, {
+          severity: 'urgent',
+          priority: 100,
+          title: `Check-in da sua viagem (${f.flightNumber || 'Voo'})`,
+          message: `O check-in pode já estar disponível. Confira o horário exato com a sua companhia aérea.`,
+          ctaLabel: 'Ver passagens',
+          targetTab: 'logistica',
+          icon: 'fa-id-card'
+        }));
+      }
+
+      // LEAVE_FOR_AIRPORT (estimation from flight time, flight type and buffer)
+      if (daysToFlight === 0) {
+        const depTime = f.departureTime || f.scheduledDeparture || '12:00';
+        const bufferHours = f.isInternational ? 3 : 2;
+        candidates.push(insight('leave_for_airport', `${f.flightNumber || 'voo'}|leave`, {
+          severity: 'urgent',
+          priority: 110,
+          title: `Hora de sair para o aeroporto`,
+          message: `Estimativa: Saia ~${bufferHours}h a ${bufferHours + 1}h antes do voo das ${depTime} (recomendação estimada).`,
+          ctaLabel: 'Ver logística',
+          targetTab: 'logistica',
+          icon: 'fa-taxi'
+        }));
+      }
+    }
+  });
+
+  // 3. HOTEL_CHECKIN & HOTEL_CHECKOUT
+  const accommodations = Array.isArray(trip.accommodations) ? trip.accommodations : [];
+  accommodations.forEach(acc => {
+    const checkInStr = parseDateOnly(acc.checkInDate || acc.checkin);
+    const checkOutStr = parseDateOnly(acc.checkOutDate || acc.checkout);
+    if (checkInStr && today && dayNumber(checkInStr) === dayNumber(today)) {
+      candidates.push(insight('hotel_checkin', `${acc.hotelName || 'hotel'}|checkin`, {
+        severity: 'attention',
+        priority: 85,
+        title: `Check-in na Hospedagem Hoje`,
+        message: `Check-in previsto em ${acc.hotelName || 'seu hotel'}.`,
+        ctaLabel: 'Ver voucher',
+        targetTab: 'logistica',
+        icon: 'fa-key'
+      }));
+    }
+    if (checkOutStr && today && dayNumber(checkOutStr) === dayNumber(today)) {
+      candidates.push(insight('hotel_checkout', `${acc.hotelName || 'hotel'}|checkout`, {
+        severity: 'attention',
+        priority: 85,
+        title: `Check-out da Hospedagem Hoje`,
+        message: `Não se esqueça do horário de check-out em ${acc.hotelName || 'seu hotel'}.`,
+        ctaLabel: 'Ver detalhes',
+        targetTab: 'logistica',
+        icon: 'fa-door-open'
+      }));
+    }
+  });
+
+  // 4. MISSING_CRITICAL_DOCUMENT
+  const docs = Array.isArray(trip.documents) ? trip.documents : [];
+  if (daysUntilStart <= 7 && docs.length === 0) {
+    candidates.push(insight('missing_critical_document', 'docs|missing', {
+      severity: 'attention',
+      priority: 75,
+      title: 'Nenhum documento salvo',
+      message: 'Guarde seus bilhetes e vouchers na Carteira para acesso offline fácil.',
+      ctaLabel: 'Adicionar documentos',
+      targetTab: 'logistica',
+      icon: 'fa-folder-open'
+    }));
+  }
+
+  // Live Travel Signals mapping
+  const liveSignals = Array.isArray(options.signals) ? options.signals : (Array.isArray(trip.live_signals) ? trip.live_signals : []);
+  liveSignals.forEach(sig => {
+    if (sig.type === 'FLIGHT_STATUS' && sig.status === 'delayed') {
+      candidates.push(insight('signal_flight_delay', `${sig.flightNumber}|${sig.delayMinutes}`, {
+        severity: 'urgent',
+        priority: 110,
+        title: `Voo ${sig.flightNumber} Atrasado (${sig.delayMinutes} min)`,
+        message: `Seu voo teve um atraso estimado em ${sig.delayMinutes} minutos. Deseja reorganizar a programação inicial?`,
+        ctaLabel: 'Reorganizar Roteiro',
+        targetTab: 'replan_proposal',
+        trigger: 'flight_delay',
+        delayHours: Math.ceil(sig.delayMinutes / 60),
+        icon: 'fa-plane-circle-exclamation'
+      }));
+    } else if (sig.type === 'WEATHER' && sig.condition === 'rain') {
+      candidates.push(insight('signal_weather_rain', `${sig.description}`, {
+        severity: 'attention',
+        priority: 75,
+        title: 'Previsão de Chuva no Destino',
+        message: sig.description || 'Previsão de clima chuvoso. Deseja ver alternativas cobertas?',
+        ctaLabel: 'Revisar Passeios',
+        targetTab: 'replan_proposal',
+        trigger: 'weather_incompatible',
+        icon: 'fa-cloud-showers-heavy'
+      }));
+    }
+  });
+
   return candidates
     .sort((a, b) => (SEVERITY_WEIGHT[b.severity] - SEVERITY_WEIGHT[a.severity]) || (b.priority - a.priority))
     .slice(0, options.limit || 3);

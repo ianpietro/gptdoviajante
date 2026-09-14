@@ -6,7 +6,9 @@ const PREMIUM_AI_FAIR_USE_LIMIT = 500;
 const AI_MODELS = {
   light: process.env.GEMINI_LIGHT_MODEL || 'gemini-2.5-flash-lite',
   primary: process.env.GEMINI_PRIMARY_MODEL || 'gemini-2.5-flash',
-  fallback: process.env.OPENAI_FALLBACK_MODEL || 'gpt-4o-mini'
+  fallback: process.env.OPENAI_FALLBACK_MODEL || 'gpt-4o-mini',
+  groundedFallback: process.env.OPENAI_GROUNDED_MODEL || 'gpt-4.1-mini',
+  planner: process.env.OPENAI_PLANNER_MODEL || 'gpt-5.6-terra'
 };
 const AI_PRICING_VERSION = process.env.AI_PRICING_VERSION || '2026-08-26-standard';
 
@@ -35,6 +37,18 @@ const AI_PRICING = {
     cachedInputPerMillion: envNumber('OPENAI_FALLBACK_CACHED_INPUT_USD_PER_MILLION', 0.075),
     outputPerMillion: envNumber('OPENAI_FALLBACK_OUTPUT_USD_PER_MILLION', 0.60),
     groundingPerRequest: 0
+  },
+  [AI_MODELS.groundedFallback]: {
+    inputPerMillion: envNumber('OPENAI_GROUNDED_INPUT_USD_PER_MILLION', 0.40),
+    cachedInputPerMillion: envNumber('OPENAI_GROUNDED_CACHED_INPUT_USD_PER_MILLION', 0.10),
+    outputPerMillion: envNumber('OPENAI_GROUNDED_OUTPUT_USD_PER_MILLION', 1.60),
+    groundingPerRequest: envNumber('OPENAI_GROUNDING_USD_PER_REQUEST', 0)
+  },
+  [AI_MODELS.planner]: {
+    inputPerMillion: envNumber('OPENAI_PLANNER_INPUT_USD_PER_MILLION', 2.00),
+    cachedInputPerMillion: envNumber('OPENAI_PLANNER_CACHED_INPUT_USD_PER_MILLION', 0.20),
+    outputPerMillion: envNumber('OPENAI_PLANNER_OUTPUT_USD_PER_MILLION', 12.00),
+    groundingPerRequest: envNumber('OPENAI_GROUNDING_USD_PER_REQUEST', 0)
   }
 };
 

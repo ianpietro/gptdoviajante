@@ -1,15 +1,15 @@
 {
-  "short_name": "CoPiloto",
-  "name": "CoPiloto de Viagem",
-  "description": "Seu painel pessoal de viagem. Do planejamento até a experiência no destino, tudo em um só lugar.",
+  "short_name": "Orbia",
+  "name": "Orbia Travel — Seu Copiloto de Viagem",
+  "description": "Sua viagem inteira. Sob controle. Organiza, entende, antecipa e resolve sua viagem.",
   "start_url": "/app.html",
   "display": "standalone",
   "orientation": "portrait",
-  "theme_color": "#070b14",
-  "background_color": "#070b14",
+  "theme_color": "#216F80",
+  "background_color": "#DDF3F7",
   "icons": [
     {
-      "src": "/assets/app-icon.svg",
+      "src": "/assets/symbol-orbia.svg",
       "type": "image/svg+xml",
       "sizes": "any",
       "purpose": "any maskable"

@@ -1,0 +1,201 @@
+325:      <section class="container section-padding hidden" id="logisticaSection">
+326-        <div class="section-title-wrapper">
+327-          <span class="badge badge-primary"><i class="fa-solid fa-plane-departure"></i> Logística</span>
+328-          <h2 class="section-title">Voos e Documentos de Viagem</h2>
+329-          <p class="section-subtitle">Gerencie suas passagens aéreas e guarde passaportes, comprovantes e ingressos importantes em um só lugar.</p>
+330-          <button type="button" class="btn btn-secondary btn-sm" onclick="openTutorialAtSlide(6)" style="margin-top: 8px; font-size: 0.72rem; padding: 4px 10px; display: inline-flex; align-items: center; gap: 4px; border-radius: 6px; cursor: pointer;">
+331-            <i class="fa-solid fa-circle-question"></i> Como usar
+332-          </button>
+333-        </div>
+334-
+335-        <!-- Sub-abas Logística -->
+336-        <div class="sub-tab-bar" style="display: flex; gap: 8px; margin-bottom: 24px; border-bottom: 1px solid var(--border-color); padding-bottom: 12px;">
+337-          <button class="btn btn-sm btn-sub-tab active" id="subTabLogisticaMainBtn" style="border-radius: var(--border-radius-md); padding: 8px 16px; font-weight: 600; display: flex; align-items: center; gap: 6px;">
+338-            <i class="fa-solid fa-plane-departure"></i> Meus Voos & Docs
+339-          </button>
+340-          <button class="btn btn-sm btn-sub-tab" id="subTabGoogleFlightsBtn" style="border-radius: var(--border-radius-md); padding: 8px 16px; font-weight: 600; display: flex; align-items: center; gap: 6px;">
+341-            <i class="fa-solid fa-magnifying-glass"></i> Buscar Voos
+342-          </button>
+343-        </div>
+344-
+345-        <div id="logisticaMainPanel" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; align-items: start;">
+346-          
+347-          <!-- Card 1: Voos -->
+348-          <div class="glass-panel" style="padding: 24px;">
+349-            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 12px; gap: 12px; flex-wrap: wrap;">
+350-              <h3 style="font-size: 1rem; font-weight: 700; margin: 0; display: flex; align-items: center; gap: 8px; color: var(--text-main); white-space: nowrap;">
+351-                <i class="fa-solid fa-plane" style="color: var(--primary);"></i> Seus Voos
+352-              </h3>
+353-              <div style="display: flex; gap: 8px; flex-wrap: wrap; flex: 1; justify-content: flex-end; min-width: 0;">
+354-                <!-- Original buttons kept hidden for programmatic trigger from dropdown -->
+355-                <button class="btn btn-secondary btn-sm" id="magicImportPdfBtn" style="display: none !important;"></button>
+356-                <input type="file" id="magicImportPdfFileInput" accept="application/pdf" style="display: none;">
+357-                <button class="btn btn-secondary btn-sm" id="openTextImportModalBtn" style="display: none !important;"></button>
+358-                <button class="btn btn-primary btn-sm" id="openAddFlightModalBtn" style="display: none !important;"></button>
+359-
+360-                <!-- New Consolidated Dropdown Button -->
+361-                <div class="dropdown" style="position: relative; display: inline-block;">
+362-                  <button class="btn btn-primary btn-sm" id="attachFlightDropdownBtn" style="padding: 6px 14px; font-size: 0.76rem; background: linear-gradient(135deg, var(--primary) 0%, #1d4ed8 100%); border: none; font-weight: 700; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; border-radius: 50px; color: white; white-space: nowrap;">
+363-                    <i class="fa-solid fa-paperclip"></i> Anexar Voo <i class="fa-solid fa-chevron-down" style="font-size: 0.65rem;"></i>
+364-                  </button>
+365-                  <div class="dropdown-menu hidden" id="attachFlightDropdownMenu" style="position: absolute; right: 0; top: calc(100% + 6px); background: #1e293b; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.4); z-index: 1000; min-width: 170px; overflow: hidden; padding: 4px 0; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);">
+366-                    <button class="dropdown-item" id="magicImportPdfBtnDropdown" style="width: 100%; border: none; background: transparent; color: white; padding: 10px 14px; font-size: 0.8rem; text-align: left; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: background 0.2s;">
+367-                      <i class="fa-solid fa-wand-magic-sparkles" style="color: var(--primary); width: 14px;"></i> Importar PDF
+368-                    </button>
+369-                    <button class="dropdown-item" id="openTextImportModalBtnDropdown" style="width: 100%; border: none; background: transparent; color: white; padding: 10px 14px; font-size: 0.8rem; text-align: left; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: background 0.2s;">
+370-                      <i class="fa-solid fa-paste" style="color: #10b981; width: 14px;"></i> Colar Texto
+371-                    </button>
+372-                    <button class="dropdown-item" id="openAddFlightModalBtnDropdown" style="width: 100%; border: none; background: transparent; color: white; padding: 10px 14px; font-size: 0.8rem; text-align: left; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: background 0.2s;">
+373-                      <i class="fa-solid fa-plus" style="color: #f97316; width: 14px;"></i> Adicionar Manual
+374-                    </button>
+375-                  </div>
+376-                </div>
+377-              </div>
+378-            </div>
+379-
+380-            <div class="timeline-empty" id="flightsEmpty" style="padding: 30px 0;">
+381-              <div class="empty-icon" style="font-size: 2rem; margin-bottom: 8px;"><i class="fa-solid fa-plane-slash"></i></div>
+382-              <h4 style="margin: 0 0 4px; font-size: 0.9rem;">Nenhum voo informado</h4>
+383-              <p style="margin: 0; font-size: 0.78rem; color: var(--text-muted);">Clique em Adicionar Voo para cadastrar suas passagens.</p>
+384-            </div>
+385-
+386-            <div class="flights-container" id="flightsContainer" style="display: flex; flex-direction: column; gap: 16px;">
+387-              <!-- Flight cards dynamically injected by JS -->
+388-            </div>
+389-          </div>
+390-
+391-          <!-- Card 2: Documentos -->
+392-          <div class="glass-panel" id="documentsCard" style="padding: 24px;">
+393-            <div style="display: flex; flex-direction: column; gap: 16px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 12px; margin-bottom: 20px;">
+394-              <h3 style="font-size: 1rem; font-weight: 700; margin: 0; display: flex; align-items: center; gap: 8px; color: var(--text-main);">
+395-                <i class="fa-solid fa-passport" style="color: var(--secondary);"></i> Documentos de Bordo
+396-              </h3>
+397-              
+398-              <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+399-                <div style="flex: 1; min-width: 140px;">
+400-                  <label for="documentCategorySelect" style="display: block; font-size: 0.7rem; color: var(--text-muted); margin-bottom: 4px; font-weight: 600; text-transform: uppercase;">Categoria</label>
+401-                  <select id="documentCategorySelect" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 8px 10px; color: white; outline: none; font-size: 0.8rem; font-family: var(--font-body);">
+402-                    <option value="Passagem Aérea">✈️ Cartão de Embarque</option>
+403-                    <option value="Hospedagem">🏨 Reserva de Hotel / Airbnb</option>
+404-                    <option value="Ingresso">🎟️ Ingresso / Voucher</option>
+405-                    <option value="Seguro Viagem">🛡️ Seguro Viagem</option>
+406-                    <option value="Identidade">🪪 Passaporte / RG</option>
+407-                    <option value="Outros">📁 Outros</option>
+408-                  </select>
+409-                </div>
+410-              </div>
+411-
+412-              <div id="documentUploadArea" style="display: flex; flex-direction: column; align-items: center; justify-content: center; border: 2px dashed var(--border-color); border-radius: var(--border-radius-md); padding: 20px; text-align: center; cursor: pointer; position: relative; background: rgba(255, 255, 255, 0.01); transition: background 0.2s, border-color 0.2s;">
+413-                <input type="file" id="documentFileInput" accept="application/pdf,image/*" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer;">
+414-                <i class="fa-solid fa-cloud-arrow-up" style="font-size: 1.8rem; color: var(--primary); margin-bottom: 8px;"></i>
+415-                <h4 style="font-size: 0.85rem; font-weight: 700; margin-bottom: 4px; color: var(--text-main);">Arraste ou clique para enviar</h4>
+416-                <p style="font-size: 0.72rem; color: var(--text-muted); margin: 0;">PDF ou Imagem (Máx. 4MB)</p>
+417-              </div>
+418-            </div>
+419-
+420-            <div>
+421-              <h3 style="font-size: 0.9rem; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; color: var(--text-main);">
+422-                <i class="fa-solid fa-folder-open" style="color: var(--secondary);"></i> Arquivos Salvos
+423-              </h3>
+424-              
+425-              <div id="documentsEmpty" style="font-size: 0.78rem; color: var(--text-muted); padding: 20px 0; text-align: center;">
+426-                Nenhum documento salvo para esta viagem.
+427-              </div>
+428-              
+429-              <div id="documentsList" style="display: flex; flex-direction: column; gap: 10px;">
+430-                <!-- Documents injected dynamically -->
+431-              </div>
+432-            </div>
+433-          </div>
+434-
+435-          <!-- Card 3: Hospedagem -->
+436-          <div class="glass-panel" style="padding: 24px;">
+437-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 12px;">
+438-              <h3 style="font-size: 1rem; font-weight: 700; margin: 0; display: flex; align-items: center; gap: 8px; color: var(--text-main);">
+439-                <i class="fa-solid fa-hotel" style="color: var(--primary);"></i> Sua Hospedagem
+440-              </h3>
+441-            </div>
+442-            
+443-            <div style="display: flex; flex-direction: column; gap: 14px;">
+444-              <div>
+445-                <label for="hotelNameInput" style="display: block; font-size: 0.7rem; color: var(--text-muted); margin-bottom: 6px; font-weight: 600; text-transform: uppercase;">Nome da Hospedagem (Hotel / Airbnb)</label>
+446-                <input type="text" id="hotelNameInput" placeholder="Ex: Bourbon Resort ou Airbnb Copacabana" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 10px 12px; color: white; outline: none; font-size: 0.85rem; font-family: var(--font-body); box-sizing: border-box;">
+447-              </div>
+448-              
+449-              <div>
+450-                <label for="hotelLinkInput" style="display: block; font-size: 0.7rem; color: var(--text-muted); margin-bottom: 6px; font-weight: 600; text-transform: uppercase;">Link de Reserva (Booking, Airbnb, etc.)</label>
+451-                <input type="url" id="hotelLinkInput" placeholder="Ex: https://booking.com/..." style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 10px 12px; color: white; outline: none; font-size: 0.85rem; font-family: var(--font-body); box-sizing: border-box;">
+452-              </div>
+453-              
+454-              <button class="btn btn-primary btn-sm" id="saveHotelBtn" style="width: 100%; margin-top: 8px; justify-content: center; background: linear-gradient(135deg, var(--primary) 0%, #1d4ed8 100%); border: none; font-weight: 700;">
+455-                <i class="fa-solid fa-floppy-disk"></i> Salvar e Atualizar
+456-              </button>
+457-            </div>
+458-          </div>
+459-
+460-        </div>
+461-
+462-        <!-- Painel 2: Flight Search Panel -->
+463-        <div id="googleFlightsPanel" class="hidden" style="max-width: 650px; margin: 0 auto;">
+464-          <div class="glass-panel" style="padding: 24px; display: flex; flex-direction: column; gap: 20px;">
+465-            <div style="border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 12px; margin-bottom: 4px;">
+466-              <h3 style="font-size: 1rem; font-weight: 700; margin: 0; display: flex; align-items: center; gap: 8px; color: var(--text-main);">
+467-                <i class="fa-solid fa-plane-up" style="color: var(--primary);"></i> Buscar Voos Promocionais
+468-              </h3>
+469-              <p style="margin: 6px 0 0; font-size: 0.78rem; color: var(--text-muted);">
+470-                Preenchemos os dados com base na sua viagem. Ajuste as informações abaixo para encontrar as melhores tarifas aéreas.
+471-              </p>
+472-            </div>
+473-            
+474-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+475-              <div>
+476-                <label style="display: block; font-size: 0.7rem; color: var(--text-light); margin-bottom: 6px; font-weight: 600; text-transform: uppercase;">Origem (De)</label>
+477-                <input type="text" id="gFlightsOrigin" placeholder="Cidade ou aeroporto (ex: São Paulo, GRU)" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 10px 12px; color: white; outline: none; font-size: 0.82rem; font-family: var(--font-body); box-sizing: border-box;">
+478-              </div>
+479-              <div>
+480-                <label style="display: block; font-size: 0.7rem; color: var(--text-light); margin-bottom: 6px; font-weight: 600; text-transform: uppercase;">Destino (Para)</label>
+481-                <input type="text" id="gFlightsDest" placeholder="Destino da viagem" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 10px 12px; color: white; outline: none; font-size: 0.82rem; font-family: var(--font-body); box-sizing: border-box;">
+482-              </div>
+483-            </div>
+484-
+485-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+486-              <div>
+487-                <label style="display: block; font-size: 0.7rem; color: var(--text-light); margin-bottom: 6px; font-weight: 600; text-transform: uppercase;">Data de Ida</label>
+488-                <input type="date" id="gFlightsDateIda" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 10px 12px; color: white; outline: none; font-size: 0.82rem; font-family: var(--font-body); box-sizing: border-box;">
+489-              </div>
+490-              <div>
+491-                <label style="display: block; font-size: 0.7rem; color: var(--text-light); margin-bottom: 6px; font-weight: 600; text-transform: uppercase;">Data de Volta (Opcional)</label>
+492-                <input type="date" id="gFlightsDateVolta" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 10px 12px; color: white; outline: none; font-size: 0.82rem; font-family: var(--font-body); box-sizing: border-box;">
+493-              </div>
+494-            </div>
+495-
+496-            <button class="btn btn-primary" id="searchGoogleFlightsBtn" style="padding: 12px; font-size: 0.88rem; font-weight: 700; width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; border: none; cursor: pointer; border-radius: var(--border-radius-md); background: var(--primary-gradient); color: white; margin-top: 8px;">
+497-              <i class="fa-solid fa-magnifying-glass"></i> Pesquisar Voos
+498-            </button>
+499-            
+500-            <div style="background: rgba(42, 117, 211, 0.05); border: 1px solid rgba(42, 117, 211, 0.15); border-radius: var(--border-radius-md); padding: 12px 14px; text-align: left; display: flex; gap: 10px; align-items: flex-start; box-sizing: border-box;">
+501-              <div style="color: var(--primary); font-size: 1.1rem; padding-top: 1px;"><i class="fa-solid fa-lightbulb"></i></div>
+502-              <p style="margin: 0; font-size: 0.74rem; color: var(--text-light); line-height: 1.45;">
+503-                <strong>Dica de Economia:</strong> Pesquisando voos no meio da semana (terças e quartas-feiras) costuma render tarifas significativamente mais baixas.
+504-              </p>
+505-            </div>
+506-
+507-            <!-- Spinner de carregamento -->
+508-            <div id="flightSearchSpinner" class="hidden" style="text-align: center; padding: 40px 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; background: rgba(255, 255, 255, 0.02); border-radius: var(--border-radius-md); border: 1px dashed var(--border-color); box-sizing: border-box;">
+509-              <i class="fa-solid fa-plane fa-spin" style="font-size: 2.2rem; color: var(--primary);"></i>
+510-              <div style="display: flex; flex-direction: column; gap: 4px;">
+511-                <p style="margin: 0; font-size: 0.88rem; font-weight: 600; color: var(--text-main);">Buscando as melhores tarifas aéreas...</p>
+512-                <p style="margin: 0; font-size: 0.72rem; color: var(--text-muted);">Isso pode levar alguns segundos enquanto consultamos nossas companhias parceiras.</p>
+513-              </div>
+514-            </div>
+515-
+516-            <!-- Área de Resultados de Voos -->
+517-            <div id="flightSearchResults" class="hidden" style="display: flex; flex-direction: column; gap: 20px; border-top: 1px solid var(--border-color); padding-top: 20px; margin-top: 10px;">
+518-              <!-- Conteúdo inserido dinamicamente pelo JS -->
+519-            </div>
+520-          </div>
+521-        </div>
+522-      </section>
+523-
+524-      <!-- Timeline / Itinerary Section -->
+525-      <section class="container section-padding" id="itinerarySection">

@@ -6,68 +6,109 @@
 
 
 :root {
-  /* HSL Color System */
-  --primary-hue: 216;
-  --secondary-hue: 168;
-  --accent-hue: 38;
+  /* VEROA Official Ocean & Mineral Palette Tokens */
+  --veroa-blue: #536A79;
+  --veroa-blue-dark: #344A59;
+  --veroa-seafoam: #A9CBC8;
+  --veroa-seafoam-light: #D4E5E1;
+  --veroa-white: #F8FAF9;
+  --veroa-background: #EEF2F1;
+  --veroa-text: #26343B;
+  --veroa-sand: #D9CEBC;
+
+  /* VEROA Accent & Energy Tokens (Descoberta & Experiência) */
+  --veroa-orange: #E97845;
+  --veroa-orange-light: rgba(233, 120, 69, 0.12);
+  --veroa-orange-soft: rgba(233, 120, 69, 0.06);
+  --veroa-sun: #E7B85C;
+  --veroa-sun-light: rgba(231, 184, 92, 0.15);
+  --veroa-sun-soft: rgba(231, 184, 92, 0.08);
+
+  /* Legacy & Helper Tokens mapped to VEROA Ocean Palette */
+  --veroa-deep-blue: #344A59;
+  --veroa-sea-blue: #536A79;
+  --veroa-sea-light: #D4E5E1;
+  --veroa-green: #A9CBC8;
+  --veroa-green-light: #D4E5E1;
+  --veroa-text-primary: #26343B;
+  --veroa-text-secondary: #536A79;
+
+  --font-heading: 'Sora', 'Plus Jakarta Sans', sans-serif;
+  --font-body: 'Inter', 'Plus Jakarta Sans', sans-serif;
+
+  /* Product UI Design Tokens (Functional, High Contrast, Light-First) */
+  --app-bg: #F8FAF9;
+  --app-surface: #FFFFFF;
+  --app-surface-raised: #FFFFFF;
+  --app-sidebar: #344A59;
+  --app-border: rgba(83, 106, 121, 0.12);
+
+  --primary: #536A79;
+  --primary-hover: #344A59;
+  --primary-light: #D4E5E1;
+  --accent-primary: #A9CBC8;
+
+  --secondary: #A9CBC8;
+  --accent: #536A79;
+  --success: #3B7A75;
+  --warning: #B38644;
+  --danger: #B54A4A;
+  --info: #536A79;
+
+  --bg-app: #F8FAF9;
+  --bg-card: #FFFFFF;
+  --bg-sidebar: #344A59;
+  --bg-input: #FFFFFF;
   
-  --primary: hsl(var(--primary-hue), 85%, 55%);
-  --primary-hover: hsl(var(--primary-hue), 85%, 45%);
-  --primary-light: hsla(var(--primary-hue), 85%, 55%, 0.15);
+  --border-color: rgba(83, 106, 121, 0.12);
+  --border-color-glow: rgba(169, 203, 200, 0.4);
   
-  --secondary: hsl(var(--secondary-hue), 80%, 45%);
-  --accent: hsl(var(--accent-hue), 95%, 50%);
-  
-  --bg-app: #07090e;
-  --bg-card: rgba(13, 20, 32, 0.55);
-  --bg-sidebar: rgba(9, 14, 23, 0.95);
-  --bg-input: rgba(18, 26, 40, 0.8);
-  
-  --border-color: rgba(255, 255, 255, 0.08);
-  --border-color-glow: rgba(42, 117, 211, 0.25);
-  
-  --text-main: #f3f5f8;
-  --text-light: #c5cbd3;
-  --text-muted: #7e8794;
+  --text-main: #26343B;
+  --text-primary: #26343B;
+  --text-secondary: #536A79;
+  --text-light: #536A79;
+  --text-muted: #63747B;
+  --text-disabled: #94a3b8;           /* Slate 400 - Contrast 3.5:1 (Disabled only) */
+
+  --text-on-dark: #F8FAFC;
+  --text-on-dark-primary: #F8FAFC;    /* Pure White - Contrast 14.2:1 */
+  --text-on-dark-secondary: #E2E8F0;  /* Slate 200 - Contrast 11.5:1 */
+  --text-on-dark-muted: #CBD5E1;      /* Slate 300 - Contrast 9.5:1 */
+  --text-on-dark-disabled: #64748B;   /* Slate 500 */
+
+  --text-on-accent: #FFFFFF;
+
+  --text-on-success: #065F46;
+  --text-on-warning: #92400E;
+  --text-on-danger: #991B1B;
+  --text-on-info: #075985;
   
   --border-radius-sm: 6px;
   --border-radius-md: 12px;
   --border-radius-lg: 20px;
   --border-radius-xl: 32px;
   
-  --font-title: 'Outfit', sans-serif;
+  --font-title: 'Plus Jakarta Sans', sans-serif;
   --font-body: 'Plus Jakarta Sans', sans-serif;
   
-  --shadow-sm: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-  --shadow-md: 0 10px 15px -3px rgba(0, 0, 0, 0.2), 0 4px 6px -2px rgba(0, 0, 0, 0.1);
-  --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.1);
-  --shadow-glow: 0 0 20px hsla(var(--primary-hue), 85%, 55%, 0.15);
+  --shadow-sm: 0 2px 10px rgba(17, 24, 39, 0.04);
+  --shadow-md: 0 8px 24px rgba(17, 24, 39, 0.06);
+  --shadow-lg: 0 16px 40px rgba(17, 24, 39, 0.1);
+  --shadow-glow: 0 0 20px rgba(200, 90, 50, 0.15);
   
   --transition-fast: 0.15s ease;
   --transition-normal: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 body.light-theme {
-  --primary-hue: 220;
-  --secondary-hue: 185;
-  --accent-hue: 38;
-
-  --primary: #151e2b;
-  --primary-hover: #0e141d;
-  --primary-light: rgba(21, 30, 43, 0.12);
-  
-  --secondary: #2e94a8;
-  --accent: #f0a829;
-  
-  --bg-app: #f8fafc;
-  --bg-card: rgba(255, 255, 255, 0.72);
-  --bg-sidebar: rgba(255, 255, 255, 0.95);
+  --bg-app: #F7F5F0;
+  --bg-card: #ffffff;
+  --bg-sidebar: #111827;
   --bg-input: #ffffff;
-  
-  --border-color: rgba(21, 30, 43, 0.12);
-  --border-color-glow: rgba(46, 148, 168, 0.2);
-  
-  --text-main: #151e2b;
+  --text-main: #111827;
+  --text-light: #475569;
+  --text-muted: #64748b;
+}
   --text-light: #5b6c84;
   --text-muted: #7e8794;
 
@@ -449,13 +490,13 @@ a:hover {
 
 /* Chat panel */
 .chat-sidebar {
-  background-color: var(--bg-sidebar);
+  background-color: var(--veroa-white);
+  color: var(--veroa-text);
   border-bottom: none;
   display: flex;
   flex-direction: column;
   position: relative;
   z-index: 10;
-  /* No order trick needed — JS controls show/hide */
 }
 
 /* Dashboard panel */
@@ -487,6 +528,10 @@ a:hover {
 
 .hidden {
   display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  z-index: -99999 !important;
+  opacity: 0 !important;
 }
 
 /* ==========================================================================
@@ -1873,35 +1918,36 @@ footer p {
 
 /* Clean affiliate links styling */
 .btn-affiliate-link:hover {
-  background: rgba(249, 115, 22, 0.2) !important;
-  border-color: rgba(249, 115, 22, 0.5) !important;
+  background: rgba(169, 203, 200, 0.3) !important;
+  border-color: rgba(169, 203, 200, 0.6) !important;
 }
 body.light-theme .btn-affiliate-link {
-  color: #f97316 !important;
-  background: rgba(249, 115, 22, 0.06) !important;
-  border-color: rgba(249, 115, 22, 0.25) !important;
+  color: var(--veroa-blue-dark) !important;
+  background: var(--veroa-seafoam-light) !important;
+  border-color: rgba(169, 203, 200, 0.4) !important;
 }
 body.light-theme .btn-affiliate-link:hover {
-  background: rgba(249, 115, 22, 0.12) !important;
-  border-color: rgba(249, 115, 22, 0.45) !important;
+  background: rgba(169, 203, 200, 0.35) !important;
+  border-color: rgba(169, 203, 200, 0.6) !important;
 }
 .bottom-nav-btn.active {
-  color: #f97316 !important;
-  border-top-color: #f97316 !important;
-  text-shadow: 0 0 10px rgba(249, 115, 22, 0.4);
+  color: var(--veroa-blue-dark) !important;
+  background: var(--veroa-seafoam-light) !important;
+  border-color: rgba(169, 203, 200, 0.6) !important;
+  font-weight: 800 !important;
 }
-/* Removed translateY(-1px) that was pushing the icon up toward the border line */
 .bottom-nav-btn.active i {
+  color: var(--veroa-blue-dark) !important;
   transform: none;
-  filter: drop-shadow(0 0 5px rgba(249, 115, 22, 0.5));
+  filter: none;
 }
 .bottom-nav-btn:hover,
 .bottom-nav-btn:active {
-  color: #f97316 !important;
+  color: var(--veroa-blue-dark) !important;
 }
 .bottom-nav-btn:hover i,
 .bottom-nav-btn:active i {
-  color: #f97316 !important;
+  color: var(--veroa-blue-dark) !important;
 }
 .dropdown-item:hover {
   background: rgba(255, 255, 255, 0.08) !important;
@@ -2670,61 +2716,70 @@ body.light-theme .btn-affiliate-link:hover {
 }
 
 /* ==========================================================================
-   DESKTOP APP-LIKE SIMULATION
+   DESKTOP APP SHELL (FULL VIEWPORT WIDTH)
    ========================================================================== */
 @media (min-width: 769px) {
   body {
-    background-color: #030407;
-    background-image: 
-      radial-gradient(at 0% 0%, hsla(var(--primary-hue), 40%, 12%, 0.4) 0px, transparent 50%),
-      radial-gradient(at 100% 100%, hsla(var(--secondary-hue), 40%, 12%, 0.3) 0px, transparent 50%);
+    background-color: var(--veroa-white);
     margin: 0;
     padding: 0;
-    min-height: 100vh;
-    position: relative;
+    width: 100vw;
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
   }
 
   .app-container {
-    max-width: 680px;
-    width: 100%;
-    height: 95vh;
-    border-radius: var(--border-radius-lg);
-    border: 1px solid var(--border-color);
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.05);
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    overflow: hidden;
-    background: var(--bg-app);
+    max-width: none !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    height: 100dvh !important;
+    border-radius: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    transform: none !important;
+    overflow: hidden !important;
+    background: var(--veroa-white) !important;
+    display: flex !important;
+    flex-direction: column !important;
   }
 
   .chat-sidebar,
   .dashboard-content {
-    height: 95vh;
-    padding-bottom: 58px;
+    height: calc(100vh - 60px) !important;
+    height: calc(100dvh - 60px) !important;
+    padding-bottom: 70px !important;
   }
 
   .bottom-nav {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    width: 100%;
-    border-bottom-left-radius: var(--border-radius-lg);
-    border-bottom-right-radius: var(--border-radius-lg);
-    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100% !important;
+    height: 60px !important;
+    border-radius: 0 !important;
+    border-top: 1px solid var(--border-color) !important;
+    background: var(--veroa-white) !important;
+    z-index: 1000 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 16px !important;
   }
 
-  /* Make nav buttons fill the width inside the mockup app */
   .app-container .bottom-nav-btn {
-    flex: 1;
-    width: auto;
+    flex: 0 0 auto !important;
+    width: auto !important;
   }
 
-  /* Expand chat messages on desktop to utilize the container width */
   .app-container .message {
-    max-width: 85% !important;
+    max-width: 80% !important;
   }
 
   /* Adjust styles for simulated mobile viewport */
