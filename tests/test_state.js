@@ -1333,6 +1333,36 @@ async function runPreCycle2Tests() {
     assert.ok(fullHealth.items.every(i => i.actionLabel && i.tab), "Todos os itens devem ter CTA actionLabel e tab destino");
   }
 
+  // ── Test Q: Active Trip Context Synchronization Audit ─────────────────────
+  {
+    console.log("Test Q: Active Trip Context Synchronization Audit");
+    const { normalizeTripState } = await import('../modules/stateManager.js');
+
+    const fozTrip = normalizeTripState({
+      id: "trip_foz_123",
+      tripTitle: "Viagem para Foz do Iguaçu",
+      destination: "Foz do Iguaçu",
+      start_date: "2026-10-15",
+      end_date: "2026-10-20",
+      itinerary: [{ dayNum: 1, title: "Cataratas do Iguaçu" }]
+    });
+
+    const spTrip = normalizeTripState({
+      id: "trip_sp_456",
+      tripTitle: "Viagem para São Paulo",
+      destination: "São Paulo",
+      start_date: "2026-11-01",
+      end_date: "2026-11-05",
+      itinerary: [{ dayNum: 1, title: "MASP e Avenida Paulista" }]
+    });
+
+    assert.notStrictEqual(fozTrip.id, spTrip.id, "As duas viagens possuem IDs únicos diferentes");
+    assert.strictEqual(fozTrip.tripTitle, "Viagem para Foz do Iguaçu");
+    assert.strictEqual(spTrip.tripTitle, "Viagem para São Paulo");
+    assert.strictEqual(fozTrip.itinerary[0].title, "Cataratas do Iguaçu");
+    assert.strictEqual(spTrip.itinerary[0].title, "MASP e Avenida Paulista");
+  }
+
   console.log("✅ Pre-Cycle 2 Stabilization Tests passed successfully!");
 }
 

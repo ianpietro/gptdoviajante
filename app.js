@@ -2256,8 +2256,14 @@ function renderMyTrips() {
 
 async function openTripPanel(id) {
   logDebug("open_trip_panel_triggered", { tripId: id });
-  selectActiveTrip(id);
+  setActiveTripId(id);
+  const selectedTrip = await loadTripById(id);
+  if (selectedTrip) {
+    tripData = normalizeTripState(selectedTrip);
+    localStorage.setItem(getTripStorageKey('gptViajante_tripData', id), JSON.stringify(tripData));
+  }
   await loadState();
+  renderDashboard();
   switchTab('home');
 }
 
@@ -2296,7 +2302,8 @@ function renderPlanTripSelector() {
 
 let planTripSwitchInProgress = false;
 async function switchPlanTrip(id) {
-  if (!id || planTripSwitchInProgress || String(id) === String(getActiveTripId())) return;
+  if (!id || planTripSwitchInProgress) return;
+  if (String(id) === String(getActiveTripId()) && String(tripData?.id) === String(id)) return;
   const select = document.getElementById('planTripSelect');
   planTripSwitchInProgress = true;
   if (select) {
@@ -2391,7 +2398,13 @@ async function loadState() {
         localStorage.setItem(getTripStorageKey("gptViajante_tripData", activeTripId), JSON.stringify(tripData));
       }
     } else {
-      tripData = normalizeTripState({});
+      const tripInList = (tripsList || []).find(t => String(t?.id) === String(activeTripId));
+      if (tripInList) {
+        tripData = normalizeTripState(tripInList);
+        localStorage.setItem(getTripStorageKey("gptViajante_tripData", activeTripId), JSON.stringify(tripData));
+      } else {
+        tripData = normalizeTripState({});
+      }
     }
     logDebug("trip_loaded", { source: 'local_storage', id: tripData.id, title: tripData.tripTitle });
   } else {
@@ -2904,6 +2917,7 @@ function switchTab(tab) {
     } else if (tab === 'logistica') {
       if (typeof renderDocuments === 'function') renderDocuments();
     } else if (tab === 'roteiro') {
+      if (typeof renderDashboard === 'function') renderDashboard();
       if (typeof renderTimeline === 'function') renderTimeline();
     }
     
