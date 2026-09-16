@@ -10,6 +10,7 @@ const PRACTICAL_DETAIL_PATTERN = /\b(minut|hor[aá]rio|reserva|ingresso|fila|che
 const LOCAL_CONTEXT_PATTERN = /\b(hist[oó]ria|tradi[cç][aã]o|arquitetura|cultura|bairro|vista|luz|aroma|cheiro|som|atmosfera|ritual|morador|s[ií]mbolo|mem[oó]ria|imigra[cç][aã]o|origem|patrim[oô]nio|paisagem)/i;
 const RATIONALE_PATTERN = /\b(porque|por isso|vale|escolh|entra no roteiro|faz sentido|permite|melhor hor[aá]rio|conecta|prepara|contrasta|fecha o dia|abre o dia)\b/i;
 const WEEKDAYS = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado'];
+const WEEKDAY_INDEX = { domingo: 0, segunda: 1, terca: 2, quarta: 3, quinta: 4, sexta: 5, sabado: 6 };
 
 function normalize(value = '') {
   return String(value)
@@ -18,6 +19,35 @@ function normalize(value = '') {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, ' ')
     .trim();
+}
+
+function weekdayKey(value = '') {
+  return Object.keys(WEEKDAY_INDEX).find(key => normalize(value).startsWith(key)) || '';
+}
+
+function verificationContradictsDay(note = '', weekday = '') {
+  const text = normalize(note);
+  const current = weekdayKey(weekday);
+  if (!text || !current) return false;
+  if (new RegExp(`(?:nao|sem)\\s+(?:ha\\s+)?(?:abertura|funcionamento).*${current}|nao\\s+(?:abre|funciona).*${current}`).test(text)) return true;
+  if (current === 'domingo' && /nao informa abertura dominical|fechad[oa] aos domingos/.test(text)) return true;
+  const reservationDay = text.match(/reserva.{0,55}\b(domingo|segunda|terca|quarta|quinta|sexta|sabado)\b/)?.[1];
+  if (reservationDay && reservationDay !== current) return true;
+  const range = text.match(/(?:funcionamento|abre|aberto).{0,35}\b(domingo|segunda|terca|quarta|quinta|sexta|sabado)\b\s+a\s+\b(domingo|segunda|terca|quarta|quinta|sexta|sabado)\b/);
+  if (!range) return false;
+  const start = WEEKDAY_INDEX[range[1]];
+  const end = WEEKDAY_INDEX[range[2]];
+  const currentIndex = WEEKDAY_INDEX[current];
+  return start <= end
+    ? !(currentIndex >= start && currentIndex <= end)
+    : !(currentIndex >= start || currentIndex <= end);
+}
+
+function restaurantMentionedInText(name = '', text = '') {
+  const haystack = normalize(text);
+  const ignored = new Set(['restaurante', 'restaurant', 'jantar', 'almoco', 'cafe', 'bar', 'casa', 'just', 'dance', 'verificado', 'verificada']);
+  const tokens = normalize(name).split(' ').filter(token => token.length >= 5 && !ignored.has(token));
+  return tokens.length > 0 && tokens.some(token => haystack.includes(token));
 }
 
 function clampItineraryDays(value) {
@@ -153,6 +183,7 @@ Sua missão é descobrir o que uma resposta genérica normalmente omite:
 7. Cada evento, casa de show ou programação nominal pedida pelo viajante, cruzando a data real com o dia da semana.
 8. Tempos e meios de deslocamento entre os compromissos fixos, aeroporto, bagagem e hospedagem, distinguindo estimativa de mapa de horário oficial do operador.
 9. Agrupamentos por bairro que evitem zigue-zague e protejam pausas, check-in e encontros pessoais.
+10. Para cada trecho relevante do dia, compare os modais locais que o viajante já escolheu no contrato (por exemplo, metrô e Uber) e registre uma recomendação objetiva por trecho. Pesquise linha/estação somente em fonte oficial e duração/rota indicativa em mapa confiável; nunca entregue “um ou outro, como preferir”.
 
 Não invente endereços, restaurantes, hotéis, pratos, horários, preços, avaliações, linhas de transporte, tempos de trajeto, regras ou títulos. Se um dado não puder ser confirmado, não o inclua. Diferencie claramente fato confirmado de estimativa. Não use listas genéricas copiáveis para qualquer cidade.
 
@@ -347,7 +378,15 @@ function auditItineraryQuality(text, { requestedDays, researchBrief, tripCalenda
   let foodDays = 0;
   let namedRestaurants = 0;
   const restaurantNames = [];
+  const restaurantDays = new Map();
   let expectedMinimumActivities = 0;
+  const requestedTransportText = normalize(JSON.stringify({
+    softPreferences: planningBrief?.softPreferences || [],
+    logistics: planningBrief?.logistics || {}
+  }));
+  const wantsMetro = /metro|transporte publico|public transit/.test(requestedTransportText);
+  const wantsRideHailing = /uber|aplicativo|ride hailing|taxi/.test(requestedTransportText);
+  const itineraryTransportEvidence = [];
 
   itinerary.forEach((day, dayIndex) => {
     const activities = Array.isArray(day?.activities) ? day.activities : [];
@@ -356,7 +395,7 @@ function auditItineraryQuality(text, { requestedDays, researchBrief, tripCalenda
     const protectedSlowDay = (planningBrief?.hardConstraints || []).some(item =>
       (!item?.dateISO || item.dateISO === dayDate) && /arrival|departure|luggage|checkin|checkout|rest|meal/i.test(String(item?.type || ''))
     ) || /(chegada|despedida|fam[ií]lia|descanso|check.?in|check.?out)/i.test(`${day?.dayTitle || ''} ${day?.dayStory || ''}`);
-    const minimumActivities = protectedSlowDay ? 2 : 3;
+    const minimumActivities = protectedSlowDay ? 2 : 4;
     expectedMinimumActivities += minimumActivities;
     if (activities.length < minimumActivities) issues.push(`dia ${dayIndex + 1} tem menos de ${minimumActivities} experiências concretas para o ritmo planejado`);
     if (!meaningful(day?.dayTitle, 8)) issues.push(`dia ${dayIndex + 1} não possui tema específico`);
@@ -375,11 +414,17 @@ function auditItineraryQuality(text, { requestedDays, researchBrief, tripCalenda
     if (!meaningful(day?.logistics, 70) || !PRACTICAL_DETAIL_PATTERN.test(String(day?.logistics || ''))) {
       issues.push(`dia ${dayIndex + 1} não explica a lógica de deslocamento entre as paradas`);
     }
+    const logisticsText = normalize(day?.logistics || '');
+    itineraryTransportEvidence.push(logisticsText);
+    if (/conforme prefer|como prefer|metro ou uber|transporte publico ou|taxi ou|aplicativo ou/.test(logisticsText)) {
+      issues.push(`dia ${dayIndex + 1} deixa o meio de transporte indeciso em vez de escolher o melhor modal por trecho`);
+    }
     if (!meaningful(day?.climate_plan, 35) || VAGUE_PATTERNS.test(String(day?.climate_plan || ''))) {
       issues.push(`dia ${dayIndex + 1} não possui plano climático específico e nomeado`);
     }
 
     let hasFood = false;
+    const scheduledHours = [];
     activities.forEach((activity, activityIndex) => {
       const title = String(activity?.title || '').trim();
       const desc = String(activity?.desc || '').trim();
@@ -401,6 +446,9 @@ function auditItineraryQuality(text, { requestedDays, researchBrief, tripCalenda
       if (!meaningful(activity?.practicalNote, 20) && !PRACTICAL_DETAIL_PATTERN.test(desc)) {
         issues.push(`atividade “${title || activityIndex + 1}” não traz orientação prática`);
       }
+      const hour = Number(String(activity?.time || '').match(/^(\d{1,2}):/)?.[1]);
+      if (Number.isFinite(hour)) scheduledHours.push(hour);
+      else issues.push(`atividade “${title || activityIndex + 1}” sem horário operacional`);
 
       const isPersonalMeal = activity?.verificationStatus === 'user_provided' &&
         /(avo|familia|amig|casa)/.test(normalize(`${title} ${desc}`));
@@ -418,6 +466,13 @@ function auditItineraryQuality(text, { requestedDays, researchBrief, tripCalenda
         } else {
           namedRestaurants += 1;
           restaurantNames.push(name);
+          const key = normalize(name);
+          if (!restaurantDays.has(key)) restaurantDays.set(key, new Set());
+          restaurantDays.get(key).add(dayIndex);
+          const earlierActivities = itinerary.slice(0, dayIndex).flatMap(previousDay => previousDay?.activities || []);
+          if (earlierActivities.some(previous => restaurantMentionedInText(name, `${previous?.title || ''} ${previous?.name || ''}`))) {
+            issues.push(`restaurante “${name}” do dia ${dayIndex + 1} já aparece como atividade em um dia anterior`);
+          }
         }
         if (!meaningful(option?.address, 6)) issues.push(`restaurante “${name || 'sem nome'}” sem endereço ou bairro`);
         if (!meaningful(option?.dish, 4)) issues.push(`restaurante “${name || 'sem nome'}” sem prato específico`);
@@ -425,13 +480,35 @@ function auditItineraryQuality(text, { requestedDays, researchBrief, tripCalenda
           issues.push(`restaurante “${name || 'sem nome'}” sem faixa de preço`);
         }
         if (!meaningful(option?.why, 25)) issues.push(`restaurante “${name || 'sem nome'}” sem justificativa concreta`);
+        if (!/(perto|proxim|mesmo bairro|mesmo trecho|neste trecho|na regiao|no caminho|trajeto|percurso|ao lado|\d+ minutos)/.test(normalize(option?.why || ''))) {
+          issues.push(`restaurante “${name || 'sem nome'}” não explica como se encaixa geograficamente no dia ${dayIndex + 1}`);
+        }
+        if (verificationContradictsDay(option?.verification_note, day?.weekday || day?.dateLabel || expectedCalendarDay?.weekday)) {
+          issues.push(`restaurante “${name || 'sem nome'}” está fechado, reservado ou verificado para outro dia`);
+        }
       });
     });
+    if (!protectedSlowDay) {
+      if (!scheduledHours.some(hour => hour >= 5 && hour < 12)) issues.push(`dia ${dayIndex + 1} não possui programação concreta pela manhã`);
+      if (!scheduledHours.some(hour => hour >= 12 && hour < 18)) issues.push(`dia ${dayIndex + 1} não possui programação concreta à tarde`);
+      if (!scheduledHours.some(hour => hour >= 18 || hour < 5)) issues.push(`dia ${dayIndex + 1} termina sem jantar, passeio ou experiência noturna concreta`);
+    }
+    const comparableTimes = activities.map(activity => String(activity?.time || '')).filter(time => /^\d{1,2}:\d{2}$/.test(time));
+    const minutes = comparableTimes.map(time => Number(time.split(':')[0]) * 60 + Number(time.split(':')[1]));
+    if (minutes.some((value, index) => index > 0 && value < minutes[index - 1])) {
+      issues.push(`dia ${dayIndex + 1} não está em sequência cronológica`);
+    }
     if (hasFood) foodDays += 1;
     else issues.push(`dia ${dayIndex + 1} não possui experiência gastronômica concreta`);
   });
 
   if (days && totalActivities < expectedMinimumActivities) issues.push('roteiro curto demais para o ritmo e a duração');
+  restaurantDays.forEach((dayIndexes, key) => {
+    if (dayIndexes.size > 1) issues.push(`restaurante repetido em dias diferentes: ${key}`);
+  });
+  const allTransportEvidence = itineraryTransportEvidence.join(' ');
+  if (wantsMetro && !/metro|transporte publico/.test(allTransportEvidence)) issues.push('preferência por metrô/transporte público não foi aplicada à logística');
+  if (wantsRideHailing && !/uber|aplicativo|taxi/.test(allTransportEvidence)) issues.push('preferência por Uber/aplicativo não foi aplicada à logística');
 
   extractCalendarCommitments(userMessage).forEach(commitment => {
     const targetDay = tripCalendar.find(day => normalize(day.weekday).startsWith(commitment.weekday));
@@ -487,8 +564,8 @@ function auditItineraryQuality(text, { requestedDays, researchBrief, tripCalenda
   };
 }
 
-function buildQualityRevisionPrompt({ issues = [], researchBrief, requestedDays = 5, tripCalendar = [], userMessage = '' } = {}) {
-  return `Você é o editor-chefe de qualidade da Orbia Travel. O roteiro anterior foi bloqueado e não pode ser reaproveitado sem correção.
+function buildQualityRevisionPrompt({ issues = [], researchBrief, requestedDays = 5, tripCalendar = [], userMessage = '', planningBrief = null, tripContext = null } = {}) {
+  return `Você é o editor-chefe de qualidade do Orbia Travel. O roteiro anterior foi bloqueado e não pode ser reaproveitado sem correção.
 
 PROBLEMAS ENCONTRADOS:
 ${issues.map(issue => `- ${issue}`).join('\n')}
@@ -502,11 +579,21 @@ ${tripCalendar.map(day => `${day.dateISO} = ${day.dateLabel}`).join('\n') || 'Da
 PEDIDO TEMPORAL DO VIAJANTE:
 ${userMessage || 'Nenhum compromisso adicional informado'}
 
+CONTRATO COMPLETO DO VIAJANTE:
+${JSON.stringify(planningBrief || {})}
+
+TRANSPORTE E CONTEXTO SALVOS:
+${JSON.stringify({ primaryTransport: tripContext?.primaryTransport || null, transportPlan: tripContext?.transportPlan || null, preferences: tripContext?.preferences || null, accommodations: tripContext?.accommodations || null })}
+
 Reconstrua o roteiro completo com EXATAMENTE ${requestedDays} dia(s). Inclua primeiro os pontos essential da pesquisa e os pratos simbólicos. Cada dia precisa ter uma identidade própria: uma progressão com começo, descoberta e fechamento, não uma lista de lugares.
 
 CONTRATO ESTRUTURAL OBRIGATÓRIO: a ação itinerary/replace deve ter data como um ARRAY. Cada dia precisa usar exatamente os campos {"dayNum":1,"dateISO":"AAAA-MM-DD","dateLabel":"DD-MM-AAAA · dia-da-semana","weekday":"dia-da-semana","dayTitle":"Tema evocativo e específico","dayStory":"Abertura narrativa de 2 a 3 frases explicando o fio condutor e por que essa sequência faz sentido","highlight":"Momento mais marcante e o detalhe que merece atenção","localSecret":"Curiosidade ou dica de insider realmente ligada ao lugar","logistics":"Como ir entre os pontos, com ordem, tempo ou modal","climate_plan":"Alternativa climática concreta e nomeada","activities":[]}. Nunca use day, title, schedule, period, name, description ou notes no lugar deles. Cada atividade usa {"time":"09:00","durationMinutes":90,"category":"attraction|food|transport|experience","title":"Nome específico","desc":"Parágrafo natural com ao menos 110 caracteres, unindo contexto local, motivo da escolha, o que observar/fazer e orientação prática","whyHere":"Por que entra exatamente aqui","practicalNote":"Reserva, acesso, margem ou cuidado útil","verificationStatus":"verified|user_provided|estimate","sourceUrl":"https://fonte quando houver fato atual","location":{"address":"Endereço ou bairro pesquisável"}}.
 
+Em todo dia completo, distribua no mínimo quatro blocos reais em ordem cronológica: manhã, almoço/pausa, tarde e fechamento depois das 18h com jantar, espetáculo, passeio noturno ou descanso explicitamente pedido. Dias de chegada ou saída podem ser mais leves, mas ainda precisam terminar de forma concreta e coerente com o horário disponível.
+
 Em cada dia, inclua uma experiência gastronômica. Cada almoço ou jantar deve trazer exatamente duas opções de restaurantes reais presentes na pesquisa, com nome, endereço ou bairro, prato específico, faixa de preço, justificativa e nota de verificação. Nunca use “restaurante local”, “peixe regional”, “escolha um lugar”, “procure avaliações”, “tempo livre” ou outro enchimento.
+
+O campo logistics de cada dia deve narrar a sequência inteira, trecho por trecho: origem → destino, modal escolhido, duração estimada quando pesquisada e margem. Respeite os modais já informados. Se o viajante escolheu metrô e Uber, decida qual funciona melhor em cada trecho; não escreva “metrô ou Uber”, “transporte público ou táxi” ou “conforme preferirem”. Só cite linha, estação e tempo quando constarem na pesquisa verificada.
 
 Alma não significa empilhar adjetivos. Evite “cidade vibrante”, “experiência inesquecível”, “imperdível”, “encante-se” e frases que poderiam servir para qualquer destino. Use nomes, cenas, hábitos, história, sabores, ritmo e consequências práticas reais. Entregue texto natural para o viajante e, no final, um único bloco JSON de ações com itinerary/replace contendo todos os dias. Não mencione esta revisão nem os problemas encontrados.`;
 }

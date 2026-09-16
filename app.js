@@ -14,8 +14,8 @@ import {
   supabase
 } from './auth.js';
 import { AFFILIATE_CONFIG, BYPASS_LOGIN, FEATURES, APP_VERSION, MAX_OFFLINE_DOCUMENT_SIZE, MAX_OFFLINE_DOCUMENT_TOTAL_SIZE } from './config.js';
-import { normalizeTripState as pureNormalizeTripState, checkDuplicateDocument, inferTripFromDocuments, calculateReadinessScore, calculateCountdown, getSuggestedTripStatus } from './modules/stateManager.js?v=3.0.0-rc.20-calendar-aware';
-import { applyActions, undoLastActions } from './modules/actionEngine.js?v=3.0.0-rc.20-calendar-aware';
+import { normalizeTripState as pureNormalizeTripState, parseActivityTimeMinutes, checkDuplicateDocument, inferTripFromDocuments, calculateReadinessScore, calculateCountdown, getSuggestedTripStatus } from './modules/stateManager.js?v=3.0.0-rc.30-time-period';
+import { applyActions, undoLastActions } from './modules/actionEngine.js?v=3.0.0-rc.30-time-period';
 import { partnerConfig, buildAffiliateLink, evaluateTripOpportunities, analytics as legacyAnalytics } from './modules/partnerEngine.js';
 import { plans, getEntitlements, getUserPlanState } from './modules/entitlementEngine.js';
 import { track as trackEvent, trackFirstValue, EVENTS } from './modules/analytics.js';
@@ -31,9 +31,18 @@ import { applyTripDateContext, applyForecastContext } from './modules/tripContex
 import { buildItineraryGenerationPrompt, extractGeneratedItinerary, validateAndNormalizeItinerary } from './modules/itineraryGenerationEngine.js?v=3.0.0-rc.20-calendar-aware';
 import { evaluateDayRouteQuality } from './modules/logisticsEngine.js';
 import { inferTransportCommands, applyTransportCommandsToTrip, applyTransportCommandToTrip } from './modules/transportContextEngine.js?v=3.0.0-rc.6-transport-plan';
-import { inferPlanningPreferences, applyPlanningPreferencesToTrip, inferConversationTripFacts, applyConversationTripFacts } from './modules/planningContextEngine.js?v=3.0.0-rc.20-calendar-aware';
+import { inferPlanningPreferences, applyPlanningPreferencesToTrip, inferConversationTripFacts, applyConversationTripFacts, inferDestinationFromOperationalData } from './modules/planningContextEngine.js?v=3.0.0-rc.29-operational-itinerary';
 import { downloadItineraryPdf } from './modules/pdfExportEnginePremium.js';
 import { cleanTripDestination, buildContextualMapQuery, buildGoogleMapsSearchUrl } from './modules/mapContextEngine.js?v=3.0.0-rc.17-map-context';
+import { initPwaInstaller, showPwaModal, hidePwaModal, dismissPwaPrompt, triggerNativeInstall, isStandalone } from './modules/pwaInstaller.js';
+import { filterRestaurantOptionsForDay } from './modules/restaurantRecommendationEngine.js?v=3.0.0-rc.31-restaurant-safety';
+import {
+  buildSafeRouteGeocodeQuery,
+  haversineDistanceKm,
+  isPrivateRoutePlace,
+  parseDestinationGeocodeResult,
+  selectNearbyGeocodeResult
+} from './modules/routeMapEngine.js?v=3.0.0-rc.33-map-city-guard';
 import { alignTripToCalendarCommitments } from './modules/calendarEngine.js?v=3.0.0-rc.20-calendar-aware';
 
 const CHECKOUT_URL = 'https://pay.kirvano.com/8c50a730-069a-40e8-bed3-078c03089d1d';
@@ -1437,6 +1446,7 @@ async function init() {
   }
 
   setupVisualViewportListener();
+  initPwaInstaller();
   setupAttachFlightDropdown();
   setupItineraryOptimizationBannerListener();
   setupLogisticaSubTabs();
@@ -2058,12 +2068,18 @@ async function startTripViaChat(initialMessage = '') {
   chatTripCreationInProgress = true;
   try {
     document.getElementById('createTripModal')?.classList.add('hidden');
-    const destinationMatch = String(initialMessage || '').match(/(?:viagem\s+)?para\s+([^,.!?]+)/i);
-    const initialDestination = destinationMatch?.[1]?.trim() || '';
+    const initialText = String(initialMessage || '').trim();
+    const initialFacts = inferConversationTripFacts(
+      initialText ? [{ role: 'user', content: initialText }] : [],
+      {}
+    );
+    const initialDestination = initialFacts?.destination || '';
     await createTrip(initialDestination || 'Nova viagem', null, null);
+    const initialFactResult = applyConversationTripFacts(tripData, initialFacts);
+    tripData = pureNormalizeTripState(initialFactResult.trip);
     tripData.tripTitle = initialDestination ? `Viagem para ${initialDestination}` : 'Nova viagem';
     tripData.destination = initialDestination || '';
-    tripData.tripSubtitle = 'Criando sua viagem em conversa com a Orbia';
+    tripData.tripSubtitle = 'Criando sua viagem em conversa com o Orbia';
     tripData.preferences = {
       ...(tripData.preferences || {}),
       creation_mode: 'chat_onboarding',
@@ -2073,7 +2089,10 @@ async function startTripViaChat(initialMessage = '') {
       ? `Vamos criar sua viagem para **${initialDestination}**. Quais são as datas de ida e volta?`
       : 'Vamos criar sua viagem juntos. **Para onde você quer viajar?**';
     const welcomeTime = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-    chatHistory = [{ role: 'assistant', content: welcome, time: welcomeTime }];
+    chatHistory = [
+      ...(initialText ? [{ role: 'user', content: initialText, time: welcomeTime }] : []),
+      { role: 'assistant', content: welcome, time: welcomeTime }
+    ];
     saveState();
     switchTab('chat');
     renderChatHistory('plan');
@@ -3818,6 +3837,10 @@ function stripJsonCodeBlock(text) {
   for (const item of [...embedded].reverse()) {
     cleaned = cleaned.slice(0, item.start) + cleaned.slice(item.end);
   }
+  // Defesa adicional: se o provedor truncar ou malformar a ação, o JSON não
+  // será parseável, mas sua assinatura ainda permite escondê-lo da conversa.
+  const likelyPayloadStart = findLikelyActionPayloadStart(cleaned);
+  if (likelyPayloadStart >= 0) cleaned = cleaned.slice(0, likelyPayloadStart);
   cleaned = cleaned
     .replace(/^\s*(?:```|~~~)?\s*json\s*(?:```|~~~)?\s*$/gim, '')
     .replace(/^\s*(?:```|~~~)\s*$/gm, '')
@@ -3862,6 +3885,19 @@ function findEmbeddedActionJson(text) {
     }
   }
   return found;
+}
+
+function findLikelyActionPayloadStart(text) {
+  const source = String(text || '');
+  const signatures = [
+    /\{\s*"actions"\s*:/i,
+    /\[\s*\{\s*"(?:type|operation)"\s*:/i,
+    /\{\s*"(?:type|operation)"\s*:/i
+  ];
+  return signatures.reduce((earliest, signature) => {
+    const index = source.search(signature);
+    return index >= 0 && (earliest < 0 || index < earliest) ? index : earliest;
+  }, -1);
 }
 
 function extractJsonFromReply(replyContent) {
@@ -3938,7 +3974,11 @@ function applyNaturalLanguagePlanningUpdate(message) {
 }
 
 function recoverCoreTripFactsFromHistory(baseTrip, history = chatHistory) {
-  const facts = inferConversationTripFacts(history, baseTrip);
+  const factsFromHistory = inferConversationTripFacts(history, baseTrip) || {};
+  const recoveredDestination = factsFromHistory.destination || inferDestinationFromOperationalData(baseTrip);
+  const facts = Object.keys(factsFromHistory).length || recoveredDestination
+    ? { ...factsFromHistory, ...(recoveredDestination ? { destination: recoveredDestination } : {}) }
+    : null;
   const recovered = applyConversationTripFacts(baseTrip, facts);
   let nextTrip = recovered.changed ? recovered.trip : baseTrip;
   for (const message of history || []) {
@@ -4075,7 +4115,7 @@ async function handleUserSendMessage() {
           dates: { start: tripData.start_date, end: tripData.end_date, label: tripData.infoDates },
           start_date: tripData.start_date,
           end_date: tripData.end_date,
-          destination: tripData.tripTitle,
+          destination: getActiveTripDestination(),
           itinerary: tripData.itinerary,
           packing: tripData.packing,
           expenses: tripData.expenses,
@@ -4254,7 +4294,7 @@ async function handleTravelSendMessage() {
           dates: { start: tripData.start_date, end: tripData.end_date, label: tripData.infoDates },
           start_date: tripData.start_date,
           end_date: tripData.end_date,
-          destination: tripData.tripTitle,
+          destination: getActiveTripDestination(),
           itinerary: tripData.itinerary,
           packing: tripData.packing,
           expenses: tripData.expenses,
@@ -4790,6 +4830,139 @@ function getRouteActivityLocation(activity) {
   return Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
 }
 
+let dayRouteLeafletMap = null;
+let dayRouteRenderToken = 0;
+const ROUTE_GEOCODE_CACHE_KEY = 'orbia_route_geocode_v2';
+const ROUTE_DESTINATION_CACHE_PREFIX = '__destination__:';
+const MAX_ROUTE_DISTANCE_FROM_CITY_KM = 120;
+
+function readRouteGeocodeCache() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(ROUTE_GEOCODE_CACHE_KEY) || '{}');
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch (_) {
+    return {};
+  }
+}
+
+function writeRouteGeocodeCache(cache) {
+  try {
+    const limited = Object.fromEntries(Object.entries(cache).slice(-120));
+    localStorage.setItem(ROUTE_GEOCODE_CACHE_KEY, JSON.stringify(limited));
+  } catch (_) {}
+}
+
+async function geocodeRouteDestination(destination, cache) {
+  const normalizedDestination = String(destination || '').trim();
+  if (!normalizedDestination) return null;
+  const key = `${ROUTE_DESTINATION_CACHE_PREFIX}${normalizedDestination.toLowerCase()}`;
+  if (cache[key]) return cache[key];
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 7000);
+  try {
+    const response = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(normalizedDestination)}&count=5&language=pt&format=json`, {
+      signal: controller.signal,
+      headers: { Accept: 'application/json' }
+    });
+    if (!response.ok) return null;
+    const location = parseDestinationGeocodeResult(await response.json());
+    if (location) {
+      cache[key] = location;
+      writeRouteGeocodeCache(cache);
+    }
+    return location;
+  } catch (_) {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function geocodePublicRoutePlace(query, cache, destinationCenter, destination) {
+  const key = String(query || '').trim().toLowerCase();
+  if (!key) return null;
+  if (cache[key]) {
+    const cachedDistance = destinationCenter ? haversineDistanceKm(destinationCenter, cache[key]) : Infinity;
+    if (!destinationCenter || cachedDistance <= MAX_ROUTE_DISTANCE_FROM_CITY_KM) return cache[key];
+    delete cache[key];
+  }
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 7000);
+  try {
+    const locationBias = destinationCenter
+      ? `&lat=${encodeURIComponent(destinationCenter.lat)}&lon=${encodeURIComponent(destinationCenter.lng)}`
+      : '';
+    const response = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=8${locationBias}`, {
+      signal: controller.signal,
+      headers: { Accept: 'application/json' }
+    });
+    if (!response.ok) return null;
+    const location = selectNearbyGeocodeResult(
+      await response.json(),
+      destinationCenter,
+      destination,
+      MAX_ROUTE_DISTANCE_FROM_CITY_KM
+    );
+    if (location) {
+      cache[key] = location;
+      writeRouteGeocodeCache(cache);
+    }
+    return location;
+  } catch (_) {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function destroyDayRouteLeafletMap() {
+  if (!dayRouteLeafletMap) return;
+  dayRouteLeafletMap.remove();
+  dayRouteLeafletMap = null;
+}
+
+function renderLeafletDayRouteMap(mapContainer, routeDays) {
+  if (typeof L === 'undefined') return false;
+  destroyDayRouteLeafletMap();
+  mapContainer.innerHTML = '<div id="dayRouteLeafletMap" class="day-route-leaflet-map" aria-label="Mapa interativo do roteiro"></div>';
+  const mapElement = document.getElementById('dayRouteLeafletMap');
+  if (!mapElement) return false;
+
+  dayRouteLeafletMap = L.map(mapElement, { scrollWheelZoom: false, zoomControl: true });
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap'
+  }).addTo(dayRouteLeafletMap);
+
+  const colors = ['#E97845', '#2F7C8B', '#2F8F83', '#D69A2D', '#7B61A8'];
+  const bounds = [];
+  routeDays.forEach((routeDay, dayIndex) => {
+    const color = colors[dayIndex % colors.length];
+    const points = routeDay.locatedActivities.map((activity, activityIndex) => {
+      const position = [activity._routeLocation.lat, activity._routeLocation.lng];
+      bounds.push(position);
+      const label = activeFilter === 'all' ? `${routeDay.dayNumber}.${activityIndex + 1}` : String(activityIndex + 1);
+      const marker = L.marker(position, {
+        icon: L.divIcon({
+          className: 'route-map-marker-wrap',
+          html: `<span class="route-map-marker" style="--route-marker-color:${color}"><b>${escapeHtml(label)}</b></span>`,
+          iconSize: [38, 44],
+          iconAnchor: [19, 42],
+          popupAnchor: [0, -38]
+        })
+      }).addTo(dayRouteLeafletMap);
+      marker.bindPopup(`<strong>${escapeHtml(activity._routeTitle)}</strong>${activity._routeTime ? `<br>${escapeHtml(activity._routeTime)}` : ''}`);
+      return position;
+    });
+    if (points.length > 1) L.polyline(points, { color, weight: 5, opacity: .82, lineJoin: 'round' }).addTo(dayRouteLeafletMap);
+  });
+
+  if (bounds.length === 1) dayRouteLeafletMap.setView(bounds[0], 14);
+  else dayRouteLeafletMap.fitBounds(bounds, { padding: [34, 34], maxZoom: 15 });
+  requestAnimationFrame(() => dayRouteLeafletMap?.invalidateSize());
+  return true;
+}
+
 function formatRouteMinutes(minutes) {
   const safeMinutes = Math.max(0, Math.round(Number(minutes) || 0));
   if (safeMinutes < 60) return `${safeMinutes} min`;
@@ -4859,17 +5032,19 @@ function buildPrivateRouteSvg(routeDays, allLocatedActivities) {
     </svg>`;
 }
 
-function renderDayRouteMap() {
+async function renderDayRouteMap() {
   const mapContainer = document.getElementById('dayMapVisual');
   const qualityBadge = document.getElementById('routeQualityBadge');
   const recommendations = document.getElementById('logisticsRecommendations');
   if (!mapContainer || !qualityBadge || !recommendations) return;
+  const renderToken = ++dayRouteRenderToken;
 
   const selectedDays = (tripData.itinerary || []).filter((day, index) => {
     const dayNumber = Number(day.dayNum || day.dayNumber) || index + 1;
     return activeFilter === 'all' || Number(activeFilter) === dayNumber;
   });
 
+  const globalDestination = getActiveTripDestination();
   const routeDays = selectedDays.map((day, dayIndex) => {
     const originalIndex = (tripData.itinerary || []).indexOf(day);
     const dayNumber = Number(day.dayNum || day.dayNumber) || originalIndex + 1 || dayIndex + 1;
@@ -4877,60 +5052,15 @@ function renderDayRouteMap() {
       ...activity,
       _routeTitle: activity.title || activity.name || `Parada ${activityIndex + 1}`,
       _routeTime: activity.time || activity.start_time || '',
-      _routeLocation: getRouteActivityLocation(activity)
+      _routeLocation: isPrivateRoutePlace(activity) ? null : getRouteActivityLocation(activity)
     }));
-    const locatedActivities = activities.filter(activity => activity._routeLocation);
-    const quality = locatedActivities.length >= 2
-      ? evaluateDayRouteQuality(locatedActivities.map(activity => ({ ...activity, location: activity._routeLocation })))
-      : null;
-    return { day, dayNumber, activities, locatedActivities, quality };
+    const dayDestination = String(day.city || '').trim() || globalDestination;
+    return { day, dayNumber, dayDestination, destinationCenter: null, activities, locatedActivities: [], quality: null };
   });
 
-  const calculatedDays = routeDays.filter(routeDay => routeDay.quality);
-  const allLocatedActivities = routeDays.flatMap(routeDay => routeDay.locatedActivities);
-  const allActivities = routeDays.flatMap(routeDay => routeDay.activities);
-  const totalDistance = calculatedDays.reduce((total, routeDay) => total + routeDay.quality.totalDistanceKm, 0);
-  const totalMinutes = calculatedDays.reduce((total, routeDay) => total + routeDay.quality.estimatedTravelTimeMins, 0);
-  const score = calculatedDays.length
-    ? Math.round(calculatedDays.reduce((total, routeDay) => total + routeDay.quality.score, 0) / calculatedDays.length)
-    : null;
-
-  if (score === null) {
-    qualityBadge.innerHTML = '<i class="fa-solid fa-location-dot"></i> Rota sem coordenadas';
-    qualityBadge.className = 'route-quality-badge route-quality-unavailable';
-  } else {
-    const scoreClass = score >= 85 ? 'route-quality-good' : score >= 65 ? 'route-quality-medium' : 'route-quality-low';
-    qualityBadge.innerHTML = `<i class="fa-solid fa-shield-halved"></i> Qualidade calculada: ${score}/100`;
-    qualityBadge.className = `route-quality-badge ${scoreClass}`;
-  }
-
-  const stopListHtml = routeDays.map(routeDay => `
-    <div class="route-day-summary">
-      <strong>${escapeHtml(routeDay.day.dateLabel || routeDay.day.date || `Dia ${routeDay.dayNumber}`)}</strong>
-      <div class="route-stop-flow">
-        ${routeDay.activities.map((activity, index) => `
-          <span class="route-stop-chip ${activity._routeLocation ? '' : 'route-stop-no-coordinates'}" title="${activity._routeLocation ? 'Localização confirmada' : 'Sem coordenadas'}">
-            <b>${index + 1}</b>${escapeHtml(activity._routeTime ? `${activity._routeTime} · ${activity._routeTitle}` : activity._routeTitle)}
-          </span>
-        `).join('<i class="fa-solid fa-chevron-right route-flow-arrow" aria-hidden="true"></i>')}
-      </div>
-    </div>
-  `).join('');
-
-  const metricHtml = score === null
-    ? '<span><i class="fa-solid fa-circle-info"></i> Adicione localizações às atividades para calcular distância e tempo.</span>'
-    : `
-      <span><i class="fa-solid fa-route"></i> ${totalDistance.toFixed(1)} km entre as paradas</span>
-      <span><i class="fa-regular fa-clock"></i> Cerca de ${formatRouteMinutes(totalMinutes)} de deslocamento</span>
-      <span><i class="fa-solid fa-location-dot"></i> ${allLocatedActivities.length} pontos mapeados</span>
-    `;
-
-  recommendations.innerHTML = `
-    <div class="route-metrics" aria-label="Resumo calculado da rota">${metricHtml}</div>
-    <div class="route-sequence" aria-label="Sequência das atrações">${stopListHtml}</div>
-  `;
-
-  if (allActivities.length === 0) {
+  const allActivitiesBeforeGeocoding = routeDays.flatMap(routeDay => routeDay.activities);
+  if (allActivitiesBeforeGeocoding.length === 0) {
+    destroyDayRouteLeafletMap();
     mapContainer.innerHTML = `
       <div class="route-map-empty">
         <i class="fa-solid fa-map-location-dot"></i>
@@ -4940,21 +5070,108 @@ function renderDayRouteMap() {
     return;
   }
 
-  if (allLocatedActivities.length === 0) {
+  const cache = readRouteGeocodeCache();
+  const destinationContexts = [...new Set(routeDays.map(routeDay => routeDay.dayDestination).filter(Boolean))];
+  const destinationCenters = new Map(await Promise.all(destinationContexts.map(async destination => (
+    [destination, await geocodeRouteDestination(destination, cache)]
+  ))));
+  routeDays.forEach(routeDay => {
+    routeDay.destinationCenter = destinationCenters.get(routeDay.dayDestination) || null;
+    routeDay.activities.forEach(activity => {
+      if (activity._routeLocation && routeDay.destinationCenter
+        && haversineDistanceKm(routeDay.destinationCenter, activity._routeLocation) > MAX_ROUTE_DISTANCE_FROM_CITY_KM) {
+        activity._routeLocation = null;
+      }
+    });
+  });
+
+  const candidates = routeDays.flatMap(routeDay => routeDay.activities
+    .filter(activity => !activity._routeLocation)
+    .map(activity => ({
+      activity,
+      routeDay,
+      query: buildSafeRouteGeocodeQuery(activity, routeDay.dayDestination)
+    })))
+    .filter(item => item.query)
+    .slice(0, activeFilter === 'all' ? 30 : 12);
+
+  if (candidates.length) {
+    qualityBadge.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Localizando atrações';
+    qualityBadge.className = 'route-quality-badge route-quality-unavailable';
+    destroyDayRouteLeafletMap();
     mapContainer.innerHTML = `
-      <div class="route-map-fallback" role="img" aria-label="Sequência visual das atrações sem coordenadas">
-        <div class="route-fallback-line"></div>
-        ${allActivities.slice(0, 8).map((activity, index) => `
-          <div class="route-fallback-stop">
-            <span>${index + 1}</span>
-            <small>${escapeHtml(activity._routeTitle)}</small>
-          </div>
-        `).join('')}
+      <div class="route-map-loading" role="status">
+        <i class="fa-solid fa-map-location-dot"></i>
+        <strong>Montando o mapa do roteiro…</strong>
+        <span>Localizando somente as atrações públicas.</span>
+      </div>`;
+    for (const candidate of candidates) {
+      if (renderToken !== dayRouteRenderToken) return;
+      candidate.activity._routeLocation = await geocodePublicRoutePlace(
+        candidate.query,
+        cache,
+        candidate.routeDay.destinationCenter,
+        candidate.routeDay.dayDestination
+      );
+    }
+  }
+
+  if (renderToken !== dayRouteRenderToken) return;
+  routeDays.forEach(routeDay => {
+    routeDay.locatedActivities = routeDay.activities.filter(activity => activity._routeLocation);
+    routeDay.quality = routeDay.locatedActivities.length >= 2
+      ? evaluateDayRouteQuality(routeDay.locatedActivities.map(activity => ({ ...activity, location: activity._routeLocation })))
+      : null;
+  });
+
+  const calculatedDays = routeDays.filter(routeDay => routeDay.quality);
+  const allLocatedActivities = routeDays.flatMap(routeDay => routeDay.locatedActivities);
+  const totalDistance = calculatedDays.reduce((total, routeDay) => total + routeDay.quality.totalDistanceKm, 0);
+  const totalMinutes = calculatedDays.reduce((total, routeDay) => total + routeDay.quality.estimatedTravelTimeMins, 0);
+  const score = calculatedDays.length
+    ? Math.round(calculatedDays.reduce((total, routeDay) => total + routeDay.quality.score, 0) / calculatedDays.length)
+    : null;
+
+  if (score === null && allLocatedActivities.length === 0) {
+    qualityBadge.innerHTML = '<i class="fa-solid fa-location-dot"></i> Mapa indisponível neste filtro';
+    qualityBadge.className = 'route-quality-badge route-quality-unavailable';
+  } else if (score === null) {
+    qualityBadge.innerHTML = `<i class="fa-solid fa-location-dot"></i> ${allLocatedActivities.length} ponto localizado`;
+    qualityBadge.className = 'route-quality-badge route-quality-medium';
+  } else {
+    const scoreClass = score >= 85 ? 'route-quality-good' : score >= 65 ? 'route-quality-medium' : 'route-quality-low';
+    qualityBadge.innerHTML = `<i class="fa-solid fa-shield-halved"></i> Qualidade calculada: ${score}/100`;
+    qualityBadge.className = `route-quality-badge ${scoreClass}`;
+  }
+
+  if (score === null) {
+    recommendations.replaceChildren();
+    recommendations.classList.add('hidden');
+  } else {
+    recommendations.classList.remove('hidden');
+    recommendations.innerHTML = `
+      <div class="route-metrics" aria-label="Resumo calculado da rota">
+      <span><i class="fa-solid fa-route"></i> ${totalDistance.toFixed(1)} km entre as paradas</span>
+      <span><i class="fa-regular fa-clock"></i> Cerca de ${formatRouteMinutes(totalMinutes)} de deslocamento</span>
+      <span><i class="fa-solid fa-location-dot"></i> ${allLocatedActivities.length} pontos mapeados</span>
+      </div>
+    `;
+  }
+
+  if (allLocatedActivities.length === 0) {
+    destroyDayRouteLeafletMap();
+    mapContainer.innerHTML = `
+      <div class="route-map-empty">
+        <i class="fa-solid fa-map-location-dot"></i>
+        <strong>Não foi possível localizar as atrações públicas</strong>
+        <span>Os endereços privados foram preservados e não são enviados ao mapa.</span>
       </div>`;
     return;
   }
 
-  mapContainer.innerHTML = buildPrivateRouteSvg(routeDays, allLocatedActivities);
+  if (!renderLeafletDayRouteMap(mapContainer, routeDays)) {
+    mapContainer.innerHTML = buildPrivateRouteSvg(routeDays, allLocatedActivities);
+  }
 }
 
 // Timeline dia a dia
@@ -5024,12 +5241,13 @@ function renderTimeline() {
       if (idx === 1) return 'tarde';
       return 'noite';
     }
-    const hourPart = parseInt(act.time.split(":")[0]);
-    if (isNaN(hourPart)) {
+    const activityMinutes = parseActivityTimeMinutes(act.time);
+    if (activityMinutes === null) {
       if (idx === 0) return 'manha';
       if (idx === 1) return 'tarde';
       return 'noite';
     }
+    const hourPart = Math.floor(activityMinutes / 60);
     if (hourPart >= 5 && hourPart < 12) return 'manha';
     if (hourPart >= 12 && hourPart < 18) return 'tarde';
     return 'noite';
@@ -5175,8 +5393,8 @@ function renderTimeline() {
     `;
   };
 
-  const getRestaurantRecommendationsHtml = (act) => {
-    const options = Array.isArray(act.restaurant_options) ? act.restaurant_options : [];
+  const getRestaurantRecommendationsHtml = (act, dayIndex) => {
+    const options = filterRestaurantOptionsForDay(act.restaurant_options, tripData.itinerary, dayIndex);
     if (!options.length) return '';
     const cards = options.map((option, index) => {
       const mapUrl = buildGoogleMapsSearchUrl([option.name, option.address], getDestinationSuffix());
@@ -5196,7 +5414,7 @@ function renderTimeline() {
           ${option.verification_note ? `<small class="restaurant-verification"><i class="fa-solid fa-circle-check"></i> ${escapeHtml(option.verification_note)}</small>` : ''}
         </article>`;
     }).join('');
-    return `<section class="restaurant-recommendations" onclick="event.stopPropagation()"><div class="restaurant-recommendations-title"><i class="fa-solid fa-bowl-food"></i><strong>Onde comer</strong><span>2 sugestões selecionadas</span></div><div class="restaurant-recommendations-grid">${cards}</div></section>`;
+    return `<section class="restaurant-recommendations" onclick="event.stopPropagation()"><div class="restaurant-recommendations-title"><i class="fa-solid fa-bowl-food"></i><strong>Onde comer</strong><span>${options.length} ${options.length === 1 ? 'sugestão selecionada' : 'sugestões selecionadas'}</span></div><div class="restaurant-recommendations-grid">${cards}</div></section>`;
   };
 
   tripData.itinerary.forEach((day, dayIndex) => {
@@ -5213,12 +5431,8 @@ function renderTimeline() {
     if (day.activities && day.activities.length > 0) {
       if (itineraryViewMode === 'calendar') {
         const parseTime = (timeStr) => {
-          if (!timeStr || timeStr === '--:--') return 9999;
-          const parts = timeStr.split(':');
-          const h = parseInt(parts[0]);
-          const m = parseInt(parts[1]);
-          if (isNaN(h) || isNaN(m)) return 9999;
-          return h * 60 + m;
+          const minutes = parseActivityTimeMinutes(timeStr);
+          return minutes === null ? 9999 : minutes;
         };
 
         const sortedActivities = [...day.activities].sort((a, b) => parseTime(a.time) - parseTime(b.time));
@@ -5226,7 +5440,7 @@ function renderTimeline() {
         
         sortedActivities.forEach(act => {
           const bookingHtml = getBookingHtml(act);
-          const restaurantHtml = getRestaurantRecommendationsHtml(act);
+          const restaurantHtml = getRestaurantRecommendationsHtml(act, dayIndex);
 
           calendarActsHtml += `
             <div class="calendar-activity-item" onclick="event.stopPropagation()">
@@ -5278,7 +5492,7 @@ function renderTimeline() {
             
             turnActs.forEach(act => {
               const bookingHtml = getBookingHtml(act);
-              const restaurantHtml = getRestaurantRecommendationsHtml(act);
+              const restaurantHtml = getRestaurantRecommendationsHtml(act, dayIndex);
 
               turnActsHtml += `
                 <div class="activity-block">
@@ -8767,7 +8981,7 @@ async function triggerAiLogisticsSync() {
           dates: { start: tripData.start_date, end: tripData.end_date, label: tripData.infoDates },
           start_date: tripData.start_date,
           end_date: tripData.end_date,
-          destination: tripData.tripTitle,
+          destination: getActiveTripDestination(),
           itinerary: tripData.itinerary,
           packing: tripData.packing,
           expenses: tripData.expenses,

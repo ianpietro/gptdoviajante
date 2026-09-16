@@ -1,4 +1,4 @@
-import { recalculateTripContext } from './stateManager.js';
+import { normalizeActivityTime, recalculateTripContext } from './stateManager.js';
 import { applyTransportCommandToTrip } from './transportContextEngine.js';
 import { normalizeAccommodationData, formatAccommodationDisplay } from './accommodationNormalizer.js';
 import { enrichItineraryWithCalendar } from './calendarEngine.js';
@@ -10,6 +10,13 @@ export const VALID_ACTION_TYPES = [
 function destinationTripTitle(destination) {
   const clean = String(destination || '').trim().replace(/^viagem\s+(?:para|a|em)\s+/i, '');
   return clean ? `Viagem para ${clean}` : '';
+}
+
+function isPlausibleTripDestination(destination) {
+  const value = String(destination || '').trim();
+  if (!value) return false;
+  if (/^(?:um|uma|algum|alguma)?\s*(?:show|concerto|festival|teatro|pe[cç]a|stand.?up|restaurante|bar|caf[eé]|museu|passeio|compras?|shopping|jogo|evento)\b/i.test(value)) return false;
+  return !/\b(?:na|no)\s+(?:vila|bairro|rua|avenida|av\.?|centro|shopping)\b/i.test(value);
 }
 
 function syncAccommodationLegacyFields(newTrip) {
@@ -84,6 +91,28 @@ function syncTransportContext(newTrip, reservation) {
   Object.assign(newTrip, result.trip);
 }
 
+function resolveItineraryUpdateIndex(itinerary = [], index, data = {}) {
+  if (!Array.isArray(itinerary)) return -1;
+  const dateISO = String(data?.dateISO || '').trim();
+  if (dateISO) {
+    const byDate = itinerary.findIndex(day => String(day?.dateISO || '').trim() === dateISO);
+    if (byDate >= 0) return byDate;
+  }
+
+  const dayNum = Number(data?.dayNum);
+  if (Number.isFinite(dayNum) && dayNum > 0) {
+    const byDayNumber = itinerary.findIndex(day => Number(day?.dayNum) === dayNum);
+    if (byDayNumber >= 0) return byDayNumber;
+  }
+
+  const numericIndex = Number(index);
+  if (!Number.isInteger(numericIndex) || numericIndex < 0 || !itinerary[numericIndex]) return -1;
+  const indexedDay = itinerary[numericIndex];
+  const conflictsWithDate = dateISO && String(indexedDay?.dateISO || '').trim() && String(indexedDay.dateISO).trim() !== dateISO;
+  const conflictsWithDayNumber = Number.isFinite(dayNum) && dayNum > 0 && Number(indexedDay?.dayNum) !== dayNum;
+  return conflictsWithDate || conflictsWithDayNumber ? -1 : numericIndex;
+}
+
 export function validateAction(action, trip) {
   if (!action || typeof action !== 'object') {
     throw new Error("Action must be an object.");
@@ -130,9 +159,9 @@ export function applyActions(actions, trip) {
           newTrip.itinerary = newTrip.itinerary || [];
           newTrip.itinerary.push(data);
         } else if (operation === 'update') {
-          if (index !== undefined && newTrip.itinerary && newTrip.itinerary[index]) {
-            newTrip.itinerary[index] = { ...newTrip.itinerary[index], ...data };
-          }
+          const targetIndex = resolveItineraryUpdateIndex(newTrip.itinerary, index, data);
+          if (targetIndex < 0) throw new Error('Itinerary update target does not exist.');
+          newTrip.itinerary[targetIndex] = { ...newTrip.itinerary[targetIndex], ...data };
         } else if (operation === 'delete') {
           if (index !== undefined && newTrip.itinerary) {
             newTrip.itinerary.splice(index, 1);
@@ -285,8 +314,12 @@ export function applyActions(actions, trip) {
         
       case 'preferences':
         if (operation === 'update' || operation === 'replace') {
-          newTrip.preferences = { ...newTrip.preferences, ...data };
-          if (data.destination) {
+          const { destination: _structuralDestination, tripTitle: _structuralTitle, destination_change_explicit: _destinationChangeFlag, ...preferenceData } = data;
+          newTrip.preferences = { ...newTrip.preferences, ...preferenceData };
+          // Durante uma viagem, bairros e atrações aparecem com frequência nas
+          // ações. Eles não podem substituir silenciosamente a cidade já salva.
+          // A troca continua possível quando o fluxo a declara explicitamente.
+          if (isPlausibleTripDestination(data.destination) && (!newTrip.destination || data.destination_change_explicit === true)) {
             newTrip.destination = data.destination;
             newTrip.tripTitle = destinationTripTitle(data.destination);
             if (newTrip.preferences.creation_mode === 'chat_onboarding' && !newTrip.start_date) {
@@ -315,6 +348,13 @@ export function applyActions(actions, trip) {
 
   // If we reach here, all actions applied successfully
   const recalculated = recalculateTripContext(trip, newTrip);
+  recalculated.itinerary = (recalculated.itinerary || []).map(day => ({
+    ...day,
+    activities: (day.activities || []).map(activity => ({
+      ...activity,
+      time: normalizeActivityTime(activity.time)
+    }))
+  }));
   recalculated.itinerary = enrichItineraryWithCalendar(
     recalculated.itinerary,
     recalculated.start_date,

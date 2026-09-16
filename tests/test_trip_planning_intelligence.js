@@ -97,6 +97,8 @@ const editorialPrompt = buildEditorialPlanningPrompt({ planningBrief: brief, tri
 assert.match(editorialPrompt, /preserve integralmente os dias/i);
 assert.match(editorialPrompt, /não invente endereço/i);
 assert.match(editorialPrompt, /seis camadas/i);
+assert.match(editorialPrompt, /fechamento concreto depois das 18h/i);
+assert.match(editorialPrompt, /origem → destino/i);
 
 function day(index, activities) {
   return { ...calendar[index], dayTitle: `Dia autoral ${index + 1}`, activities };
@@ -157,7 +159,7 @@ const groundedFallback = buildGroundedItineraryFallback({ planningBrief: contami
 assert.ok(groundedFallback);
 const fallbackEnvelope = JSON.parse(groundedFallback);
 assert.equal(fallbackEnvelope.actions[0].data.length, 5);
-assert.ok(fallbackEnvelope.actions[0].data.every(day => day.activities.length >= 3));
+assert.ok(fallbackEnvelope.actions[0].data.every(day => day.activities.length >= 4));
 const fallbackAudit = auditItineraryQuality(groundedFallback, {
   requestedDays: 5, researchBrief: fallbackResearch, tripCalendar: calendar,
   planningBrief: contaminated, userMessage: 'domingo vamos almoçar na minha avó'

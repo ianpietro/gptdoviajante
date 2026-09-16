@@ -4,6 +4,7 @@ const PRACTICAL_DETAIL_PATTERN = /\b(minut|hor[aá]rio|reserva|ingresso|fila|che
 const LOCAL_CONTEXT_PATTERN = /\b(hist[oó]ria|tradi[cç][aã]o|arquitetura|cultura|bairro|vista|luz|aroma|cheiro|som|atmosfera|ritual|morador|s[ií]mbolo|mem[oó]ria|origem|patrim[oô]nio|paisagem)/i;
 const RATIONALE_PATTERN = /\b(porque|por isso|vale|escolh|entra no roteiro|faz sentido|permite|melhor hor[aá]rio|conecta|prepara|contrasta|fecha o dia|abre o dia)\b/i;
 import { buildTripCalendar } from './calendarEngine.js';
+import { normalizeActivityTime } from './stateManager.js';
 
 function parseDateOnly(value) {
   const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -51,6 +52,8 @@ Regras obrigatórias de qualidade:
 11. Alma vem de detalhes específicos, não de adjetivos. Evite “cidade vibrante”, “experiência inesquecível”, “imperdível” e qualquer frase copiável para outro destino.
 12. Respeite a proporção das preferências. Um show de jazz, uma peça, um restaurante ou uma compra mencionados são compromissos pontuais do roteiro, não o tema da viagem inteira, salvo quando o viajante disser explicitamente que esse é o motivo principal. Equilibre-os com os símbolos, bairros e experiências essenciais do destino.
 13. Cada item do array representa uma data real, na ordem exata do calendário acima. Preencha dateISO, dateLabel e weekday exatamente como fornecido. Se o viajante disser “quarta à noite” ou “sábado à tarde”, coloque a atividade na data correspondente e em horário compatível com o turno; nunca conte os dias mentalmente a partir de “Dia 1”.
+14. Nunca repita o mesmo restaurante, bar ou casa gastronômica em dias diferentes. Uma reserva ou visita já incluída no roteiro não pode reaparecer como recomendação posterior.
+15. As duas restaurant_options devem ficar na região da refeição ou no caminho real daquele dia. A justificativa deve dizer em qual bairro ou trecho do percurso a opção se encaixa. Não recomende uma casa fechada no dia da visita nem reutilize uma reserva de outra data.
 
 Formato obrigatório da atualização:
 {"actions":[{"type":"itinerary","operation":"replace","data":[{"dayNum":1,"dateISO":"2026-09-23","dateLabel":"23-09-2026 · quarta-feira","weekday":"quarta-feira","dayTitle":"Título específico e evocativo","dayStory":"Abertura narrativa específica que dá sentido à sequência do dia","highlight":"Momento mais marcante e o que notar nele","localSecret":"Dica local ou curiosidade concreta","logistics":"Ordem e forma de deslocamento entre as paradas","climate_plan":"Alternativa coberta nomeada e próxima","activities":[{"time":"12:30","category":"food","title":"Almoço típico","desc":"Parágrafo com contexto local, motivo, experiência e orientação prática","location":{"address":"Bairro ou região da refeição"},"restaurant_options":[{"name":"Nome real do restaurante","address":"Endereço ou bairro pesquisável","dish":"Prato específico a pedir","price_level":"$$","why":"Por que esta casa vale a parada","verification_note":"Confirme horário e reserva no dia"},{"name":"Alternativa real","address":"Endereço pesquisável","dish":"Prato específico","price_level":"$","why":"Por que é uma boa alternativa","verification_note":"Confirme funcionamento"}]}]}]}]}
@@ -130,7 +133,7 @@ export function validateAndNormalizeItinerary(itinerary, { days, startDate, clim
       }
       return {
         ...activity,
-        time: String(activity.time || (activityIndex === 0 ? '09:00' : activityIndex === 1 ? '14:00' : '19:00')),
+        time: normalizeActivityTime(activity.time || (activityIndex === 0 ? '09:00' : activityIndex === 1 ? '14:00' : '19:00')),
         title,
         desc,
         location: { ...(activity.location || {}), address },

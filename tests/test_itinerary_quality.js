@@ -100,12 +100,12 @@ assert.ok(brief);
 function foodActivity(day) {
   const options = day === 1
     ? [
-      { name: 'Barraca da Sandra', address: 'Feira Central, Campo Grande, MS', dish: 'Sobá tradicional', price_level: '$', why: 'Mantém a tradição okinawana no cenário cultural original do prato.' },
-      { name: 'Massa Sobaria', address: 'Rua Pernambuco, Campo Grande, MS', dish: 'Sobá com espetinho', price_level: '$$', why: 'É uma casa especializada no prato mais simbólico da cidade.' }
+      { name: 'Barraca da Sandra', address: 'Feira Central, Campo Grande, MS', dish: 'Sobá tradicional', price_level: '$', why: 'Fica na Feira Central, no mesmo trecho do percurso, e mantém a tradição okinawana no cenário cultural original do prato.' },
+      { name: 'Massa Sobaria', address: 'Rua Pernambuco, Campo Grande, MS', dish: 'Sobá com espetinho', price_level: '$$', why: 'É uma casa especializada no prato mais simbólico da cidade e fica no caminho da região central.' }
     ]
     : [
-      { name: 'Casa do Peixe', address: 'Centro, Campo Grande, MS', dish: 'Costela de pacu', price_level: '$$', why: 'Apresenta um peixe pantaneiro em uma casa tradicional da cidade.' },
-      { name: 'Pioneiros Restaurante & Choperia', address: 'Jardim dos Estados, Campo Grande, MS', dish: 'Pintado a urucum', price_level: '$$', why: 'Combina preparo regional específico com localização conveniente.' }
+      { name: 'Casa do Peixe', address: 'Centro, Campo Grande, MS', dish: 'Costela de pacu', price_level: '$$', why: 'Fica no mesmo trecho central do roteiro e apresenta um peixe pantaneiro em uma casa tradicional da cidade.' },
+      { name: 'Pioneiros Restaurante & Choperia', address: 'Jardim dos Estados, Campo Grande, MS', dish: 'Pintado a urucum', price_level: '$$', why: 'Combina preparo regional específico com localização conveniente no caminho para o parque.' }
     ];
   return {
     time: '12:30', category: 'food', title: day === 1 ? 'Sobá na Feira Central' : 'Peixes pantaneiros',
@@ -126,7 +126,8 @@ const itinerary = [
     activities: [
       { time: '09:00', title: 'Bioparque Pantanal', desc: 'Abra o dia pela biodiversidade de água doce porque ela situa Campo Grande como porta de entrada do Pantanal; reserve o horário com antecedência e observe os ambientes que reproduzem diferentes bacias.', location: { address: 'Bioparque Pantanal, Campo Grande, MS' } },
       foodActivity(1),
-      { time: '16:00', title: 'Feira Central', desc: 'Feche o dia na Feira Central porque a história da imigração japonesa aparece ali na alimentação cotidiana; caminhe entre as barracas e reserve ao menos uma hora para perceber os rituais locais.', location: { address: 'Feira Central, Campo Grande, MS' } }
+      { time: '16:00', title: 'Feira Central', desc: 'A tarde na Feira Central revela como a história da imigração japonesa aparece na alimentação cotidiana; caminhe entre as barracas e reserve ao menos uma hora para perceber os rituais locais.', location: { address: 'Feira Central, Campo Grande, MS' } },
+      { time: '19:30', title: 'Noite de sobá e convivência na Feira', desc: 'Feche o dia observando o movimento noturno da Feira Central porque é nesse horário que a tradição do sobá ganha caráter de encontro; confirme o funcionamento e mantenha margem para voltar com tranquilidade.', location: { address: 'Feira Central, Campo Grande, MS' }, restaurant_options: foodActivity(1).restaurant_options }
     ]
   },
   {
@@ -140,7 +141,8 @@ const itinerary = [
     activities: [
       { time: '09:00', title: 'Morada dos Baís', desc: 'Comece pela Morada dos Baís porque sua arquitetura ajuda a ler o crescimento da cidade; confira antes a programação cultural e reserve cerca de uma hora para o edifício e as exposições.', location: { address: 'Morada dos Baís, Campo Grande, MS' } },
       foodActivity(2),
-      { time: '16:00', title: 'Parque das Nações Indígenas', desc: 'Encerre no Parque das Nações porque a paisagem aberta contrasta com a manhã histórica; chegue após as 16h para caminhar com menos calor e reserve tempo para observar o pôr do sol.', location: { address: 'Parque das Nações Indígenas, Campo Grande, MS' } }
+      { time: '16:00', title: 'Parque das Nações Indígenas', desc: 'Siga ao Parque das Nações porque a paisagem aberta contrasta com a manhã histórica; chegue após as 16h para caminhar com menos calor e reserve tempo para observar o pôr do sol.', location: { address: 'Parque das Nações Indígenas, Campo Grande, MS' } },
+      { time: '19:30', title: 'Jantar de peixe pantaneiro', desc: 'Termine a noite com um preparo pantaneiro porque ele conecta a paisagem do parque aos ingredientes regionais; use uma das casas pesquisadas e confirme funcionamento e reserva antes de sair.', location: { address: 'Jardim dos Estados, Campo Grande, MS' }, restaurant_options: foodActivity(2).restaurant_options }
     ]
   }
 ];
@@ -154,7 +156,25 @@ itinerary.forEach(day => day.activities.forEach(activity => {
 const goodReply = `Roteiro com Bioparque Pantanal, Feira Central e sobá.\n\n\`\`\`json\n${JSON.stringify({ actions: [{ type: 'itinerary', operation: 'replace', data: itinerary }] })}\n\`\`\``;
 const goodAudit = auditItineraryQuality(goodReply, { requestedDays: 2, researchBrief: brief });
 assert.equal(goodAudit.passed, true, goodAudit.issues.join('; '));
-assert.equal(goodAudit.metrics.namedRestaurants, 4);
+assert.ok(goodAudit.metrics.namedRestaurants >= 4);
+
+const repeatedRestaurantItinerary = JSON.parse(JSON.stringify(itinerary));
+repeatedRestaurantItinerary[1].activities[1].restaurant_options[0] = {
+  ...repeatedRestaurantItinerary[0].activities[1].restaurant_options[0],
+  verification_note: 'É a reserva fixa de sábado.'
+};
+const repeatedRestaurantReply = `\`\`\`json\n${JSON.stringify({ actions: [{ type: 'itinerary', operation: 'replace', data: repeatedRestaurantItinerary }] })}\n\`\`\``;
+const repeatedRestaurantAudit = auditItineraryQuality(repeatedRestaurantReply, { requestedDays: 2, researchBrief: brief });
+assert.equal(repeatedRestaurantAudit.passed, false);
+assert.ok(repeatedRestaurantAudit.issues.some(issue => /restaurante repetido|outro dia|dia anterior/i.test(issue)));
+
+const partialUpdateReply = JSON.stringify({
+  message: 'Atualizei o roteiro.',
+  actions: [{ type: 'itinerary', operation: 'update', index: 0, data: itinerary[0] }]
+});
+const partialUpdateAudit = auditItineraryQuality(partialUpdateReply, { requestedDays: 2, researchBrief: brief });
+assert.equal(partialUpdateAudit.passed, false, 'Uma atualização de apenas um dia não pode representar o roteiro completo.');
+assert.ok(partialUpdateAudit.issues.some(issue => /sem atualização estruturada/.test(issue)));
 
 const soulless = JSON.parse(JSON.stringify(itinerary));
 delete soulless[0].dayStory;

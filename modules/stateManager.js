@@ -12,6 +12,20 @@ function toText(value, fallback = '') {
   return String(value);
 }
 
+export function normalizeActivityTime(value, fallback = '--:--') {
+  const raw = toText(value).trim();
+  if (!raw) return fallback;
+  const match = raw.match(/(?:^|[^\d])([01]?\d|2[0-3])\s*(?::|h)\s*([0-5]\d)(?!\d)/i);
+  if (!match) return raw;
+  return `${String(Number(match[1])).padStart(2, '0')}:${match[2]}`;
+}
+
+export function parseActivityTimeMinutes(value) {
+  const normalized = normalizeActivityTime(value, '');
+  const match = /^(\d{2}):(\d{2})$/.exec(normalized);
+  return match ? Number(match[1]) * 60 + Number(match[2]) : null;
+}
+
 function formatDisplayDate(value) {
   const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
   return match ? `${match[3]}-${match[2]}-${match[1]}` : String(value || '');
@@ -265,7 +279,7 @@ export function normalizeTripState(trip) {
       activities: Array.isArray(day.activities)
         ? day.activities.filter(activity => activity && typeof activity === 'object').map(activity => ({
             ...activity,
-            time: toText(activity.time, '--:--'),
+            time: normalizeActivityTime(activity.time),
             title: toText(activity.title),
             desc: toText(activity.desc)
           }))
@@ -274,7 +288,7 @@ export function normalizeTripState(trip) {
 
   // Logical fallbacks
   if (!normalized.destination) {
-    normalized.destination = normalized.tripTitle || "A definir";
+    normalized.destination = toText(normalized.tripTitle || "A definir").trim().replace(/^viagem\s+(?:para|a|em)\s+/i, '');
   }
   const normalizedDestination = toText(normalized.destination).trim().replace(/^viagem\s+(?:para|a|em)\s+/i, '');
   const destinationLooksLikeActivity = /^(?:um|uma|algum|alguma)?\s*(?:show|concerto|festival|teatro|pe[cç]a|stand.?up|restaurante|bar|caf[eé]|museu|passeio|compras?|shopping|jogo|evento)\b/i.test(normalizedDestination);

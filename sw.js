@@ -1,6 +1,6 @@
 // No-Cache Service Worker — always fetches from network
 // Bump this version string to force update on all clients
-const CACHE_VERSION = '20260913-v3.0.0-rc28-full-day';
+const CACHE_VERSION = '20260915-v3.0.0-rc32-real-map';
 
 // Install: take control immediately
 self.addEventListener('install', event => {

@@ -1,5 +1,7 @@
 const fs = require('fs');
 const path = require('path');
+const vm = require('vm');
+const assert = require('assert');
 
 (async () => {
   const root = path.resolve(__dirname, '..');
@@ -7,6 +9,7 @@ const path = require('path');
   const actions = await import(path.join(root, 'modules/actionEngine.js'));
   const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
   const prompt = fs.readFileSync(path.join(root, 'api/prompt_master.txt'), 'utf8');
+  const chatApi = require(path.join(root, 'api/chat.js'));
 
   const command = transport.inferTransportCommand('Vou fazer tudo de carro nessa viagem');
   if (command?.mode !== 'own_car' || command?.scope !== 'entire_trip') throw new Error('Comando de carro não foi compreendido.');
@@ -59,11 +62,47 @@ const path = require('path');
   } }], { ...original, tripTitle: 'Nova viagem', preferences: {} });
   if (titleProtected.tripTitle !== 'Viagem para São Paulo') throw new Error('Uma atividade substituiu o destino no título da viagem.');
 
+  const fiveDayTrip = {
+    ...original,
+    start_date: '2026-09-23',
+    end_date: '2026-09-27',
+    itinerary: Array.from({ length: 5 }, (_, index) => ({
+      dayNum: index + 1,
+      dateISO: `2026-09-${String(23 + index).padStart(2, '0')}`,
+      dayTitle: `Dia preservado ${index + 1}`,
+      activities: []
+    }))
+  };
+  const targetedDayUpdate = actions.applyActions([{
+    type: 'itinerary', operation: 'update', index: 0,
+    data: { dayNum: 5, dateISO: '2026-09-27', dayTitle: 'Domingo atualizado' }
+  }], fiveDayTrip);
+  if (targetedDayUpdate.itinerary.length !== 5) throw new Error('Atualização de um dia alterou a quantidade total do roteiro.');
+  if (targetedDayUpdate.itinerary[0].dayTitle !== 'Dia preservado 1') throw new Error('Dia 5 sobrescreveu indevidamente o Dia 1 pelo índice.');
+  if (targetedDayUpdate.itinerary[4].dayTitle !== 'Domingo atualizado') throw new Error('Atualização não encontrou o dia correto pela data.');
+
+  assert.throws(() => actions.applyActions([{
+    type: 'itinerary', operation: 'update', index: 0,
+    data: { dayNum: 6, dateISO: '2026-09-28', dayTitle: 'Dia inexistente' }
+  }], fiveDayTrip), /target does not exist/, 'Dia inexistente não pode corromper o primeiro dia.');
+
   if (!app.includes('applyNaturalLanguageTransportUpdate(text)')) throw new Error('Chat não aplica o comando em linguagem natural.');
   if (!app.includes('isCreateTripIntent(text)')) throw new Error('Pedido de nova viagem ainda depende da IA remota.');
   if (!app.includes('startTripViaChat')) throw new Error('Fluxo de criação conversacional não foi conectado.');
   if (!app.includes("if (tab === 'chat')") || !app.includes("bottomNav.style.setProperty('display', 'flex', 'important')")) throw new Error('Navegação inferior não permanece disponível sem viagem ativa.');
   if (!app.includes('findEmbeddedActionJson')) throw new Error('Chat não remove JSON de ações anexado à resposta.');
+  if (!app.includes('findLikelyActionPayloadStart')) throw new Error('Chat não possui defesa para JSON de ações truncado.');
+
+  const malformedReply = 'Tudo certo, atualizei o seu roteiro.\n\n{"actions":[{"type":"itinerary","operation":"update","index":0,"data":{"dayNum":6';
+  const serverVisible = chatApi.sanitizeActionArtifacts(malformedReply);
+  if (serverVisible !== 'Tudo certo, atualizei o seu roteiro.') throw new Error('API ainda expõe JSON de ações truncado.');
+
+  const parserStart = app.indexOf('function stripJsonCodeBlock');
+  const parserEnd = app.indexOf('\nfunction applyNaturalLanguageTransportUpdate', parserStart);
+  const parserSandbox = {};
+  vm.runInNewContext(`${app.slice(parserStart, parserEnd)}\nthis.stripJsonCodeBlock = stripJsonCodeBlock;`, parserSandbox);
+  const clientVisible = parserSandbox.stripJsonCodeBlock(malformedReply);
+  if (clientVisible !== 'Tudo certo, atualizei o seu roteiro.') throw new Error('Interface ainda expõe JSON de ações truncado.');
   if (app.includes('Não consegui concluir sua solicitação: ${error.message')) throw new Error('Chat ainda expõe o erro técnico bruto ao usuário.');
   if (!prompt.includes('Comando de transporte atualiza o produto')) throw new Error('Prompt da IA não exige sincronização de transporte.');
   console.log('✓ Chat sincroniza transporte com Carteira, Saúde da Viagem e Roteiro');

@@ -4,7 +4,7 @@ const fs = require('fs');
 async function runTests() {
   console.log("🧪 Running State Normalization Tests...");
   
-  const { normalizeTripState, CURRENT_STATE_VERSION, getSuggestedTripStatus } = await import('../modules/stateManager.js');
+  const { normalizeTripState, parseActivityTimeMinutes, CURRENT_STATE_VERSION, getSuggestedTripStatus } = await import('../modules/stateManager.js');
 
   // Test 1: Empty / Null Trip Initialization
   {
@@ -25,6 +25,14 @@ async function runTests() {
   {
     const protectedTitle = normalizeTripState({ destination: 'São Paulo', tripTitle: 'Viagem para um show de jazz' });
     assert.strictEqual(protectedTitle.tripTitle, 'Viagem para São Paulo');
+  }
+
+  {
+    const normalizedTimeTrip = normalizeTripState({
+      itinerary: [{ activities: [{ time: 'Entre a Aclimação e 14:30', title: 'Primeira passada pelo Brás' }] }]
+    });
+    assert.strictEqual(normalizedTimeTrip.itinerary[0].activities[0].time, '14:30');
+    assert.strictEqual(parseActivityTimeMinutes('Entre a Aclimação e 14:30'), 14 * 60 + 30);
   }
 
   {

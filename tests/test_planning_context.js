@@ -27,11 +27,44 @@ const path = require('path');
     { role: 'user', content: 'Queremos ir a um show de jazz, um show de comédia e talvez um teatro.' }
   ]);
   if (destinationWithEvent.destination !== 'São Paulo') throw new Error(`Uma atividade substituiu indevidamente o destino: ${destinationWithEvent.destination}`);
+  const destinationWithNeighborhood = planning.inferConversationTripFacts([
+    { role: 'user', content: 'Vamos em casal para São Paulo, do dia 23 ao 27 de setembro de 2026.' },
+    { role: 'user', content: 'Depois vamos para o Brás de metrô e voltamos de Uber.' }
+  ]);
+  if (destinationWithNeighborhood.destination !== 'São Paulo') throw new Error(`Um bairro substituiu indevidamente o destino: ${destinationWithNeighborhood.destination}`);
+  const explicitDestinationChange = planning.inferConversationTripFacts([
+    { role: 'user', content: 'Vamos para São Paulo no feriado.' },
+    { role: 'user', content: 'Mude o destino para Curitiba.' }
+  ]);
+  if (explicitDestinationChange.destination !== 'Curitiba') throw new Error(`Uma troca explícita de destino não foi respeitada: ${explicitDestinationChange.destination}`);
   const factsApplied = planning.applyConversationTripFacts({ members: ['Você'], accommodations: [], infoHotel: 'A definir' }, facts);
   if (factsApplied.trip.members.length !== 2 || factsApplied.trip.infoGroup !== '2 viajantes') throw new Error('Grupo não foi sincronizado.');
   if (factsApplied.trip.infoHotel === 'A definir') throw new Error('Hospedagem não foi sincronizada.');
   if (factsApplied.trip.infoDates !== '23-09-2026 a 27-09-2026') throw new Error('Data visível não segue dd-mm-aaaa.');
   if (factsApplied.trip.tripTitle !== 'Viagem para São Paulo') throw new Error('Título da viagem não permaneceu baseado no destino.');
+  const girlfriendTrip = planning.inferConversationTripFacts([
+    { role: 'user', content: 'É uma viagem para São Paulo com minha namorada, do dia 23 ao 27 de setembro de 2026.' }
+  ], {}, new Date('2026-09-13T12:00:00Z'));
+  if (girlfriendTrip.destination !== 'São Paulo') throw new Error(`Destino absorveu o perfil do grupo: ${girlfriendTrip.destination}`);
+  if (girlfriendTrip.traveler_count !== 2) throw new Error('“Com minha namorada” não foi convertido em dois viajantes.');
+  const venueOnly = planning.inferConversationTripFacts([
+    { role: 'user', content: 'No sábado vamos para o Azucar na Vila Madalena.' }
+  ]);
+  if (venueOnly?.destination) throw new Error(`Uma atração virou destino da viagem: ${venueOnly.destination}`);
+  const recoveredCity = planning.inferDestinationFromOperationalData({
+    destination: 'Azucar na Vila Madalena',
+    itinerary: [{ activities: [{ location: { address: 'Rua Aspicuelta, 515, São Paulo' } }] }]
+  });
+  if (recoveredCity !== 'São Paulo') throw new Error(`A cidade não foi recuperada do roteiro: ${recoveredCity}`);
+  const protectedDestination = actions.applyActions([{ type: 'preferences', operation: 'update', data: {
+    destination: 'Brás', shopping_location: 'Brás'
+  } }], { destination: 'São Paulo', tripTitle: 'Viagem para São Paulo', preferences: {} });
+  if (protectedDestination.destination !== 'São Paulo' || protectedDestination.tripTitle !== 'Viagem para São Paulo') throw new Error('Uma ação de bairro substituiu o destino salvo.');
+  if (protectedDestination.preferences.destination) throw new Error('O destino estrutural vazou para as preferências.');
+  const rejectedVenueDestination = actions.applyActions([{ type: 'preferences', operation: 'update', data: {
+    destination: 'Azucar na Vila Madalena'
+  } }], { destination: '', tripTitle: 'Nova viagem', preferences: {} });
+  if (rejectedVenueDestination.destination) throw new Error('O motor aceitou uma atração como destino estrutural.');
 
   const noisyAccommodation = planning.inferConversationTripFacts([{ role: 'user', content: 'airbnb - rua tabatiguera, vamos chegar em dias alternados e oq importa é somente a viagem dos dias mencionados.' }]);
   if (noisyAccommodation.accommodation.name !== 'Airbnb') throw new Error('Tipo da hospedagem absorveu a frase do usuário.');

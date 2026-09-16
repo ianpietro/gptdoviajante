@@ -197,7 +197,7 @@ function sanitizePlanningBriefAgainstSources(planningBrief = {}, messages = [], 
 }
 
 function buildEditorialPlanningPrompt({ planningBrief = {}, researchBrief = {}, tripCalendar = [], currentItinerary = [], isMutation = false, requestedDays = 0 } = {}) {
-  return `Você é o arquiteto-chefe de viagens da Orbia. Entregue um roteiro autoral, preciso e humano, superior a uma lista de atrações.
+  return `Você é o arquiteto-chefe de viagens do Orbia. Entregue um roteiro autoral, preciso e humano, superior a uma lista de atrações.
 
 CONTRATO DO VIAJANTE — AUTORIDADE MÁXIMA:
 ${JSON.stringify(planningBrief)}
@@ -222,7 +222,9 @@ Regras inegociáveis:
 - Não invente endereço, restaurante, evento, horário, preço ou tempo de trajeto. Fatos do usuário usam verificationStatus "user_provided"; fatos pesquisados usam "verified" e sourceUrl; estimativas de deslocamento usam "estimate" e uma nota clara.
 - Eventos, programação, horários de funcionamento e tarifas só entram quando constarem no dossiê. Sem confirmação, apresente uma alternativa verificada e diga objetivamente o que precisa ser reconfirmado.
 - Dias de chegada, despedida, família ou descanso podem ter menos paradas. Não preencha por preencher: explique o ritmo no dayStory.
+- Em todo dia completo, construa uma sequência cronológica com manhã, pausa/almoço, tarde e um fechamento concreto depois das 18h (jantar, espetáculo, passeio noturno ou descanso explicitamente pedido). Não encerre o roteiro no meio da tarde.
 - Cada atividade precisa dizer por que está ali, o que viver/observar, duração sugerida e orientação prática. Agrupe por bairro; evite zigue-zague.
+- O campo logistics deve explicar todos os trechos na ordem “origem → destino”, escolhendo um modal para cada trecho e informando duração somente quando pesquisada. Respeite primaryTransport, transportPlan, logistics.localTransport e preferências salvas. Se o viajante informou metrô e Uber, use ambos de modo inteligente ao longo do roteiro, mas escolha um deles em cada trecho; nunca escreva “metrô ou Uber”, “táxi ou transporte público” ou “conforme preferir”.
 - Refeições devem ter duas casas reais próximas quando a pesquisa oferecer opções, com prato, faixa de preço, endereço e motivo da recomendação.
 - A escrita deve ter cenas, identidade local e consequência prática, sem clichês turísticos.
 
@@ -326,7 +328,7 @@ function buildGroundedItineraryFallback({ planningBrief = {}, researchBrief = {}
     const eventDay = item.dateISO && calendarIndex.has(item.dateISO) ? calendarIndex.get(item.dateISO) : null;
     const targetIndex = eventDay ?? (index % days.length);
     const already = days.some(day => day.activities.some(activity => normalize(activity.title).includes(normalize(item.name))));
-    if (!already) days[targetIndex].activities.push(researchedActivity(item, item.startTime || fallbackTime({ period: index % 2 ? 'tarde' : 'manha' }, index)));
+    if (!already) days[targetIndex].activities.push(researchedActivity(item, item.startTime || '09:30'));
   });
   const restaurants = researchBrief.restaurants || [];
   days.forEach((day, index) => {
@@ -347,6 +349,16 @@ function buildGroundedItineraryFallback({ planningBrief = {}, researchBrief = {}
       if (!extra) break;
       day.activities.push(researchedActivity({ ...extra, reason: extra.why }, '16:00'));
     }
+    day.activities.push({
+      time: '19:30', durationMinutes: 90, category: 'food',
+      title: second?.dish ? `Jantar com ${second.dish}` : `Jantar pesquisado para fechar o dia`,
+      desc: `${second?.why || 'A casa foi selecionada por sua ligação concreta com o destino.'} O jantar entra aqui porque fecha o dia com uma expressão da cultura gastronômica local, sem deixar a noite vazia, e mantém a refeição perto do último eixo visitado. Confirme funcionamento e reserva antes de sair.`,
+      whyHere: 'O jantar encerra a sequência depois do bloco da tarde e evita um novo cruzamento desnecessário da cidade.',
+      practicalNote: second?.verification_note || 'Confirme horário e necessidade de reserva.',
+      verificationStatus: second?.sourceUrl ? 'verified' : 'estimate', sourceUrl: second?.sourceUrl || '',
+      location: { address: second?.location || `${second?.name || 'Restaurante pesquisado'}, ${researchBrief.destination}` },
+      restaurant_options: [restaurantOption(second), restaurantOption(first)]
+    });
     day.activities.sort((a, b) => String(a.time).localeCompare(String(b.time)));
     const names = day.activities.slice(0, 3).map(item => item.title).join(', ');
     day.dayTitle = day.activities[0]?.title && day.activities[1]?.title
@@ -355,7 +367,7 @@ function buildGroundedItineraryFallback({ planningBrief = {}, researchBrief = {}
     day.highlight = `O ponto alto é perceber a ligação entre ${names || researchBrief.destination}, sem transformar o dia em uma corrida de atrações ou atravessar a cidade sem propósito.`;
     const localWarning = researchBrief.localWarnings?.[index % Math.max(1, researchBrief.localWarnings.length)];
     day.localSecret = localWarning ? `Atenção local: ${localWarning} Considere esse cuidado ao definir o horário e o deslocamento do dia.` : `Observe os hábitos e detalhes do bairro entre uma parada e outra; o roteiro reserva tempo para essa leitura local.`;
-    day.logistics = `Siga a ordem apresentada, confirme os horários e use ${planningBrief.softPreferences?.join(' e ') || 'o modal mais coerente'} nos trechos indicados. Reserve margem entre as paradas e evite cruzar a cidade nos horários de pico.`;
+    day.logistics = `${day.activities.map((activity, activityIndex) => activityIndex === 0 ? `Comece em ${activity.title}` : `depois siga para ${activity.title}`).join('; ')}. Use ${planningBrief.softPreferences?.join(' e ') || 'o modal pesquisado mais coerente'} conforme a recomendação específica de cada trecho, mantendo margem e evitando cruzar a cidade no pico.`;
     const indoor = researchBrief.indoorAlternatives?.[index % Math.max(1, researchBrief.indoorAlternatives?.length || 0)];
     day.climate_plan = indoor ? `Com chuva ou calor forte, substitua a parte externa por ${indoor.name}, em ${indoor.location}, preservando o tema do dia.` : `Se o clima mudar, reduza o trecho externo e mantenha as atividades cobertas já nomeadas neste dia.`;
   });

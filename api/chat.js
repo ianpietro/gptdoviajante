@@ -11,6 +11,7 @@ const { buildDestinationResearchPrompt, parseDestinationResearchBrief, auditItin
 const { isItineraryMutationRequest, buildConstraintExtractionPrompt, parsePlanningBrief,
   mergeDeterministicCommitments, sanitizePlanningBriefAgainstSources, buildEditorialPlanningPrompt, auditConstraintCoverage,
   auditFactualGrounding, auditItineraryPreservation, buildGroundedItineraryFallback } = require('./_tripPlanningIntelligence');
+const { buildRouteIntelligenceSystemPrompt } = require('./_routeIntelligence');
 
 // Rate limiting simples em memória por container
 const rateLimits = new Map();
@@ -59,6 +60,29 @@ function readActionEnvelope(text) {
   return null;
 }
 
+function findLikelyActionPayloadStart(text) {
+  const source = String(text || '');
+  const signatures = [
+    /\{\s*"actions"\s*:/i,
+    /\[\s*\{\s*"(?:type|operation)"\s*:/i,
+    /\{\s*"(?:type|operation)"\s*:/i
+  ];
+  return signatures.reduce((earliest, signature) => {
+    const index = source.search(signature);
+    return index >= 0 && (earliest < 0 || index < earliest) ? index : earliest;
+  }, -1);
+}
+
+function stripLikelyActionPayload(text) {
+  const source = String(text || '');
+  const payloadStart = findLikelyActionPayloadStart(source);
+  if (payloadStart < 0) return source.trim();
+  return source
+    .slice(0, payloadStart)
+    .replace(/(?:```|~~~)\s*(?:json)?\s*$/i, '')
+    .trim();
+}
+
 function sanitizeActionArtifacts(text) {
   const source = String(text || '');
   const envelope = readActionEnvelope(source);
@@ -74,6 +98,9 @@ function sanitizeActionArtifacts(text) {
       if (Array.isArray(parsedWhole?.actions)) visible = String(parsedWhole.message || parsedWhole.content || '').trim();
     } catch (_) {}
   }
+  // Nunca exponha o protocolo interno. Mesmo um JSON truncado ou inválido
+  // ainda é reconhecível pela assinatura de uma ação e deve ser ocultado.
+  visible = stripLikelyActionPayload(visible);
   return envelope
     ? `${visible}\n\n\`\`\`json\n${JSON.stringify(envelope)}\n\`\`\``
     : visible;
@@ -108,6 +135,7 @@ Formato obrigatório: {"actions":[{"type":"itinerary|packing|expenses|flights|re
 Para um roteiro completo, prefira uma ação itinerary/replace cujo data seja um array de dias no formato:
 [{"dayNum":1,"dateISO":"2026-09-23","dateLabel":"23-09-2026 · quarta-feira","weekday":"quarta-feira","dayTitle":"Título evocativo e específico","dayStory":"Abertura narrativa de 2 a 3 frases que explica o fio condutor e a ordem do dia","highlight":"Momento mais marcante e o detalhe a observar","localSecret":"Dica local ou curiosidade concreta","logistics":"Como ir entre os pontos, com ordem, tempo ou modal","climate_plan":"Plano B real e nomeado","activities":[{"time":"12:30","category":"food","title":"Almoço típico","desc":"Parágrafo natural com contexto local, motivo da escolha, experiência e orientação prática","location":{"address":"Endereço pesquisável"},"restaurant_options":[{"name":"Restaurante real principal","address":"Endereço pesquisável","dish":"Prato recomendado","price_level":"$$","why":"Motivo concreto da escolha","verification_note":"Confirme horário e reserva"},{"name":"Restaurante real alternativo","address":"Endereço pesquisável","dish":"Prato recomendado","price_level":"$","why":"Motivo concreto da alternativa","verification_note":"Confirme o funcionamento"}]}]}].
 Toda atividade de alimentação deve preservar duas sugestões reais em restaurant_options. Nunca substitua nomes por “restaurante local”, “peixe regional”, “escolha um lugar” ou qualquer orientação que transfira a pesquisa ao viajante.
+Nunca repita em outro dia um restaurante, bar ou casa já presente nas atividades ou restaurant_options. Cada opção deve ficar na região da refeição ou no caminho real daquele dia, e sua nota de verificação não pode indicar fechamento ou reserva em outra data.
 Separe sempre transporte de chegada/volta da mobilidade no destino. Um usuário pode chegar de avião e circular de carro alugado, Uber ou transporte público. Gere uma ação reservations/add para cada papel informado, com type, title, transport_mode e transport_scope. Use arrival para chegada, local para circular no destino, departure para volta e entire_trip somente quando o mesmo veículo realmente cobrir chegada e mobilidade.
 Se a viagem estiver em creation_mode "chat_onboarding", use ações preferences/update para salvar destino, tripTitle, start_date, end_date e creation_stage conforme esses dados surgirem na conversa.
 Se o usuário estiver apenas informando preferências, gere SOMENTE preferences/update e reservas de transporte explicitamente informadas. Nunca crie, substitua ou complete um roteiro sem um pedido explícito para criar ou alterar o roteiro.
@@ -323,6 +351,7 @@ REGRA DE TRANSPORTE: se o viajante afirmar como vai chegar ou circular, isso atu
 REGRA DE CRIAÇÃO PELO CHAT: quando tripContext.preferences.creation_mode for "chat_onboarding", conduza a criação em conversa natural, uma decisão por vez. Se faltar destino, pergunte para onde a pessoa vai; quando responder, gere preferences/update com destination, tripTitle no formato "Viagem para [destino]" e creation_stage "dates". Se faltarem datas, pergunte ida e volta; quando forem informadas, converta para YYYY-MM-DD e gere preferences/update com start_date, end_date, targetDate e creation_stage "profile". Depois pergunte viajantes, ritmo, interesses, orçamento e transporte sem transformar a conversa em formulário. Quando destino e datas estiverem salvos, diga claramente que a viagem foi criada e continue personalizando.
 
 REGRA DE MEMÓRIA E NÃO REPETIÇÃO: antes de fazer qualquer pergunta, releia a última mensagem e tripContext.preferences, especialmente answered_facts. Nunca pergunte algo que já foi afirmado. Números por extenso contam como informação exata: “em dois dias distintos vamos ao Brás” significa shopping_days igual a 2; não pergunte quantos dias. Se o usuário demonstrar flexibilidade (“talvez”, “qualquer dia”, “sem preferência”), escolha a distribuição mais coerente no roteiro em vez de devolver a decisão. Resuma o que entendeu e pergunte somente o dado realmente ausente que impede avançar.
+REGRA DE RESTAURANTES: nunca repita em dias diferentes uma casa já usada como atividade, reserva ou restaurant_option. As opções precisam ficar próximas da refeição ou no caminho real do mesmo dia, com o bairro/trecho explicado em why. Não recomende local fechado naquele dia e não reutilize no domingo uma reserva marcada para sábado.
 REGRA DE HIERARQUIA DA VIAGEM: uma atividade mencionada — show de jazz, comédia, teatro, restaurante, compras ou passeio — é uma preferência pontual, não o propósito da viagem. Não diga “viagem para um show de jazz”, não renomeie a viagem com uma atividade e não deixe um único interesse dominar o roteiro, salvo se o viajante afirmar explicitamente que aquele evento é o motivo principal. O título deve permanecer “Viagem para [destino]”; interesses entram em preferences e nos horários adequados do roteiro.
 REGRA DE FATOS CENTRAIS DA VIAGEM: datas, quantidade de viajantes e hospedagem nunca podem ficar apenas no texto da conversa. Para datas, salve start_date e end_date em preferences/update; um intervalo como “dia 23 ao 27” é inclusivo e não pode virar 23 a 23. Para grupo, salve traveler_count em preferences/update (“casal” = 2). Para hotel, Airbnb, pousada, hostel ou apartamento, use accommodations/add ou accommodations/update com name e address. Nunca use tripTitle para guardar o perfil do grupo e nunca salve hospedagem somente como reservations.
 
@@ -425,6 +454,9 @@ Você é o amigo local que está caminhando junto. Não o guia que lê do script
     let researchBrief = null;
     let planningBrief = null;
     if (itineraryPlanningRequest) {
+      // A inteligência editorial vem de um documento canônico versionado.
+      // As instruções JSON acima cuidam apenas da integração com o painel.
+      fullSystemPrompt += `\n\n${buildRouteIntelligenceSystemPrompt()}`;
       const extractionResult = await routeAIRequest({
         task: 'quick_extraction',
         messages: [{ role: 'user', content: buildConstraintExtractionPrompt({ messages, tripContext, tripCalendar }) }],
@@ -469,7 +501,7 @@ Você é o amigo local que está caminhando junto. Não o guia que lê do script
         task: 'itinerary_research',
         messages: [{ role: 'user', content: researchPrompt }],
         tripContext,
-        systemPrompt: 'Você é um pesquisador factual de destinos da Orbia Travel. Siga o formato solicitado e não invente dados.',
+        systemPrompt: 'Você é um pesquisador factual de destinos do Orbia Travel. Siga o formato solicitado e não invente dados.',
         userMessage: lastUserMessage,
         userId,
         tripId,
@@ -582,7 +614,7 @@ ${destinationKnowledge.brief}`;
           tripId
         });
         if (repairedEnvelope) {
-          const visibleReply = String(finalReply).replace(/```\s*json\s*[\s\S]*?```/gi, '').trim();
+          const visibleReply = stripLikelyActionPayload(String(finalReply).replace(/```\s*json\s*[\s\S]*?```/gi, ''));
           finalReply = `${visibleReply}\n\n\`\`\`json\n${JSON.stringify(repairedEnvelope)}\n\`\`\``;
         } else {
           console.warn('[chat] Resposta operacional sem ações válidas após reparo.');
@@ -618,9 +650,46 @@ ${destinationKnowledge.brief}`;
       quality.issues = [...new Set(quality.issues)];
       quality.passed = quality.issues.length === 0;
       if (!quality.passed) {
-        // A régua orienta observabilidade e futuras melhorias, mas nunca troca
-        // uma composição autoral por um texto mecânico de emergência.
-        console.warn('[chat] Pendências editoriais internas:', JSON.stringify(quality));
+        console.warn('[chat] Roteiro bloqueado para revisão editorial:', JSON.stringify(quality));
+        const revisionResult = await routeAIRequest({
+          task: 'itinerary',
+          messages,
+          tripContext,
+          systemPrompt: `${fullSystemPrompt}\n\n${buildQualityRevisionPrompt({
+            issues: quality.issues,
+            researchBrief,
+            requestedDays: requestedItineraryDays,
+            tripCalendar,
+            userMessage: lastUserMessage,
+            planningBrief,
+            tripContext
+          })}`,
+          userMessage: lastUserMessage,
+          userId,
+          tripId,
+          isSystemTask: true,
+          temperature: 0.25,
+          responseMimeType: 'application/json'
+        });
+        finalReply = sanitizeActionArtifacts(canonicalizeItineraryEnvelope(revisionResult.reply, researchBrief, tripCalendar));
+        const revisedQuality = auditItineraryQuality(finalReply, { requestedDays: requestedItineraryDays, researchBrief, tripCalendar, userMessage: lastUserMessage, planningBrief });
+        const revisedConstraints = auditConstraintCoverage(finalReply, planningBrief, tripCalendar);
+        const revisedGrounding = auditFactualGrounding(finalReply, researchBrief, planningBrief);
+        const revisedPreservation = itineraryMutationRequest
+          ? auditItineraryPreservation(finalReply, tripContext?.itinerary || [], lastUserMessage)
+          : { passed: true, issues: [] };
+        const remainingIssues = [...new Set([
+          ...revisedQuality.issues,
+          ...revisedConstraints.issues,
+          ...revisedGrounding.issues,
+          ...revisedPreservation.issues
+        ])];
+        if (remainingIssues.length) {
+          console.warn('[chat] Roteiro reprovado após revisão editorial:', JSON.stringify(remainingIssues));
+          const qualityError = new Error('O roteiro continuou abaixo do padrão operacional após a revisão.');
+          qualityError.code = 'ITINERARY_QUALITY_REJECTED';
+          throw qualityError;
+        }
       }
     }
 
@@ -658,3 +727,4 @@ ${destinationKnowledge.brief}`;
 }
 
 module.exports.isTripActiveByDate = isTripActiveByDate;
+module.exports.sanitizeActionArtifacts = sanitizeActionArtifacts;

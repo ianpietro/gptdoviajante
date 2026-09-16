@@ -65,19 +65,62 @@ function inferDateRange(message, currentTrip = {}, now = new Date()) {
 
 function inferTravelerCount(message) {
   const text = normalize(message);
-  if (/\b(casal|eu e (?:minha|meu) (?:esposa|marido|namorada|namorado|companheira|companheiro))\b/.test(text)) return 2;
+  if (/\b(?:casal|eu\s+e\s+(?:a\s+|o\s+)?(?:minha|meu)\s+(?:esposa|marido|namorada|namorado|companheira|companheiro)|(?:com|junto\s+com)\s+(?:a\s+|o\s+)?(?:minha|meu)\s+(?:esposa|marido|namorada|namorado|companheira|companheiro)|(?:minha|meu)\s+(?:esposa|marido|namorada|namorado|companheira|companheiro)\s+e\s+eu)\b/.test(text)) return 2;
   const match = text.match(/\b(?:somos|vamos em|viajaremos em|grupo de|para)\s+(\d{1,2}|um|uma|dois|duas|tres|quatro|cinco|seis|sete)\s*(?:pessoas?|viajantes?)?\b/);
   return match ? Math.max(1, Math.min(30, extractNumber(match[1]) || 0)) : null;
 }
 
-function inferDestination(message) {
+function inferDestination(message, allowGeneric = true) {
   const source = String(message || '').replace(/\s+/g, ' ').trim();
-  const match = source.match(/\b(?:quero|queremos|vamos|iremos|pretendo|pretendemos|viajarei|viajaremos).{0,28}\b(?:para|pra|pro|ao|a)\s+([\p{L}][\p{L} .'-]{1,55}?)(?=\s*,|\s+(?:do|de)\s+dia\b|\s+entre\s+os?\b|\s+em\s+\d|\s+por\s+\d|$)/iu);
+  const destinationTail = "([\\p{L}][\\p{L} .'-]{1,55}?)(?=\\s*,|\\s+com\\s+(?:(?:a|o)\\s+)?(?:minha|meu|um|uma|\\d)|\\s+(?:do|de)\\s+dia\\b|\\s+entre\\s+os?\\b|\\s+em\\s+\\d|\\s+por\\s+\\d|\\s+(?:no|na)\\s+(?:feriado|fim\\s+de\\s+semana)\\b|$)";
+  const explicitPrefix = "(?:\\b(?:mudar|mude|muda|trocar|troque|alterar|altere)\\s+(?:o\\s+)?destino\\s+(?:para|pra|pro|a)\\s+|\\b(?:o\\s+)?destino\\s+(?:da\\s+viagem\\s+)?(?:é|sera|será)\\s+|\\b(?:quero|queremos|vou|vamos|iremos|pretendo|pretendemos)\\s+viajar\\s+(?:para|pra|pro|ao|a)\\s+|\\b(?:a\\s+)?viagem\\s+(?:é|sera|será)?\\s*(?:para|pra|pro|ao|a)\\s+)";
+  const explicitMatch = source.match(new RegExp(`${explicitPrefix}${destinationTail}`, 'iu'));
+  const genericMatch = allowGeneric
+    ? source.match(new RegExp(`\\b(?:quero|queremos|vamos|iremos|pretendo|pretendemos|viajarei|viajaremos).{0,28}\\b(?:para|pra|pro|ao|a)\\s+${destinationTail}`, 'iu'))
+    : null;
+  const match = explicitMatch || genericMatch;
   if (!match) return null;
-  const destination = match[1].trim().replace(/[.?!]+$/, '');
+  const destination = match[match.length - 1].trim().replace(/[.?!]+$/, '');
   const nonDestination = /^(?:um|uma|algum|alguma)?\s*(?:show|concerto|festival|teatro|pe[cç]a|stand.?up|restaurante|bar|caf[eé]|museu|passeio|compras?|shopping|jogo|evento)\b/i;
-  return /^(um|uma|casal|grupo|viagem)$/i.test(destination) || nonDestination.test(destination) ? null : destination;
+  const looksLikeVenueInNeighborhood = /\b(?:na|no)\s+(?:vila|bairro|rua|avenida|av\.?|centro|shopping)\b/i.test(destination);
+  return /^(um|uma|casal|grupo|viagem)$/i.test(destination) || nonDestination.test(destination) || looksLikeVenueInNeighborhood ? null : destination;
 }
+
+function inferDestinationFromOperationalData(trip = {}) {
+  const current = String(trip.destination || '').trim();
+  const currentLooksContaminated = /\b(?:na|no)\s+(?:vila|bairro|rua|avenida|av\.?|centro|shopping)\b/i.test(current) ||
+    /^(?:um|uma|algum|alguma)?\s*(?:show|concerto|festival|teatro|restaurante|bar|caf[eé]|museu|passeio|shopping|evento)\b/i.test(current);
+  if (current && !currentLooksContaminated) return null;
+
+  const addresses = [];
+  for (const day of trip.itinerary || []) {
+    if (day?.city) addresses.push(String(day.city));
+    for (const activity of day?.activities || []) {
+      const address = typeof activity?.location === 'string' ? activity.location : activity?.location?.address;
+      if (address) addresses.push(String(address));
+    }
+  }
+  for (const accommodation of trip.accommodations || []) {
+    if (accommodation?.address) addresses.push(String(accommodation.address));
+  }
+
+  const candidates = addresses.map(address => {
+    const parts = address.split(',').map(part => part.trim()).filter(Boolean);
+    if (!parts.length) return null;
+    let candidate = parts.at(-1).replace(/\b\d{5}-?\d{3}\b/g, '').trim();
+    if (/^[A-Z]{2}$/i.test(candidate) && parts.length > 1) candidate = parts.at(-2);
+    return candidate;
+  }).filter(candidate =>
+    candidate && /^[\p{L} .'-]{3,50}$/u.test(candidate) &&
+    !/\b(rua|avenida|av\.?|rodovia|estrada|bairro|vila|centro|shopping)\b/i.test(candidate)
+  );
+  if (!candidates.length) return null;
+  const counts = new Map();
+  candidates.forEach(candidate => counts.set(candidate, (counts.get(candidate) || 0) + 1));
+  return [...counts.entries()].sort((a, b) => b[1] - a[1])[0][0];
+}
+
+export { inferDestinationFromOperationalData };
 
 function travelerMembers(count) {
   if (!count) return null;
@@ -115,7 +158,11 @@ export function inferConversationTripFacts(messages = [], trip = {}, now = new D
   for (const message of messages) {
     const content = String(message?.content || '');
     if (message?.role === 'user') {
-      const destination = inferDestination(content);
+      // A primeira intenção de destino pode usar linguagem natural ("vamos para
+      // São Paulo"). Depois disso, somente uma troca explicitamente declarada
+      // pode substituir a cidade. Assim, "vamos para o Brás" continua sendo
+      // uma parada interna do roteiro, não um novo destino da viagem.
+      const destination = inferDestination(content, !facts.destination);
       if (destination) facts.destination = destination;
       const dates = inferDateRange(content, workingTrip, now);
       if (dates?.start_date && dates?.end_date) {
