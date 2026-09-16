@@ -3116,13 +3116,18 @@ header.hero #tripSubtitle { color: #E2EFEC !important; }
 
   .inspiration-pills-row::-webkit-scrollbar { display: none; }
 
-  .chat-sidebar {
-    height: calc(100dvh - var(--topbar-height) - var(--mobile-nav-height)) !important;
+  .chat-sidebar:not(.keyboard-open) {
+    height: 100% !important;
     min-height: 0 !important;
   }
 
-  .chat-sidebar .chat-panel {
-    padding-bottom: var(--mobile-nav-height) !important;
+  .chat-sidebar:not(.keyboard-open) .chat-panel {
+    padding-bottom: calc(var(--mobile-nav-height, 58px) + env(safe-area-inset-bottom, 0px) + 6px) !important;
+    box-sizing: border-box !important;
+  }
+
+  .chat-sidebar.keyboard-open .chat-panel {
+    padding-bottom: 0 !important;
   }
 }
 
