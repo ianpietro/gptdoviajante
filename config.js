@@ -55,7 +55,7 @@ export const PREMIUM_AI_FAIR_USE_LIMIT = 500;
 
 // Versão central do aplicativo — usada em logs, analytics e service worker
 export const APP_VERSION = '3.0.0-rc.28';
-export const ORBIA_BUILD = '837c540';
+export const ORBIA_BUILD = '5452e77';
 
 // Bypass de login ativado para acesso direto ao app sem autenticação
 export const BYPASS_LOGIN = true;

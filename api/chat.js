@@ -266,7 +266,7 @@ module.exports = async function handler(req, res) {
     return res.status(400).json({ error: 'Messages array is required' });
   }
 
-  const SERVER_BUILD = '837c540';
+  const SERVER_BUILD = '5452e77';
   const clientBuild = req.headers['x-client-build'] || req.body?.client_build || 'unknown';
   const payloadSize = JSON.stringify(req.body || {}).length;
   console.log(`[ORBIA_REQUEST] client_build=${clientBuild} server_build=${SERVER_BUILD} trip_id=${tripId ? 'yes' : 'no'} messages_count=${messages.length} payload_size=${payloadSize}`);
