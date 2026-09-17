@@ -449,14 +449,20 @@ Você é o amigo local que está caminhando junto. Não o guia que lê do script
   const chatType = 'plan';
   const historyState = await getAIHistorySummary(userId, tripId, chatType);
 
+  const stageTimings = { research: 0, generation: 0, repair: 0, quality: 0, actions: 0, total: 0 };
+  const requestStartedAt = Date.now();
+  let currentStage = 'init';
+
   // ── Delegar execução de IA ao AI Router Central ────────────────────────────
   try {
     let researchBrief = null;
     let planningBrief = null;
+
     if (itineraryPlanningRequest) {
       // A inteligência editorial vem de um documento canônico versionado.
       // As instruções JSON acima cuidam apenas da integração com o painel.
       fullSystemPrompt += `\n\n${buildRouteIntelligenceSystemPrompt()}`;
+      currentStage = 'extraction';
       const extractionResult = await routeAIRequest({
         task: 'quick_extraction',
         messages: [{ role: 'user', content: buildConstraintExtractionPrompt({ messages, tripContext, tripCalendar }) }],
@@ -473,6 +479,7 @@ Você é o amigo local que está caminhando junto. Não o guia que lê do script
       if (!planningBrief) {
         const error = new Error('Não foi possível consolidar os compromissos da viagem sem risco de perder informações.');
         error.code = 'PLANNING_BRIEF_INVALID';
+        error.stage = 'extraction';
         throw error;
       }
       planningBrief = mergeDeterministicCommitments(planningBrief, messages, tripCalendar);
@@ -486,6 +493,7 @@ Você é o amigo local que está caminhando junto. Não o guia que lê do script
       if (!destination) {
         const error = new Error('Não foi possível identificar o destino antes da pesquisa.');
         error.code = 'PLANNING_BRIEF_INVALID';
+        error.stage = 'extraction';
         throw error;
       }
       const researchPrompt = buildDestinationResearchPrompt({
@@ -501,6 +509,8 @@ Você é o amigo local que está caminhando junto. Não o guia que lê do script
       let researchStatus = 'full'; // 'full' | 'partial' | 'offline'
       let researchReason = 'none'; // 'none' | 'provider_unavailable' | 'research_parse_invalid' | 'rate_limit' | 'timeout'
 
+      currentStage = 'research';
+      const researchStart = Date.now();
       try {
         const researchResult = await routeAIRequest({
           task: 'itinerary_research',
@@ -559,6 +569,7 @@ Você é o amigo local que está caminhando junto. Não o guia que lê do script
           researchReason = 'provider_unavailable';
         }
       }
+      stageTimings.research = Date.now() - researchStart;
 
       // If research failed or returned unparseable nulo, construct fallback brief from destinationKnowledge or structural fallback
       if (!researchBrief || researchStatus === 'offline' || researchStatus === 'partial') {
@@ -609,6 +620,8 @@ Você é o amigo local que está caminhando junto. Não o guia que lê do script
       })}`;
     }
 
+    currentStage = 'generation';
+    const genStart = Date.now();
     const routerResult = await routeAIRequest({
       task: travelMode ? 'travel_mode' : (itineraryPlanningRequest ? 'itinerary' : 'chat'),
       messages,
@@ -620,6 +633,7 @@ Você é o amigo local que está caminhando junto. Não o guia que lê do script
       historyState,
       responseMimeType: itineraryPlanningRequest ? 'application/json' : null
     });
+    stageTimings.generation = Date.now() - genStart;
 
     if (routerResult.summaryUpdated) {
       await saveAIHistorySummary(userId, tripId, chatType, routerResult.historySummary);
@@ -629,6 +643,8 @@ Você é o amigo local que está caminhando junto. Não o guia que lê do script
     if (destinationKnowledge && itineraryPlanningRequest) {
       const coverage = auditDestinationCoverage(finalReply, destinationKnowledge);
       if (!coverage.passed) {
+        currentStage = 'quality';
+        const qualityStart = Date.now();
         const revisionPrompt = `Você é o editor-chefe de roteiros do Orbia Travel. Construa do zero o roteiro definitivo usando somente o pedido original, o contexto da viagem e a curadoria verificada abaixo.
 O texto final deve ser útil, específico, geograficamente coerente e natural. Não reaproveite estabelecimentos do rascunho reprovado.
 Em toda refeição, entregue duas opções reais pelo nome, uma principal e uma alternativa, escolhidas entre os estabelecimentos confirmados na curadoria. Informe prato recomendado, faixa de preço, endereço pesquisável e por que cada opção vale a parada. Se a curadoria não trouxer uma segunda casa próxima, reutilize outra opção confirmada e explique o deslocamento; nunca invente marcas nem mande o viajante procurar um lugar.
@@ -650,36 +666,47 @@ ${destinationKnowledge.brief}`;
           isSystemTask: true,
           temperature: 0.35
         });
+        stageTimings.quality += Date.now() - qualityStart;
         finalReply = revisionResult.reply;
         const revisedCoverage = auditDestinationCoverage(finalReply, destinationKnowledge);
         if (!revisedCoverage.passed) {
           console.warn('[chat] Roteiro reprovado após revisão:', JSON.stringify(revisedCoverage));
           const curatedFallback = itineraryMutationRequest ? null : buildCuratedItineraryResponse(destinationKnowledge, requestedItineraryDays);
           if (!curatedFallback) {
-            throw new Error(`O roteiro não atingiu a cobertura mínima de ${destinationKnowledge.name}.`);
+            const err = new Error(`O roteiro não atingiu a cobertura mínima de ${destinationKnowledge.name}.`);
+            err.code = 'ITINERARY_QUALITY_REJECTED';
+            err.stage = 'quality';
+            throw err;
           }
           finalReply = curatedFallback;
         }
       }
     }
     finalReply = sanitizeActionArtifacts(canonicalizeItineraryEnvelope(finalReply, researchBrief, tripCalendar));
+
     if (!itineraryPlanningRequest && responseShouldUpdateState(lastUserMessage, finalReply, travelMode, tripContext)) {
-      try {
-        const repairedEnvelope = await repairActionEnvelope({
-          userMessage: lastUserMessage,
-          reply: finalReply,
-          tripContext,
-          userId,
-          tripId
-        });
-        if (repairedEnvelope) {
-          const visibleReply = stripLikelyActionPayload(String(finalReply).replace(/```\s*json\s*[\s\S]*?```/gi, ''));
-          finalReply = `${visibleReply}\n\n\`\`\`json\n${JSON.stringify(repairedEnvelope)}\n\`\`\``;
-        } else {
-          console.warn('[chat] Resposta operacional sem ações válidas após reparo.');
+      const existingEnvelope = readActionEnvelope(finalReply);
+      if (!existingEnvelope) {
+        currentStage = 'repair';
+        const repairStart = Date.now();
+        try {
+          const repairedEnvelope = await repairActionEnvelope({
+            userMessage: lastUserMessage,
+            reply: finalReply,
+            tripContext,
+            userId,
+            tripId
+          });
+          if (repairedEnvelope) {
+            const visibleReply = stripLikelyActionPayload(String(finalReply).replace(/```\s*json\s*[\s\S]*?```/gi, ''));
+            finalReply = `${visibleReply}\n\n\`\`\`json\n${JSON.stringify(repairedEnvelope)}\n\`\`\``;
+          } else {
+            console.warn('[chat] Resposta operacional sem ações válidas após reparo.');
+          }
+        } catch (repairError) {
+          console.warn('[chat] Não foi possível reparar as ações da resposta:', repairError.message);
         }
-      } catch (repairError) {
-        console.warn('[chat] Não foi possível reparar as ações da resposta:', repairError.message);
+        stageTimings.repair = Date.now() - repairStart;
       }
     }
 
@@ -697,6 +724,8 @@ ${destinationKnowledge.brief}`;
     // A régua universal vale para qualquer destino. Ela cruza a resposta com a
     // pesquisa factual e impede que fluência esconda omissões ou sugestões vagas.
     if (itineraryPlanningRequest) {
+      currentStage = 'quality';
+      const qualityStart = Date.now();
       let quality = auditItineraryQuality(finalReply, { requestedDays: requestedItineraryDays, researchBrief, tripCalendar, userMessage: lastUserMessage, planningBrief });
       const constraintQuality = auditConstraintCoverage(finalReply, planningBrief, tripCalendar);
       const groundingQuality = auditFactualGrounding(finalReply, researchBrief, planningBrief);
@@ -747,10 +776,15 @@ ${destinationKnowledge.brief}`;
           console.warn('[chat] Roteiro reprovado após revisão editorial:', JSON.stringify(remainingIssues));
           const qualityError = new Error('O roteiro continuou abaixo do padrão operacional após a revisão.');
           qualityError.code = 'ITINERARY_QUALITY_REJECTED';
+          qualityError.stage = 'quality';
           throw qualityError;
         }
       }
+      stageTimings.quality += Date.now() - qualityStart;
     }
+
+    stageTimings.total = Date.now() - requestStartedAt;
+    console.log(`[ROUTE_TRACE] research=${stageTimings.research}ms generation=${stageTimings.generation}ms repair=${stageTimings.repair}ms quality=${stageTimings.quality}ms actions=${stageTimings.actions}ms total=${stageTimings.total}ms`);
 
     return res.status(200).json({ 
       content: finalReply,
@@ -759,7 +793,8 @@ ${destinationKnowledge.brief}`;
     });
 
   } catch (error) {
-    console.error("[chat] Handler error via AI Router:", error.message);
+    const errorStage = error.stage || currentStage || 'unknown';
+    console.error(`[chat] Handler error in stage '${errorStage}' via AI Router:`, error.message);
     // Se a chamada da IA falhar, realiza o reembolso/estorno imediato no banco (rollback atômico)
     if (!isBypassToken && userId && tripId) {
       try {
@@ -772,16 +807,18 @@ ${destinationKnowledge.brief}`;
     if (error.code === 'FRESH_DATA_PROVIDER_UNAVAILABLE' || error.code === 'DESTINATION_RESEARCH_INVALID' || error.code === 'PLANNING_BRIEF_INVALID') {
       return res.status(503).json({
         code: 'ITINERARY_RESEARCH_UNAVAILABLE',
+        stage: errorStage,
         error: 'Não consegui conferir agora os locais, restaurantes e horários necessários para montar um roteiro confiável. Seu pedido foi preservado; tente novamente em alguns instantes.'
       });
     }
     if (error.code === 'ITINERARY_QUALITY_REJECTED') {
       return res.status(422).json({
         code: 'ITINERARY_QUALITY_REJECTED',
+        stage: errorStage,
         error: 'O roteiro ficou incompleto ou abaixo do padrão e não foi salvo. Seu pedido foi preservado para você tentar novamente.'
       });
     }
-    return res.status(500).json({ error: error.message || "Erro interno do servidor." });
+    return res.status(500).json({ code: error.code || 'INTERNAL_SERVER_ERROR', stage: errorStage, error: error.message || "Erro interno do servidor." });
   }
 }
 

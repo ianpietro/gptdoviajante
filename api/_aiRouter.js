@@ -166,14 +166,14 @@ function classifyTask(task, userMessage = '', needsFreshData = false) {
   const fresh = classifyFreshDataIntent(userMessage, needsFreshData || forcedFreshTasks.has(task));
   if (fresh.required) return { tier: 'FRESH_DATA', model: AI_MODELS.primary, useGrounding: true,
     groundingReason: task === 'itinerary_research' ? 'destination_research' : fresh.reason,
-    thinkingBudget: task === 'itinerary_research' ? 1536 : 512 };
+    thinkingBudget: task === 'itinerary_research' ? 512 : 512 };
   // A geração final já recebe um dossiê pesquisado e precisa priorizar
   // composição, coerência geográfica e completude, sem uma segunda busca solta.
   if (task === 'itinerary') return { tier: 'QUALITY', model: AI_MODELS.primary, useGrounding: false,
-    groundingReason: 'none', thinkingBudget: 2048 };
+    groundingReason: 'none', thinkingBudget: 768 };
   const recommendation = classifyRecommendationIntent(userMessage);
   if (recommendation.required) return { tier: 'GROUNDED_RECOMMENDATION', model: AI_MODELS.primary, useGrounding: true,
-    groundingReason: recommendation.reason, thinkingBudget: 1024 };
+    groundingReason: recommendation.reason, thinkingBudget: 512 };
   if (['document_classify', 'summarize', 'quick_extraction'].includes(task)) {
     return { tier: 'LIGHT', model: AI_MODELS.light, useGrounding: false, groundingReason: 'none', thinkingBudget: 0 };
   }
@@ -183,7 +183,8 @@ function classifyTask(task, userMessage = '', needsFreshData = false) {
 function providerError(provider, status, message, code) {
   const error = new Error(message);
   error.provider = provider; error.status = status || null; error.code = code || null;
-  error.retryable = !status || TRANSIENT_STATUSES.has(status); error.fallbackEligible = error.retryable;
+  error.retryable = !status || TRANSIENT_STATUSES.has(status);
+  error.fallbackEligible = error.retryable || [400, 401, 402, 403, 429].includes(status);
   return error;
 }
 
@@ -496,13 +497,13 @@ async function routeAIRequest({ task = 'chat', messages = [], tripContext = null
     // Grounded requests never fall back to model memory. When Gemini cannot
     // search, OpenAI Responses must perform its own web search before the
     // answer is accepted.
-    if (!result && classification.useGrounding && openaiKey) {
-      provider = 'openai'; modelUsed = AI_MODELS.groundedFallback; usedFallback = true;
+    if (!result && openaiKey) {
+      provider = 'openai'; modelUsed = classification.useGrounding ? AI_MODELS.groundedFallback : AI_MODELS.planner; usedFallback = true;
       try {
         const call = await retryWithBackoff(() => callOpenAIGroundedProvider({ apiKey: openaiKey,
-          model: AI_MODELS.groundedFallback, systemPrompt: fullSystemPrompt, messages: history.messages, temperature }), 1, 300);
+          model: modelUsed, systemPrompt: fullSystemPrompt, messages: history.messages, temperature }), 1, 300);
         result = call.result; attempts += call.attempts;
-      } catch (error) { attempts += error.attempts || 1; terminalError = error; }
+      } catch (error) { attempts += error.attempts || 1; if (!terminalError) terminalError = error; }
     }
     if (!result && !preferOpenAi && openaiKey && !classification.useGrounding && (!terminalError || terminalError.fallbackEligible)) {
       provider = 'openai'; modelUsed = openAiCompositionModel; usedFallback = true;

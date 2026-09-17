@@ -4344,7 +4344,10 @@ async function handleTravelSendMessage() {
     if (!response.ok) {
       // Read the server's JSON error body before throwing so we can surface it
       const errData = await response.json().catch(() => ({}));
-      throw new Error('O serviço inteligente está temporariamente indisponível.');
+      const requestError = new Error(errData.error || 'O serviço inteligente está temporariamente indisponível.');
+      requestError.code = errData.code || `HTTP_${response.status}`;
+      requestError.stage = errData.stage || 'network';
+      throw requestError;
     }
 
     const data = await response.json();
@@ -4375,11 +4378,13 @@ async function handleTravelSendMessage() {
     if (!input.value) input.value = text;
     input.dispatchEvent(new Event('input', { bubbles: true }));
     saveState();
-    const friendlyMessage = error instanceof TypeError || /failed to fetch|network/i.test(error.message || '')
-      ? 'Não consegui conectar ao CoPiloto agora. Seu pedido foi mantido no campo; confira sua conexão e tente novamente.'
-      : 'O CoPiloto está temporariamente indisponível. Seu pedido foi mantido no campo para tentar novamente.';
+    const friendlyMessage = error.code === 'ITINERARY_RESEARCH_UNAVAILABLE' || error.code === 'ITINERARY_QUALITY_REJECTED'
+      ? error.message
+      : (error instanceof TypeError || /failed to fetch|network/i.test(error.message || '')
+        ? 'Não consegui conectar ao CoPiloto agora. Seu pedido foi mantido no campo; confira sua conexão e tente novamente.'
+        : 'O CoPiloto está temporariamente indisponível. Seu pedido foi mantido no campo para tentar novamente.');
     appendMessageBubble("assistant", `⚠️ ${friendlyMessage}`, null, 'travel');
-    console.error("Travel chat error:", error);
+    console.error("Travel chat error:", error.code || 'UNKNOWN', error.stage ? `[stage: ${error.stage}]` : '', error);
   } finally {
     setChatRequestBusy('travel', false);
   }

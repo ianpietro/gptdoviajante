@@ -2,6 +2,7 @@
   "cleanUrls": true,
   "functions": {
     "api/chat.js": {
+      "maxDuration": 60,
       "includeFiles": "docs/ai/ORBIA_ROUTE_INTELLIGENCE.md"
     }
   },
