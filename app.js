@@ -5417,6 +5417,40 @@ function renderTimeline() {
     return `<section class="restaurant-recommendations" onclick="event.stopPropagation()"><div class="restaurant-recommendations-title"><i class="fa-solid fa-bowl-food"></i><strong>Onde comer</strong><span>${options.length} ${options.length === 1 ? 'sugestão selecionada' : 'sugestões selecionadas'}</span></div><div class="restaurant-recommendations-grid">${cards}</div></section>`;
   };
 
+  const getActivityRichMetaHtml = (act) => {
+    const metaItems = [];
+    if (act.duration) {
+      metaItems.push(`<span><i class="fa-regular fa-hourglass-half"></i> ${escapeHtml(act.duration)}</span>`);
+    }
+    if (act.zone || act.neighborhood) {
+      metaItems.push(`<span><i class="fa-solid fa-map-pin"></i> ${escapeHtml(act.zone || act.neighborhood)}</span>`);
+    }
+    if (act.opening_hours || act.hours) {
+      metaItems.push(`<span><i class="fa-regular fa-clock"></i> ${escapeHtml(act.opening_hours || act.hours)}</span>`);
+    }
+    if (act.estimated_cost || act.cost) {
+      const costVal = act.estimated_cost || act.cost;
+      const curr = act.currency ? ` ${act.currency}` : '';
+      metaItems.push(`<span><i class="fa-solid fa-coins"></i> ${escapeHtml(costVal)}${escapeHtml(curr)}</span>`);
+    }
+    if (act.reservation_required) {
+      const resText = typeof act.reservation_required === 'string' ? act.reservation_required : 'Reserva necessária';
+      metaItems.push(`<span style="color: #f59e0b;"><i class="fa-solid fa-circle-exclamation"></i> ${escapeHtml(resText)}</span>`);
+    }
+
+    let html = '';
+    if (metaItems.length > 0) {
+      html += `<div class="activity-meta-badges" style="display:flex; flex-wrap:wrap; gap:10px; font-size:0.75rem; opacity:0.85; margin: 4px 0 6px 0;">${metaItems.join('')}</div>`;
+    }
+    if (act.localSecret || act.secret) {
+      html += `<div class="activity-secret-box" style="font-size:0.78rem; background:rgba(16,185,129,0.08); border-left:3px solid #10b981; padding:4px 8px; border-radius:4px; margin-top:6px;"><i class="fa-solid fa-key" style="color:#10b981; margin-right:4px;"></i> <strong>Segredo Local:</strong> ${escapeHtml(act.localSecret || act.secret)}</div>`;
+    }
+    if (act.logistics || act.practical_tips || act.tips) {
+      html += `<div class="activity-logistics-box" style="font-size:0.78rem; background:rgba(59,130,246,0.08); border-left:3px solid #3b82f6; padding:4px 8px; border-radius:4px; margin-top:6px;"><i class="fa-solid fa-circle-info" style="color:#3b82f6; margin-right:4px;"></i> <strong>Logística:</strong> ${escapeHtml(act.logistics || act.practical_tips || act.tips)}</div>`;
+    }
+    return html;
+  };
+
   tripData.itinerary.forEach((day, dayIndex) => {
     const dayNumber = Number(day.dayNum) || dayIndex + 1;
     // Add Nav Button
@@ -5441,6 +5475,7 @@ function renderTimeline() {
         sortedActivities.forEach(act => {
           const bookingHtml = getBookingHtml(act);
           const restaurantHtml = getRestaurantRecommendationsHtml(act, dayIndex);
+          const richMetaHtml = getActivityRichMetaHtml(act);
 
           calendarActsHtml += `
             <div class="calendar-activity-item" onclick="event.stopPropagation()">
@@ -5453,6 +5488,7 @@ function renderTimeline() {
                   <h4 style="margin:0; flex:1;">${escapeHtml(act.title)}</h4>
                   <a href="${getActivityMapLink(act.title, dayCity)}" target="_blank" rel="noopener noreferrer" class="act-map-link" onclick="event.stopPropagation()" title="Ver no Google Maps"><i class="fa-solid fa-location-dot"></i></a>
                 </div>
+                ${richMetaHtml}
                 <p>${escapeHtml(act.desc)}</p>
                 ${restaurantHtml}
                 ${bookingHtml}
@@ -5493,6 +5529,7 @@ function renderTimeline() {
             turnActs.forEach(act => {
               const bookingHtml = getBookingHtml(act);
               const restaurantHtml = getRestaurantRecommendationsHtml(act, dayIndex);
+              const richMetaHtml = getActivityRichMetaHtml(act);
 
               turnActsHtml += `
                 <div class="activity-block">
@@ -5502,6 +5539,7 @@ function renderTimeline() {
                       <h4 style="margin:0; flex:1;">${escapeHtml(act.title)}</h4>
                       <a href="${getActivityMapLink(act.title, dayCity)}" target="_blank" rel="noopener noreferrer" class="act-map-link" onclick="event.stopPropagation()" title="Ver no Google Maps"><i class="fa-solid fa-location-dot"></i></a>
                     </div>
+                    ${richMetaHtml}
                     <p>${escapeHtml(act.desc)}</p>
                     ${restaurantHtml}
                     ${bookingHtml}

@@ -87,6 +87,110 @@ export function getPrimaryAccommodation(tripData) {
   return null;
 }
 
+export function normalizeTravelersDetail(trip = {}) {
+  const detail = trip.travelers_detail || trip.traveler_detail || null;
+  const preferences = trip.preferences || {};
+  
+  if (detail && typeof detail === 'object') {
+    const adults = typeof detail.adults === 'number' && detail.adults >= 0 ? detail.adults : null;
+    const children = typeof detail.children === 'number' && detail.children >= 0 ? detail.children : null;
+    const child_ages = Array.isArray(detail.child_ages)
+      ? detail.child_ages.map(Number).filter(n => Number.isFinite(n) && n >= 0 && n <= 18)
+      : [];
+    const composition_known = detail.composition_known !== false && (adults !== null || children !== null);
+    const group_type = detail.group_type || (composition_known ? (adults === 1 && !children ? 'solo' : adults === 2 && !children ? 'couple' : children > 0 ? 'family' : 'group') : 'unknown');
+    
+    const count = (adults || 0) + (children || 0);
+    const derivedCount = count > 0 ? count : (Number(preferences.traveler_count) || (Array.isArray(trip.members) ? trip.members.length : 1));
+    
+    let summary_label = detail.summary_label || '';
+    if (!summary_label && composition_known) {
+      if (adults > 0 && children > 0) {
+        const agesStr = child_ages.length > 0 ? ` (${child_ages.join(', ')} anos)` : '';
+        summary_label = `${adults} ${adults === 1 ? 'adulto' : 'adultos'}, ${children} ${children === 1 ? 'criança' : 'crianças'}${agesStr}`;
+      } else if (adults > 0) {
+        summary_label = adults === 1 ? '1 viajante' : (group_type === 'couple' ? 'Casal (2 adultos)' : `${adults} adultos`);
+      }
+    } else if (!summary_label) {
+      summary_label = derivedCount === 1 ? '1 viajante' : `${derivedCount} viajantes`;
+    }
+    
+    return {
+      adults,
+      children,
+      child_ages,
+      group_type,
+      composition_known,
+      traveler_count: derivedCount,
+      summary_label
+    };
+  }
+  
+  // Defensive migration for legacy trips: try to infer from infoGroup or members or traveler_count
+  const infoGroup = String(trip.infoGroup || '').trim();
+  const rawCount = Number(preferences.traveler_count) || (Array.isArray(trip.members) && trip.members.length > 0 ? trip.members.length : null);
+  
+  // Check if infoGroup has explicit adult/children string (e.g. "2 adultos, 3 crianças (5, 9 e 13 anos)")
+  const adultMatch = infoGroup.match(/(\d+)\s+adultos?/i);
+  const childMatch = infoGroup.match(/(\d+)\s+crianças?/i);
+  const agesMatch = infoGroup.match(/\(([\d,\s\te]+)\s*anos?\)/i);
+  
+  if (adultMatch || childMatch) {
+    const adults = adultMatch ? Number(adultMatch[1]) : 0;
+    const children = childMatch ? Number(childMatch[1]) : 0;
+    let child_ages = [];
+    if (agesMatch) {
+      child_ages = agesMatch[1].split(/,|\be\b/).map(s => Number(s.trim())).filter(n => Number.isFinite(n) && n >= 0 && n <= 18);
+    }
+    const count = adults + children;
+    return {
+      adults,
+      children,
+      child_ages,
+      group_type: children > 0 ? 'family' : (adults === 2 ? 'couple' : adults === 1 ? 'solo' : 'group'),
+      composition_known: true,
+      traveler_count: count,
+      summary_label: infoGroup
+    };
+  }
+  
+  if (/casal/i.test(infoGroup)) {
+    return {
+      adults: 2,
+      children: 0,
+      child_ages: [],
+      group_type: 'couple',
+      composition_known: true,
+      traveler_count: 2,
+      summary_label: 'Casal (2 adultos)'
+    };
+  }
+  
+  if (/solo|sozinho|1 viajante/i.test(infoGroup) || rawCount === 1) {
+    return {
+      adults: 1,
+      children: 0,
+      child_ages: [],
+      group_type: 'solo',
+      composition_known: true,
+      traveler_count: 1,
+      summary_label: '1 viajante'
+    };
+  }
+
+  // If count is known (e.g., 5 pessoas), but composition is unknown, keep composition_known: false!
+  const count = rawCount || (infoGroup.match(/(\d+)\s+viajantes?/i) ? Number(infoGroup.match(/(\d+)\s+viajantes?/i)[1]) : 1);
+  return {
+    adults: null,
+    children: null,
+    child_ages: [],
+    group_type: 'unknown',
+    composition_known: false,
+    traveler_count: count,
+    summary_label: infoGroup && infoGroup !== 'A definir' ? infoGroup : (count === 1 ? '1 viajante' : `${count} viajantes`)
+  };
+}
+
 export function normalizeTripState(trip) {
   if (!trip || typeof trip !== 'object') {
     trip = {};
@@ -217,6 +321,14 @@ export function normalizeTripState(trip) {
     .map(member => toText(member).trim())
     .filter(Boolean))];
   if (!normalized.members.includes('Você')) normalized.members.unshift('Você');
+
+  normalized.travelers_detail = normalizeTravelersDetail(normalized);
+  if (normalized.travelers_detail && normalized.travelers_detail.summary_label) {
+    normalized.infoGroup = normalized.travelers_detail.summary_label;
+  }
+  normalized.preferences = normalized.preferences || {};
+  normalized.preferences.traveler_count = normalized.travelers_detail.traveler_count;
+  normalized.preferences.travelers_detail = normalized.travelers_detail;
 
   normalized.expenses = normalized.expenses
     .filter(expense => expense && typeof expense === 'object')
@@ -430,7 +542,10 @@ export function recalculateTripContext(oldTrip, newTrip) {
     const endFmt = newTrip.end_date ? ` a ${formatDisplayDate(newTrip.end_date)}` : '';
     newTrip.infoDates = `${startFmt}${endFmt}`;
   }
-  if (Array.isArray(newTrip.members) && newTrip.members.length > 0) {
+  newTrip.travelers_detail = normalizeTravelersDetail(newTrip);
+  if (newTrip.travelers_detail && newTrip.travelers_detail.summary_label) {
+    newTrip.infoGroup = newTrip.travelers_detail.summary_label;
+  } else if (Array.isArray(newTrip.members) && newTrip.members.length > 0) {
     newTrip.infoGroup = newTrip.members.length === 1 ? '1 viajante' : `${newTrip.members.length} viajantes`;
   }
   newTrip.status = getSuggestedTripStatus(newTrip.start_date, newTrip.end_date, newTrip.status);

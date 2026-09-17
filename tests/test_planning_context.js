@@ -38,7 +38,7 @@ const path = require('path');
   ]);
   if (explicitDestinationChange.destination !== 'Curitiba') throw new Error(`Uma troca explícita de destino não foi respeitada: ${explicitDestinationChange.destination}`);
   const factsApplied = planning.applyConversationTripFacts({ members: ['Você'], accommodations: [], infoHotel: 'A definir' }, facts);
-  if (factsApplied.trip.members.length !== 2 || factsApplied.trip.infoGroup !== '2 viajantes') throw new Error('Grupo não foi sincronizado.');
+  if (factsApplied.trip.members.length !== 2 || !factsApplied.trip.infoGroup.includes('2')) throw new Error('Grupo não foi sincronizado.');
   if (factsApplied.trip.infoHotel === 'A definir') throw new Error('Hospedagem não foi sincronizada.');
   if (factsApplied.trip.infoDates !== '23-09-2026 a 27-09-2026') throw new Error('Data visível não segue dd-mm-aaaa.');
   if (factsApplied.trip.tripTitle !== 'Viagem para São Paulo') throw new Error('Título da viagem não permaneceu baseado no destino.');

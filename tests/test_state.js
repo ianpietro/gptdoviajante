@@ -1371,6 +1371,141 @@ async function runPreCycle2Tests() {
     assert.strictEqual(spTrip.itinerary[0].title, "MASP e Avenida Paulista");
   }
 
+  // ── Test R: Travelers Detail & Group Composition Audit ─────────────────────
+  {
+    console.log("Test R: Travelers Detail & Group Composition Audit");
+    const { inferTravelersDetail } = await import('../modules/planningContextEngine.js');
+    const { normalizeTripState } = await import('../modules/stateManager.js');
+    const { applyActions, buildTripContext } = await import('../modules/actionEngine.js');
+
+    // Case A: "Eu e minha esposa vamos viajar."
+    const caseA = inferTravelersDetail("Eu e minha esposa vamos viajar.");
+    assert.strictEqual(caseA.group_type, 'couple', "Case A deve ser casal");
+    assert.strictEqual(caseA.adults, 2, "Case A deve ter 2 adultos");
+    assert.strictEqual(caseA.children, 0, "Case A deve ter 0 crianças");
+    assert.strictEqual(caseA.traveler_count, 2, "Case A deve ter count 2");
+    assert.strictEqual(caseA.composition_known, true, "Case A deve ter composição conhecida");
+
+    // Case B: "Vamos em 5 pessoas." (Desconhecido)
+    const caseB = inferTravelersDetail("Vamos em 5 pessoas.");
+    assert.strictEqual(caseB.traveler_count, 5, "Case B deve ter count 5");
+    assert.strictEqual(caseB.composition_known, false, "Case B deve ser composição desconhecida");
+    assert.strictEqual(caseB.adults, null, "Case B não deve inventar adultos");
+    assert.strictEqual(caseB.children, null, "Case B não deve inventar crianças");
+
+    // Case C: "Eu, minha esposa e nossos dois filhos de 4 e 7 anos."
+    const caseC = inferTravelersDetail("Eu, minha esposa e nossos dois filhos de 4 e 7 anos.");
+    assert.strictEqual(caseC.group_type, 'family', "Case C deve ser família");
+    assert.strictEqual(caseC.adults, 2, "Case C deve ter 2 adultos");
+    assert.strictEqual(caseC.children, 2, "Case C deve ter 2 crianças");
+    assert.deepStrictEqual(caseC.child_ages, [4, 7], "Case C deve extrair idades 4 e 7");
+    assert.strictEqual(caseC.traveler_count, 4, "Case C deve somar 4 viajantes");
+
+    // Case D: "Vou sozinho."
+    const caseD = inferTravelersDetail("Vou sozinho.");
+    assert.strictEqual(caseD.group_type, 'solo', "Case D deve ser solo");
+    assert.strictEqual(caseD.adults, 1, "Case D deve ter 1 adulto");
+    assert.strictEqual(caseD.children, 0, "Case D deve ter 0 crianças");
+    assert.strictEqual(caseD.traveler_count, 1, "Case D deve ter count 1");
+
+    // Case E: "Vamos com 4 amigos."
+    const caseE = inferTravelersDetail("Vamos com 4 amigos.");
+    assert.strictEqual(caseE.group_type, 'friends', "Case E deve ser amigos");
+    assert.strictEqual(caseE.adults, 5, "Case E deve ter 5 adultos (eu + 4 amigos)");
+    assert.strictEqual(caseE.children, 0, "Case E deve ter 0 crianças");
+    assert.strictEqual(caseE.traveler_count, 5, "Case E deve ter count 5");
+
+    // Test State Normalization & Action Engine Persistence
+    let trip = normalizeTripState({});
+    const actions = [{
+      type: 'preferences',
+      operation: 'update',
+      data: {
+        travelers_detail: {
+          adults: 2,
+          children: 3,
+          child_ages: [5, 9, 13],
+          group_type: 'family',
+          summary_label: '2 adultos, 3 crianças (5, 9 e 13 anos)'
+        }
+      }
+    }];
+
+    trip = applyActions(actions, trip);
+    assert.strictEqual(trip.infoGroup, '2 adultos, 3 crianças (5, 9 e 13 anos)', "infoGroup deve ser derivado de travelers_detail");
+    assert.strictEqual(trip.travelers_detail.traveler_count, 5, "traveler_count deve ser 5");
+
+    // Reload / Persistence Test
+    const reloaded = normalizeTripState(JSON.parse(JSON.stringify(trip)));
+    assert.strictEqual(reloaded.infoGroup, '2 adultos, 3 crianças (5, 9 e 13 anos)', "State recarregado deve manter infoGroup");
+    assert.deepStrictEqual(reloaded.travelers_detail.child_ages, [5, 9, 13], "State recarregado deve manter idades");
+
+    // Context Builder Integration
+    const contextJson = buildTripContext(reloaded);
+    assert.ok(contextJson.includes('2 adultos, 3 crianças (5, 9 e 13 anos)'), "Contexto do prompt deve incluir composição");
+  }
+
+  // ── Test S: Rich Itinerary Schema Preservation Audit ─────────────────────
+  {
+    console.log("Test S: Rich Itinerary Schema Preservation Audit");
+    const { normalizeTripState } = await import('../modules/stateManager.js');
+    const { applyActions } = await import('../modules/actionEngine.js');
+
+    let trip = normalizeTripState({});
+    const richActions = [{
+      type: 'itinerary',
+      operation: 'replace',
+      data: [{
+        dayNum: 1,
+        dayTitle: "Chegada e Gastronomia em Buenos Aires",
+        dayStory: "Dia dedicado à adaptação e caminhada pela Recoleta com jantar em parrilla tradicional.",
+        highlight: "Jantar na Parrilla Don Julio com reserva antecipada.",
+        localSecret: "Visitar o cemitério da Recoleta no fim da tarde para evitar filas.",
+        logistics: "Táxi oficial do Aeroporto EZE até o hotel na Recoleta (aprox 45min).",
+        climate_plan: "Em caso de chuva, visitar a Livraria El Ateneo Grand Splendid.",
+        city: "Buenos Aires",
+        activities: [{
+          time: "20:30",
+          category: "food",
+          title: "Jantar na Parrilla Don Julio",
+          desc: "Uma das parrillas mais renomadas da cidade, especializada em cortes nobres como bife de chorizo.",
+          location: { address: "Guatemala 4699, Palermo, Buenos Aires" },
+          restaurant_options: [
+            { name: "Parrilla Don Julio", address: "Guatemala 4699", dish: "Bife de Chorizo", price_level: "$$$", why: "Corte impecável", verification_note: "Reserva necessária" },
+            { name: "El Preferido de Palermo", address: "Jorge Luis Borges 2108", dish: "Milanesa de bife de chorio", price_level: "$$", why: "Bistrô tradicional", verification_note: "Chegar cedo" }
+          ],
+          price_level: "$$$",
+          why: "Experiência gastronômica essencial",
+          zone: "Palermo Soho",
+          duration: "2h",
+          travel_time: "15min",
+          opening_hours: "19:00 - 01:00",
+          reservation_required: true,
+          estimated_cost: "ARS 45000",
+          currency: "ARS"
+        }]
+      }]
+    }];
+
+    trip = applyActions(richActions, trip);
+    const day = trip.itinerary[0];
+    assert.strictEqual(day.dayStory, "Dia dedicado à adaptação e caminhada pela Recoleta com jantar em parrilla tradicional.", "dayStory deve ser preservado");
+    assert.strictEqual(day.highlight, "Jantar na Parrilla Don Julio com reserva antecipada.", "highlight deve ser preservado");
+    assert.strictEqual(day.localSecret, "Visitar o cemitério da Recoleta no fim da tarde para evitar filas.", "localSecret deve ser preservado");
+    assert.strictEqual(day.climate_plan, "Em caso de chuva, visitar a Livraria El Ateneo Grand Splendid.", "climate_plan deve ser preservado");
+    
+    const act = day.activities[0];
+    assert.strictEqual(act.restaurant_options.length, 2, "restaurant_options deve manter 2 opções");
+    assert.strictEqual(act.restaurant_options[0].name, "Parrilla Don Julio", "Primeira opção de restaurante deve ser mantida");
+    assert.strictEqual(act.zone, "Palermo Soho", "Zona deve ser mantida");
+    assert.strictEqual(act.reservation_required, true, "reserva obrigatória deve ser mantida");
+
+    // Serialization and reload check
+    const reloadedTrip = normalizeTripState(JSON.parse(JSON.stringify(trip)));
+    assert.strictEqual(reloadedTrip.itinerary[0].dayStory, day.dayStory, "dayStory deve sobreviver ao reload");
+    assert.strictEqual(reloadedTrip.itinerary[0].activities[0].restaurant_options[0].name, "Parrilla Don Julio", "restaurant_options deve sobreviver ao reload");
+  }
+
   console.log("✅ Pre-Cycle 2 Stabilization Tests passed successfully!");
 }
 

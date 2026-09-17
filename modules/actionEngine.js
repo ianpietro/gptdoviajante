@@ -1,4 +1,4 @@
-import { normalizeActivityTime, recalculateTripContext } from './stateManager.js';
+import { normalizeActivityTime, recalculateTripContext, normalizeTravelersDetail } from './stateManager.js';
 import { applyTransportCommandToTrip } from './transportContextEngine.js';
 import { normalizeAccommodationData, formatAccommodationDisplay } from './accommodationNormalizer.js';
 import { enrichItineraryWithCalendar } from './calendarEngine.js';
@@ -55,7 +55,15 @@ function syncAccommodationReservation(newTrip, data) {
 }
 
 function syncTravelersFromPreferences(newTrip, data = {}) {
-  const rawCount = data.traveler_count ?? data.travelers_count ?? data.group_size ?? data.number_of_travelers;
+  const travelers_detail = data.travelers_detail || data.traveler_detail || null;
+  if (travelers_detail && typeof travelers_detail === 'object') {
+    newTrip.travelers_detail = travelers_detail;
+  }
+  newTrip.travelers_detail = normalizeTravelersDetail(newTrip);
+  if (newTrip.travelers_detail && newTrip.travelers_detail.summary_label) {
+    newTrip.infoGroup = newTrip.travelers_detail.summary_label;
+  }
+  const rawCount = data.traveler_count ?? data.travelers_count ?? data.group_size ?? data.number_of_travelers ?? (newTrip.travelers_detail ? newTrip.travelers_detail.traveler_count : null);
   const count = Math.max(0, Math.min(30, Number(rawCount) || 0));
   if (Array.isArray(data.members) && data.members.length) {
     newTrip.members = data.members;
@@ -386,6 +394,8 @@ export function buildTripContext(trip) {
     title: trip.tripTitle,
     destination: trip.destination,
     dates: trip.infoDates,
+    infoGroup: trip.infoGroup,
+    travelers: trip.travelers_detail || null,
     budget: trip.budget,
     flightsCount: (trip.flights || []).length,
     accommodations: (trip.accommodations || []).map(a => ({

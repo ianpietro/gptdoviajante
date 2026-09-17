@@ -63,11 +63,108 @@ function inferDateRange(message, currentTrip = {}, now = new Date()) {
   return null;
 }
 
-function inferTravelerCount(message) {
+export function inferTravelersDetail(message) {
   const text = normalize(message);
-  if (/\b(?:casal|eu\s+e\s+(?:a\s+|o\s+)?(?:minha|meu)\s+(?:esposa|marido|namorada|namorado|companheira|companheiro)|(?:com|junto\s+com)\s+(?:a\s+|o\s+)?(?:minha|meu)\s+(?:esposa|marido|namorada|namorado|companheira|companheiro)|(?:minha|meu)\s+(?:esposa|marido|namorada|namorado|companheira|companheiro)\s+e\s+eu)\b/.test(text)) return 2;
-  const match = text.match(/\b(?:somos|vamos em|viajaremos em|grupo de|para)\s+(\d{1,2}|um|uma|dois|duas|tres|quatro|cinco|seis|sete)\s*(?:pessoas?|viajantes?)?\b/);
-  return match ? Math.max(1, Math.min(30, extractNumber(match[1]) || 0)) : null;
+  if (!text) return null;
+
+  // 1. Explicit adult/children/ages pattern
+  const adultMatch = text.match(/\b(\d{1,2}|um|uma|dois|duas|tres|quatro|cinco|seis|sete)\s+(?:adultos?|pessoas?\s+adultas?)\b/i);
+  const childMatch = text.match(/\b(\d{1,2}|um|uma|dois|duas|tres|quatro|cinco|seis|sete)\s+(?:crian[cç]as?|filhos?|menores?|beb[eê]s?)\b/i);
+  const agesMatch = text.match(/\bde\s+([\d,\s\te]+)\s*anos?\b/i);
+
+  if (adultMatch || childMatch) {
+    let adults = adultMatch ? (extractNumber(adultMatch[1]) || Number(adultMatch[1]) || 0) : 0;
+    if (adults === 0 && /\b(?:casal|minha\s+esposa|meu\s+marido|minha\s+namorada|meu\s+namorado|eu\b.{0,15}\b(?:esposa|marido|namorada|namorado|companheira|companheiro))\b/i.test(text)) {
+      adults = 2;
+    }
+    const children = childMatch ? (extractNumber(childMatch[1]) || Number(childMatch[1]) || 0) : 0;
+    let child_ages = [];
+    if (agesMatch) {
+      child_ages = agesMatch[1].split(/,|\be\b/).map(s => Number(s.trim())).filter(n => Number.isFinite(n) && n >= 0 && n <= 18);
+    }
+    const count = adults + children;
+    const agesStr = child_ages.length > 0 ? ` (${child_ages.join(', ')} anos)` : '';
+    let summary_label = `${count} viajantes`;
+    if (adults > 0 && children > 0) {
+      summary_label = `${adults} ${adults === 1 ? 'adulto' : 'adultos'}, ${children} ${children === 1 ? 'criança' : 'crianças'}${agesStr}`;
+    } else if (adults > 0) {
+      summary_label = adults === 1 ? '1 viajante' : `${adults} adultos`;
+    }
+
+    return {
+      adults,
+      children,
+      child_ages,
+      group_type: children > 0 ? 'family' : (adults === 2 ? 'couple' : adults === 1 ? 'solo' : 'group'),
+      composition_known: true,
+      traveler_count: count,
+      summary_label
+    };
+  }
+
+  // 2. Solo check
+  if (/\b(?:vou\s+sozinh[ao]|viagem\s+solo|1\s+viajante|sozinh[ao])\b/i.test(text)) {
+    return {
+      adults: 1,
+      children: 0,
+      child_ages: [],
+      group_type: 'solo',
+      composition_known: true,
+      traveler_count: 1,
+      summary_label: '1 viajante'
+    };
+  }
+
+  // 3. Couple check
+  if (/\b(?:casal|eu\s+e\s+(?:a\s+|o\s+)?(?:minha|meu)\s+(?:esposa|marido|namorada|namorado|companheira|companheiro)|(?:com|junto\s+com)\s+(?:a\s+|o\s+)?(?:minha|meu)\s+(?:esposa|marido|namorada|namorado|companheira|companheiro)|(?:minha|meu)\s+(?:esposa|marido|namorada|namorado|companheira|companheiro)\s+e\s+eu)\b/i.test(text)) {
+    return {
+      adults: 2,
+      children: 0,
+      child_ages: [],
+      group_type: 'couple',
+      composition_known: true,
+      traveler_count: 2,
+      summary_label: 'Casal (2 adultos)'
+    };
+  }
+
+  // 4. Friends check
+  const friendsMatch = text.match(/\b(?:com|grupo\s+de)\s+(\d{1,2}|um|uma|dois|duas|tres|quatro|cinco|seis|sete)\s+amigos?\b/i);
+  if (friendsMatch) {
+    const friendCount = extractNumber(friendsMatch[1]) || Number(friendsMatch[1]) || 0;
+    const totalCount = friendCount + 1;
+    return {
+      adults: totalCount,
+      children: 0,
+      child_ages: [],
+      group_type: 'friends',
+      composition_known: true,
+      traveler_count: totalCount,
+      summary_label: `${totalCount} amigos`
+    };
+  }
+
+  // 5. Generic count check
+  const genericMatch = text.match(/\b(?:somos|vamos em|viajaremos em|grupo de|para)\s+(\d{1,2}|um|uma|dois|duas|tres|quatro|cinco|seis|sete)\s*(?:pessoas?|viajantes?)?\b/i);
+  if (genericMatch) {
+    const count = Math.max(1, Math.min(30, extractNumber(genericMatch[1]) || Number(genericMatch[1]) || 0));
+    return {
+      adults: null,
+      children: null,
+      child_ages: [],
+      group_type: 'unknown',
+      composition_known: false,
+      traveler_count: count,
+      summary_label: count === 1 ? '1 viajante' : `${count} viajantes`
+    };
+  }
+
+  return null;
+}
+
+export function inferTravelerCount(message) {
+  const detail = inferTravelersDetail(message);
+  return detail ? detail.traveler_count : null;
 }
 
 function inferDestination(message, allowGeneric = true) {
@@ -158,10 +255,6 @@ export function inferConversationTripFacts(messages = [], trip = {}, now = new D
   for (const message of messages) {
     const content = String(message?.content || '');
     if (message?.role === 'user') {
-      // A primeira intenção de destino pode usar linguagem natural ("vamos para
-      // São Paulo"). Depois disso, somente uma troca explicitamente declarada
-      // pode substituir a cidade. Assim, "vamos para o Brás" continua sendo
-      // uma parada interna do roteiro, não um novo destino da viagem.
       const destination = inferDestination(content, !facts.destination);
       if (destination) facts.destination = destination;
       const dates = inferDateRange(content, workingTrip, now);
@@ -169,8 +262,11 @@ export function inferConversationTripFacts(messages = [], trip = {}, now = new D
         Object.assign(facts, dates);
         Object.assign(workingTrip, dates);
       }
-      const traveler_count = inferTravelerCount(content);
-      if (traveler_count) facts.traveler_count = traveler_count;
+      const travelers_detail = inferTravelersDetail(content);
+      if (travelers_detail) {
+        facts.travelers_detail = travelers_detail;
+        facts.traveler_count = travelers_detail.traveler_count;
+      }
       const accommodation = inferAccommodation(content);
       if (accommodation) facts.accommodation = { ...(facts.accommodation || {}), ...accommodation,
         address: accommodation.address || facts.accommodation?.address || '' };
@@ -191,7 +287,16 @@ export function applyConversationTripFacts(trip, facts) {
     next.destination = facts.destination;
     next.tripTitle = `Viagem para ${String(facts.destination).replace(/^viagem\s+(?:para|a|em)\s+/i, '').trim()}`;
   }
-  if (facts.traveler_count) {
+  if (facts.travelers_detail) {
+    next.travelers_detail = facts.travelers_detail;
+    next.infoGroup = facts.travelers_detail.summary_label || (facts.traveler_count === 1 ? '1 viajante' : `${facts.traveler_count} viajantes`);
+    next.members = travelerMembers(facts.travelers_detail.traveler_count);
+    next.preferences = {
+      ...(next.preferences || {}),
+      traveler_count: facts.travelers_detail.traveler_count,
+      travelers_detail: facts.travelers_detail
+    };
+  } else if (facts.traveler_count) {
     next.members = travelerMembers(facts.traveler_count);
     next.infoGroup = facts.traveler_count === 1 ? '1 viajante' : `${facts.traveler_count} viajantes`;
     next.preferences = { ...(next.preferences || {}), traveler_count: facts.traveler_count };
