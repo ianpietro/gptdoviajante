@@ -457,67 +457,101 @@ async function routeAIRequest({ task = 'chat', messages = [], tripContext = null
   const geminiKey = apiKey || process.env.GEMINI_API_KEY; const openaiKey = process.env.OPENAI_API_KEY;
   if (!geminiKey && !openaiKey) throw new Error('Nenhuma chave de API configurada no servidor.');
   const classification = classifyTask(task, userMessage, needsFreshData);
-  const preferOpenAi = process.env.AI_PRIMARY_PROVIDER === 'openai' && Boolean(openaiKey) && !classification.useGrounding;
+  const primaryProvider = process.env.AI_PRIMARY_PROVIDER || 'gemini';
+  const preferGemini = primaryProvider === 'gemini' && Boolean(geminiKey);
+  const preferOpenAi = primaryProvider === 'openai' && Boolean(openaiKey);
   const openAiCompositionModel = ['itinerary', 'quick_extraction'].includes(task)
     ? (task === 'itinerary' ? AI_MODELS.planner : AI_MODELS.groundedFallback)
     : AI_MODELS.fallback;
-  const history = await processChatHistoryWindow({ messages, geminiKey: preferOpenAi ? null : geminiKey, maxMessages: 8, historyState });
+  const history = await processChatHistoryWindow({ messages, geminiKey: preferGemini ? geminiKey : null, maxMessages: 8, historyState });
   const context = buildAIContext(task, tripContext, userMessage);
   const summaryContext = history.historySummary ? `\nRESUMO PERSISTIDO DA CONVERSA:\n${history.historySummary}\n` : '';
   const fullSystemPrompt = `${systemPrompt || ''}${summaryContext}${context}`;
   let result; let provider; let modelUsed; let usedFallback = false; let attempts = 0; let terminalError = null;
+
   try {
-    if (task === 'itinerary_research' && openaiKey) {
-      provider = 'openai'; modelUsed = AI_MODELS.planner;
+    // 1. Tentar Provedor Primário (Gemini por padrão)
+    if (preferGemini) {
+      provider = 'gemini'; modelUsed = classification.model;
       try {
-        const call = await retryWithBackoff(() => callOpenAIGroundedProvider({ apiKey: openaiKey,
-          model: AI_MODELS.planner, systemPrompt: fullSystemPrompt, messages: history.messages, temperature }), 1, 300);
+        const call = await retryWithBackoff(() => callGeminiProvider({
+          apiKey: geminiKey, model: classification.model,
+          systemPrompt: fullSystemPrompt, messages: history.messages,
+          useGrounding: classification.useGrounding, temperature, responseMimeType,
+          thinkingBudget: classification.thinkingBudget
+        }), 1, 200);
         result = call.result; attempts += call.attempts;
-      } catch (error) { attempts += error.attempts || 1; terminalError = error; }
-    }
-    if (preferOpenAi) {
+      } catch (error) {
+        attempts += error.attempts || 1; terminalError = error;
+      }
+    } else if (preferOpenAi) {
       provider = 'openai'; modelUsed = openAiCompositionModel;
       try {
-        const call = await retryWithBackoff(() => callOpenAIProvider({ apiKey: openaiKey, model: openAiCompositionModel,
-          systemPrompt: fullSystemPrompt, messages: history.messages, temperature, responseMimeType,
-          reasoningEffort: task === 'itinerary' ? 'high' : null }), 1, 300);
+        const call = await retryWithBackoff(() => (
+          classification.useGrounding || task === 'itinerary_research'
+            ? callOpenAIGroundedProvider({ apiKey: openaiKey, model: AI_MODELS.planner, systemPrompt: fullSystemPrompt, messages: history.messages, temperature })
+            : callOpenAIProvider({ apiKey: openaiKey, model: openAiCompositionModel, systemPrompt: fullSystemPrompt, messages: history.messages, temperature, responseMimeType, reasoningEffort: task === 'itinerary' ? 'high' : null })
+        ), 1, 300);
         result = call.result; attempts += call.attempts;
-      } catch (error) { attempts += error.attempts || 1; terminalError = error; }
+      } catch (error) {
+        attempts += error.attempts || 1; terminalError = error;
+      }
     }
-    if (!result && geminiKey && (task === 'itinerary_research' || !preferOpenAi || !terminalError || terminalError.fallbackEligible)) {
-      if (preferOpenAi) usedFallback = true;
+
+    // 2. Fallback Transparente para o Provedor Secundário se o Primário Falhar
+    if (!result && preferGemini && openaiKey && (!terminalError || terminalError.fallbackEligible)) {
+      usedFallback = true;
+      provider = 'openai';
+      modelUsed = classification.useGrounding ? AI_MODELS.groundedFallback : openAiCompositionModel;
       try {
-        const call = await retryWithBackoff(() => callGeminiProvider({ apiKey: geminiKey, model: classification.model,
-          systemPrompt: fullSystemPrompt, messages: history.messages, useGrounding: classification.useGrounding, temperature, responseMimeType,
-          thinkingBudget: classification.thinkingBudget }), 1, 200);
-        result = call.result; attempts += call.attempts; provider = 'gemini'; modelUsed = classification.model;
-      } catch (error) { attempts += error.attempts || 1; terminalError = error; }
-    }
-    // Grounded requests never fall back to model memory. When Gemini cannot
-    // search, OpenAI Responses must perform its own web search before the
-    // answer is accepted.
-    if (!result && openaiKey) {
-      provider = 'openai'; modelUsed = classification.useGrounding ? AI_MODELS.groundedFallback : AI_MODELS.planner; usedFallback = true;
-      try {
-        const call = await retryWithBackoff(() => callOpenAIGroundedProvider({ apiKey: openaiKey,
-          model: modelUsed, systemPrompt: fullSystemPrompt, messages: history.messages, temperature,
-          useGrounding: classification.useGrounding }), 1, 300);
+        const call = await retryWithBackoff(() => (
+          classification.useGrounding
+            ? callOpenAIGroundedProvider({ apiKey: openaiKey, model: AI_MODELS.groundedFallback, systemPrompt: fullSystemPrompt, messages: history.messages, temperature })
+            : callOpenAIProvider({ apiKey: openaiKey, model: openAiCompositionModel, systemPrompt: fullSystemPrompt, messages: history.messages, temperature, responseMimeType, reasoningEffort: task === 'itinerary' ? 'high' : null })
+        ), 1, 300);
         result = call.result; attempts += call.attempts;
-      } catch (error) { attempts += error.attempts || 1; if (!terminalError) terminalError = error; }
-    }
-    if (!result && !preferOpenAi && openaiKey && !classification.useGrounding && (!terminalError || terminalError.fallbackEligible)) {
-      provider = 'openai'; modelUsed = openAiCompositionModel; usedFallback = true;
+      } catch (fallbackError) {
+        attempts += fallbackError.attempts || 1;
+        // Se o provedor secundário também falhar via chat/completions, tenta o endpoint grounded/responses
+        if (!result) {
+          try {
+            const groundedCall = await retryWithBackoff(() => callOpenAIGroundedProvider({
+              apiKey: openaiKey, model: AI_MODELS.planner, systemPrompt: fullSystemPrompt, messages: history.messages, temperature
+            }), 1, 300);
+            result = groundedCall.result; attempts += groundedCall.attempts; modelUsed = AI_MODELS.planner;
+          } catch (gErr) {
+            attempts += gErr.attempts || 1;
+            if (!terminalError) terminalError = gErr;
+          }
+        }
+      }
+    } else if (!result && preferOpenAi && geminiKey && (!terminalError || terminalError.fallbackEligible)) {
+      usedFallback = true;
+      provider = 'gemini';
+      modelUsed = classification.model;
       try {
-        const call = await retryWithBackoff(() => callOpenAIProvider({ apiKey: openaiKey, model: openAiCompositionModel,
-          systemPrompt: fullSystemPrompt, messages: history.messages, temperature, responseMimeType,
-          reasoningEffort: task === 'itinerary' ? 'high' : null }), 1, 300);
+        const call = await retryWithBackoff(() => callGeminiProvider({
+          apiKey: geminiKey, model: classification.model,
+          systemPrompt: fullSystemPrompt, messages: history.messages,
+          useGrounding: classification.useGrounding, temperature, responseMimeType,
+          thinkingBudget: classification.thinkingBudget
+        }), 1, 200);
         result = call.result; attempts += call.attempts;
-      } catch (error) { attempts += error.attempts || 1; terminalError = error; }
+      } catch (fallbackError) {
+        attempts += fallbackError.attempts || 1;
+      }
     }
+
     if (!result) {
-      if (classification.useGrounding && terminalError) { const error = new Error(`Dados em tempo real indisponíveis: ${terminalError.message}`); error.code = 'FRESH_DATA_PROVIDER_UNAVAILABLE'; throw error; }
+      if (classification.useGrounding && terminalError) {
+        const error = new Error(`Dados em tempo real indisponíveis: ${terminalError.message}`);
+        error.code = 'FRESH_DATA_PROVIDER_UNAVAILABLE';
+        throw error;
+      }
       throw terminalError || new Error('Não foi possível obter resposta de nenhum provedor de IA.');
     }
+
+    console.log(`[AI_ROUTER] task=${task} primary_provider=${primaryProvider} provider_used=${provider} model_used=${modelUsed} fallback_used=${usedFallback}${usedFallback ? ` fallback_reason=${terminalError?.message || 'primary_failed'}` : ''}`);
     const reply = normalizeStructuredOutput(result.reply);
     const mainUsage = result.usage || estimateUsage(fullSystemPrompt, history.messages, reply);
     const usage = mergeUsage(history.summaryUsage, mainUsage);

@@ -13,7 +13,8 @@ import {
   isFirebaseConfigured,
   supabase
 } from './auth.js';
-import { AFFILIATE_CONFIG, BYPASS_LOGIN, FEATURES, APP_VERSION, MAX_OFFLINE_DOCUMENT_SIZE, MAX_OFFLINE_DOCUMENT_TOTAL_SIZE } from './config.js';
+import { AFFILIATE_CONFIG, BYPASS_LOGIN, FEATURES, APP_VERSION, ORBIA_BUILD, MAX_OFFLINE_DOCUMENT_SIZE, MAX_OFFLINE_DOCUMENT_TOTAL_SIZE } from './config.js';
+console.info('[ORBIA_BUILD]', ORBIA_BUILD);
 import { normalizeTripState as pureNormalizeTripState, parseActivityTimeMinutes, checkDuplicateDocument, inferTripFromDocuments, calculateReadinessScore, calculateCountdown, getSuggestedTripStatus } from './modules/stateManager.js?v=3.0.0-rc.30-time-period';
 import { applyActions, undoLastActions } from './modules/actionEngine.js?v=3.0.0-rc.30-time-period';
 import { partnerConfig, buildAffiliateLink, evaluateTripOpportunities, analytics as legacyAnalytics } from './modules/partnerEngine.js';
@@ -4101,8 +4102,9 @@ async function handleUserSendMessage() {
     const token = await getFreshToken();
     const response = await fetch("/api/chat", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}`, "X-Client-Build": ORBIA_BUILD },
       body: JSON.stringify({ 
+        client_build: ORBIA_BUILD,
         messages: chatHistory, 
         travelMode: false,
         tripId: tripData.id,
@@ -4280,8 +4282,9 @@ async function handleTravelSendMessage() {
     const token = await getFreshToken();
     const response = await fetch("/api/chat", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}`, "X-Client-Build": ORBIA_BUILD },
       body: JSON.stringify({ 
+        client_build: ORBIA_BUILD,
         messages: travelChatHistory, 
         travelMode: true,
         tripId: tripData.id,
