@@ -259,9 +259,122 @@ function canonicalRestaurantOption(option = {}, researchBrief = {}) {
   };
 }
 
+function buildFallbackResearchBrief({ destination = '', days = 5, planningBrief = null, destinationKnowledge = null, researchStatus = 'offline' } = {}) {
+  const destName = destinationKnowledge?.name || destination || 'Destino';
+  if (destinationKnowledge) {
+    return {
+      destination: destName,
+      researchedAt: destinationKnowledge.verifiedAt || new Date().toISOString().slice(0, 10),
+      mustSee: (destinationKnowledge.criticalCoverage || []).map(item => ({
+        name: item.label,
+        reason: `Ponto turístico essencial e autêntico de ${destName}.`,
+        location: `${item.label}, ${destName}`,
+        priority: 'essential',
+        sourceType: 'editorial',
+        sourceUrl: ''
+      })),
+      signatureFoods: (destinationKnowledge.identityCoverage || []).map(item => ({
+        name: item.label,
+        why_symbolic: `Prato/tradição gastronômica com forte vínculo cultural com ${destName}.`,
+        where_to_try: `Mercados e estabelecimentos locais em ${destName}`,
+        priority: 'essential'
+      })),
+      restaurants: [
+        {
+          name: `Restaurante Regional Tradicional`,
+          location: `Centro, ${destName}`,
+          dish: destinationKnowledge.identityCoverage?.[0]?.label || 'Prato Típico Regional',
+          price_level: '$$',
+          why: `Sugestão alinhada à gastronomia cultural de ${destName}.`,
+          verification_note: 'Confirme o estabelecimento e o horário oficial próximo à data da viagem.',
+          sourceType: 'editorial',
+          sourceUrl: ''
+        },
+        {
+          name: `Restaurante Regional Alternativo`,
+          location: `Bairro Histórico, ${destName}`,
+          dish: destinationKnowledge.identityCoverage?.[1]?.label || 'Culinária Local',
+          price_level: '$$',
+          why: `Alternativa culinária para experimentar os sabores típicos da região.`,
+          verification_note: 'Confirme o estabelecimento e o horário oficial próximo à data da viagem.',
+          sourceType: 'editorial',
+          sourceUrl: ''
+        }
+      ],
+      events: [],
+      mobility: [],
+      neighborhoodClusters: [],
+      indoorAlternatives: [],
+      localWarnings: [],
+      researchStatus
+    };
+  }
+
+  return {
+    destination: destName,
+    researchedAt: new Date().toISOString().slice(0, 10),
+    mustSee: [
+      {
+        name: `Centro Histórico e Cultural de ${destName}`,
+        reason: `Eixo principal para compreender a história, arquitetura e atmosfera local.`,
+        location: `Centro, ${destName}`,
+        priority: 'essential',
+        sourceType: 'structural',
+        sourceUrl: ''
+      },
+      {
+        name: `Parque e Área Verde de ${destName}`,
+        reason: `Espaço público tradicional para caminhadas e contato com a paisagem local.`,
+        location: `Região Central, ${destName}`,
+        priority: 'important',
+        sourceType: 'structural',
+        sourceUrl: ''
+      }
+    ],
+    signatureFoods: [
+      {
+        name: `Gastronomia Típica de ${destName}`,
+        why_symbolic: `Tradição culinária autêntica da região.`,
+        where_to_try: `Restaurantes e mercados locais em ${destName}`,
+        priority: 'essential'
+      }
+    ],
+    restaurants: [
+      {
+        name: `Restaurante no Bairro Principal`,
+        location: `Centro, ${destName}`,
+        dish: `Especialidade Local`,
+        price_level: '$$',
+        why: `Sugestão funcional de refeição no mesmo eixo das atividades da manhã.`,
+        verification_note: 'Escolha um estabelecimento local e confirme horário próximo à data.',
+        sourceType: 'structural',
+        sourceUrl: ''
+      },
+      {
+        name: `Restaurante no Polo Gastronômico`,
+        location: `Região Gastronômica, ${destName}`,
+        dish: `Culinária Regional`,
+        price_level: '$$',
+        why: `Opção de refeição para encerrar o dia no polo gastronômico da cidade.`,
+        verification_note: 'Escolha um estabelecimento local e confirme horário próximo à data.',
+        sourceType: 'structural',
+        sourceUrl: ''
+      }
+    ],
+    events: [],
+    mobility: [],
+    neighborhoodClusters: [],
+    indoorAlternatives: [],
+    localWarnings: [],
+    researchStatus
+  };
+}
+
 function canonicalizeItineraryData(data, researchBrief = {}, tripCalendar = []) {
   if (!Array.isArray(data)) return data;
   const verifiedRestaurants = Array.isArray(researchBrief.restaurants) ? researchBrief.restaurants : [];
+  const isOffline = researchBrief?.researchStatus === 'offline' || researchBrief?.researchStatus === 'preliminary';
+  
   const canonicalDays = data.map((day, dayIndex) => {
     const rawActivities = Array.isArray(day?.activities)
       ? day.activities
@@ -271,12 +384,19 @@ function canonicalizeItineraryData(data, researchBrief = {}, tripCalendar = []) 
       const desc = activity?.desc || activity?.description || '';
       const category = activity?.category || (FOOD_PATTERN.test(`${title} ${desc}`) ? 'food' : 'attraction');
       const locationValue = activity?.location?.address || activity?.address || activity?.endereco_ou_regiao || '';
+      const verificationStatus = activity?.verificationStatus || activity?.verification_status ||
+        (activity?.sourceUrl ? 'verified' : (isOffline ? 'unverified' : 'partially_verified'));
+      const confidence = activity?.confidence ||
+        (verificationStatus === 'verified' ? 'high' : (verificationStatus === 'partially_verified' ? 'medium' : 'low'));
+      
       const canonical = {
         ...activity,
         time: activity?.time || '',
         category,
         title,
         desc,
+        verificationStatus,
+        confidence,
         location: { ...(typeof activity?.location === 'object' ? activity.location : {}), address: locationValue }
       };
       delete canonical.name;
@@ -602,6 +722,7 @@ module.exports = {
   VAGUE_PATTERNS,
   buildDestinationResearchPrompt,
   parseDestinationResearchBrief,
+  buildFallbackResearchBrief,
   auditItineraryQuality,
   buildQualityRevisionPrompt,
   extractItinerary,

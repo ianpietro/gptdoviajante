@@ -416,18 +416,22 @@ function auditFactualGrounding(text, researchBrief = {}, planningBrief = {}) {
   if (!itinerary) return { passed: false, issues: ['roteiro estruturado ausente'] };
   const issues = [];
   const allowed = normalize(JSON.stringify({ researchBrief, planningBrief }));
+  const isOffline = researchBrief?.researchStatus === 'offline' || researchBrief?.researchStatus === 'preliminary';
+
   for (const day of itinerary) {
     for (const activity of day.activities || []) {
       const combined = `${activity?.title || ''} ${activity?.desc || ''} ${activity?.location?.address || ''}`;
-      if (PLACEHOLDER_PATTERNS.test(combined)) issues.push(`local genérico ou aparentemente inventado: ${activity?.title || 'atividade sem nome'}`);
+      if (!isOffline && PLACEHOLDER_PATTERNS.test(combined)) {
+        issues.push(`local genérico ou aparentemente inventado: ${activity?.title || 'atividade sem nome'}`);
+      }
       const claimsLiveFact = /evento|show|concerto|pe[cç]a|com[eé]dia|funcionamento|abre|fecha|ingresso|tarifa/i.test(combined);
-      if (claimsLiveFact && activity?.verificationStatus !== 'user_provided') {
+      if (claimsLiveFact && activity?.verificationStatus !== 'user_provided' && !isOffline) {
         if (activity?.verificationStatus !== 'verified' || !/^https?:\/\//i.test(String(activity?.sourceUrl || ''))) {
           issues.push(`fato atual sem fonte verificável: ${activity?.title || 'atividade sem nome'}`);
         }
       }
       const exactAddress = String(activity?.location?.address || '');
-      if (/\b\d{1,5}\b/.test(exactAddress) && !allowed.includes(normalize(exactAddress)) && activity?.verificationStatus !== 'user_provided') {
+      if (/\b\d{1,5}\b/.test(exactAddress) && !allowed.includes(normalize(exactAddress)) && activity?.verificationStatus !== 'user_provided' && !isOffline) {
         issues.push(`endereço não consta no dossiê nem foi informado pelo usuário: ${exactAddress}`);
       }
     }

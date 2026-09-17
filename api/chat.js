@@ -6,7 +6,7 @@ const { handleCors, checkAIEntitlement, refundAIUsage, checkDatabaseRateLimit, c
 const { routeAIRequest } = require('./_aiRouter');
 const { getDestinationKnowledge, auditDestinationCoverage, isItineraryCreationRequest,
   buildCuratedItineraryResponse } = require('./_destinationKnowledge');
-const { buildDestinationResearchPrompt, parseDestinationResearchBrief, auditItineraryQuality,
+const { buildDestinationResearchPrompt, parseDestinationResearchBrief, buildFallbackResearchBrief, auditItineraryQuality,
   buildQualityRevisionPrompt, canonicalizeItineraryEnvelope, inferRequestedItineraryDays, isItineraryCompletionRequest, buildTripCalendar } = require('./_itineraryQuality');
 const { isItineraryMutationRequest, buildConstraintExtractionPrompt, parsePlanningBrief,
   mergeDeterministicCommitments, sanitizePlanningBriefAgainstSources, buildEditorialPlanningPrompt, auditConstraintCoverage,
@@ -497,49 +497,108 @@ Você é o amigo local que está caminhando junto. Não o guia que lê do script
         planningBrief,
         currentItinerary: tripContext?.itinerary || []
       });
-      const researchResult = await routeAIRequest({
-        task: 'itinerary_research',
-        messages: [{ role: 'user', content: researchPrompt }],
-        tripContext,
-        systemPrompt: 'Você é um pesquisador factual de destinos do Orbia Travel. Siga o formato solicitado e não invente dados.',
-        userMessage: lastUserMessage,
-        userId,
-        tripId,
-        isSystemTask: true,
-        needsFreshData: true,
-        temperature: 0.15
-      });
-      researchBrief = parseDestinationResearchBrief(researchResult.reply);
-      if (!researchBrief) {
-        const normalizationResult = await routeAIRequest({
-          task: 'quick_extraction',
-          messages: [{ role: 'user', content: `Normalize o dossiê abaixo para o contrato JSON solicitado. Preserve somente fatos, nomes, endereços e fontes já presentes. Não complete lacunas e não invente nada.\n\n${researchResult.reply}` }],
+
+      let researchStatus = 'full'; // 'full' | 'partial' | 'offline'
+      let researchReason = 'none'; // 'none' | 'provider_unavailable' | 'research_parse_invalid' | 'rate_limit' | 'timeout'
+
+      try {
+        const researchResult = await routeAIRequest({
+          task: 'itinerary_research',
+          messages: [{ role: 'user', content: researchPrompt }],
           tripContext,
-          systemPrompt: buildDestinationResearchPrompt({
-            destination,
-            days: requestedItineraryDays,
-            startDate: planningBrief?.dates?.start || '',
-            endDate: planningBrief?.dates?.end || '',
-            interests: tripContext?.preferences?.interests || tripContext?.interests || [],
-            planningBrief,
-            currentItinerary: tripContext?.itinerary || []
-          }),
+          systemPrompt: 'Você é um pesquisador factual de destinos do Orbia Travel. Siga o formato solicitado e não invente dados.',
           userMessage: lastUserMessage,
           userId,
           tripId,
           isSystemTask: true,
-          temperature: 0.05,
-          responseMimeType: 'application/json'
+          needsFreshData: true,
+          temperature: 0.15
         });
-        researchBrief = parseDestinationResearchBrief(normalizationResult.reply);
+
+        researchBrief = parseDestinationResearchBrief(researchResult.reply);
         if (!researchBrief) {
-          const error = new Error('Não foi possível validar os pontos essenciais e a gastronomia do destino. Tente gerar o roteiro novamente.');
-          error.code = 'DESTINATION_RESEARCH_INVALID';
-          throw error;
+          try {
+            const normalizationResult = await routeAIRequest({
+              task: 'quick_extraction',
+              messages: [{ role: 'user', content: `Normalize o dossiê abaixo para o contrato JSON solicitado. Preserve somente fatos, nomes, endereços e fontes já presentes. Não complete lacunas e não invente nada.\n\n${researchResult.reply}` }],
+              tripContext,
+              systemPrompt: buildDestinationResearchPrompt({
+                destination,
+                days: requestedItineraryDays,
+                startDate: planningBrief?.dates?.start || '',
+                endDate: planningBrief?.dates?.end || '',
+                interests: tripContext?.preferences?.interests || tripContext?.interests || [],
+                planningBrief,
+                currentItinerary: tripContext?.itinerary || []
+              }),
+              userMessage: lastUserMessage,
+              userId,
+              tripId,
+              isSystemTask: true,
+              temperature: 0.05,
+              responseMimeType: 'application/json'
+            });
+            researchBrief = parseDestinationResearchBrief(normalizationResult.reply);
+          } catch (normErr) {
+            console.warn('[chat] Extração de pesquisa falhou:', normErr.message);
+          }
+
+          if (!researchBrief) {
+            researchStatus = 'partial';
+            researchReason = 'research_parse_invalid';
+          }
+        }
+      } catch (researchError) {
+        console.warn('[chat] Falha na camada de pesquisa factual:', researchError.message, 'code:', researchError.code);
+        researchStatus = 'offline';
+        if (researchError.status === 429) {
+          researchReason = 'rate_limit';
+        } else if (researchError.code === 'NETWORK_ERROR' || researchError.status === 408) {
+          researchReason = 'timeout';
+        } else {
+          researchReason = 'provider_unavailable';
         }
       }
-      fullSystemPrompt += `\n\nPESQUISA ATUAL E OBRIGATÓRIA DO DESTINO:\n${JSON.stringify(researchBrief)}\n
-CONTRATO DE QUALIDADE: o roteiro deve incluir primeiro os pontos marcados como essential e o primeiro prato de signatureFoods, que representa o símbolo gastronômico local. Use os restaurantes pesquisados pelo nome. Não entregue sugestões vagas nem transfira a curadoria ao viajante.`;
+
+      // If research failed or returned unparseable nulo, construct fallback brief from destinationKnowledge or structural fallback
+      if (!researchBrief || researchStatus === 'offline' || researchStatus === 'partial') {
+        const fallbackKnowledge = getDestinationKnowledge(destination || tripContext);
+        researchBrief = buildFallbackResearchBrief({
+          destination: destination || tripContext?.destination || tripContext?.tripTitle || 'Destino',
+          days: requestedItineraryDays,
+          planningBrief,
+          destinationKnowledge: fallbackKnowledge,
+          researchStatus: researchStatus === 'full' ? 'partial' : researchStatus
+        });
+      }
+
+      researchBrief.researchStatus = researchStatus;
+      const verifiedCount = (researchBrief.mustSee || []).filter(m => m.sourceUrl).length +
+                            (researchBrief.restaurants || []).filter(r => r.sourceUrl).length;
+      const unverifiedCount = Math.max(0, ((researchBrief.mustSee || []).length + (researchBrief.restaurants || []).length) - verifiedCount);
+
+      // PII-Safe logging for observability
+      console.log(`[ROUTE_INTELLIGENCE] research_status=${researchStatus} destination=${destination || 'unknown'} verified_places=${verifiedCount} unverified_places=${unverifiedCount} reason=${researchReason}`);
+
+      fullSystemPrompt += `\n\nDOSSIÊ DE PESQUISA DO DESTINO (${researchStatus.toUpperCase()}):\n${JSON.stringify(researchBrief)}\n`;
+
+      if (researchStatus === 'offline') {
+        fullSystemPrompt += `\n\nATENÇÃO — MODO DE PESQUISA EXTERNA TEMPORARIAMENTE INDISPONÍVEL (NÍVEL 3 — PLANO PRELIMINAR ESTRUTURAL):
+1. A pesquisa factual em tempo real está indisponível neste momento. Monte um PLANO PRELIMINAR ESTRUTURAL rico, autoral, personalizado e geograficamente coerente com os dados disponíveis.
+2. NUNCA invente nomes de restaurantes desconhecidos, horários de funcionamento oficiais exatos, preços exatos em moeda local ou endereços falsos.
+3. Para refeições e locais sem confirmação, use descrições funcionais no texto (ex: "Almoço em Palermo Soho, próximo às atrações da manhã") e atribua à atividade o campo verificationStatus: "unverified" e confidence: "low". Nomes de estabelecimentos específicos só podem aparecer se vierem da curadoria interna de destino.
+4. Mantenha 100% da qualidade estrutural: sequência cronológica lógica, ritmo adequado ao grupo de viajantes, 4 blocos de atividades por dia (ou 2 em dias de viagem/deslocamento), logística trecho a trecho e plano para clima.
+5. Ao final da resposta legível do assistente (antes do bloco JSON), inclua de forma discreta a nota: "Montei a estrutura da viagem com os dados disponíveis. Alguns horários e valores ainda precisam de confirmação."`;
+      } else if (researchStatus === 'partial') {
+        fullSystemPrompt += `\n\nATENÇÃO — MODO DE PESQUISA EXTERNA PARCIALMENTE DISPONÍVEL (NÍVEL 2 — VERIFICAÇÃO PARCIAL):
+1. Utilize os dados confirmados na pesquisa para locais e horários verificados com verificationStatus: "verified" e confidence: "high".
+2. Para itens não confirmados na pesquisa, NÃO invente horários ou valores exatos. Use linguagem transparente de incerteza (ex: "Reserve para o período da manhã. Confirme o horário oficial próximo à data") e atribua verificationStatus: "partially_verified" e confidence: "medium".
+3. Mantenha 100% da qualidade estrutural.
+4. Ao final da resposta legível do assistente (antes do bloco JSON), inclua de forma discreta a nota: "Montei o roteiro com os dados confirmados. Algumas informações ainda precisam de confirmação."`;
+      } else {
+        fullSystemPrompt += `\n\nCONTRATO DE QUALIDADE: o roteiro deve incluir primeiro os pontos marcados como essential e o primeiro prato de signatureFoods, que representa o símbolo gastronômico local. Use os restaurantes pesquisados pelo nome. Não entregue sugestões vagas nem transfira a curadoria ao viajante.`;
+      }
+
       fullSystemPrompt += `\n\n${buildEditorialPlanningPrompt({
         planningBrief,
         researchBrief,

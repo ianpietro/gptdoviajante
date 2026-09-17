@@ -349,13 +349,17 @@ async function callOpenAIGroundedProvider({ apiKey, model, systemPrompt, message
   return { reply, rawResponse, usage: normalizeOpenAIResponsesUsage(rawResponse), groundingUsed: true };
 }
 
-async function retryWithBackoff(fn, retries = 1, delayMs = 200) {
+async function retryWithBackoff(fn, retries = 1, delayMs = 300) {
   let attempts = 0;
   while (true) {
     attempts += 1;
-    try { return { result: await fn(), attempts }; }
-    catch (error) {
-      if (!error.retryable || attempts > retries) { error.attempts = attempts; throw error; }
+    try {
+      return { result: await fn(), attempts };
+    } catch (error) {
+      if (!error.retryable || attempts > retries) {
+        error.attempts = attempts;
+        throw error;
+      }
       await new Promise(resolve => setTimeout(resolve, delayMs * Math.pow(2, attempts - 1)));
     }
   }
