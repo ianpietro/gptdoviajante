@@ -463,24 +463,26 @@ Você é o amigo local que está caminhando junto. Não o guia que lê do script
       // As instruções JSON acima cuidam apenas da integração com o painel.
       fullSystemPrompt += `\n\n${buildRouteIntelligenceSystemPrompt()}`;
       currentStage = 'extraction';
-      const extractionResult = await routeAIRequest({
-        task: 'quick_extraction',
-        messages: [{ role: 'user', content: buildConstraintExtractionPrompt({ messages, tripContext, tripCalendar }) }],
-        tripContext,
-        systemPrompt: 'Você extrai contratos de viagem com fidelidade literal. Não sugira, não complete e não invente.',
-        userMessage: lastUserMessage,
-        userId,
-        tripId,
-        isSystemTask: true,
-        temperature: 0.05,
-        responseMimeType: 'application/json'
-      });
-      planningBrief = parsePlanningBrief(extractionResult.reply, tripCalendar);
+      try {
+        const extractionResult = await routeAIRequest({
+          task: 'quick_extraction',
+          messages: [{ role: 'user', content: buildConstraintExtractionPrompt({ messages, tripContext, tripCalendar }) }],
+          tripContext,
+          systemPrompt: 'Você extrai contratos de viagem com fidelidade literal. Não sugira, não complete e não invente.',
+          userMessage: lastUserMessage,
+          userId,
+          tripId,
+          isSystemTask: true,
+          temperature: 0.05,
+          responseMimeType: 'application/json'
+        });
+        planningBrief = parsePlanningBrief(extractionResult.reply, tripCalendar);
+      } catch (extractErr) {
+        console.warn('[chat] Extração por IA indisponível, usando fallback determinístico:', extractErr.message);
+        planningBrief = null;
+      }
       if (!planningBrief) {
-        const error = new Error('Não foi possível consolidar os compromissos da viagem sem risco de perder informações.');
-        error.code = 'PLANNING_BRIEF_INVALID';
-        error.stage = 'extraction';
-        throw error;
+        planningBrief = mergeDeterministicCommitments({}, messages, tripCalendar);
       }
       planningBrief = mergeDeterministicCommitments(planningBrief, messages, tripCalendar);
       if (!tripCalendar.length && planningBrief?.dates?.start) {
@@ -489,9 +491,9 @@ Você é o amigo local que está caminhando junto. Não o guia que lê do script
         fullSystemPrompt += `\n\nCALENDÁRIO EXTRAÍDO E VINCULANTE DA CONVERSA:\n${tripCalendar.map(day => `${day.dateISO} = ${day.dateLabel}`).join('\n')}\nUse estas datas e dias da semana em todo o roteiro.`;
       }
       planningBrief = sanitizePlanningBriefAgainstSources(planningBrief, messages, tripContext);
-      const destination = planningBrief?.destination || tripContext.destination || tripContext.tripTitle || tripContext.title;
+      const destination = planningBrief?.destination || tripContext.destination || tripContext.tripTitle || tripContext.title || destinationKnowledge?.name;
       if (!destination) {
-        const error = new Error('Não foi possível identificar o destino antes da pesquisa.');
+        const error = new Error('Não foi possível identificar o destino da viagem.');
         error.code = 'PLANNING_BRIEF_INVALID';
         error.stage = 'extraction';
         throw error;

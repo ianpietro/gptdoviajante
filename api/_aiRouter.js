@@ -319,7 +319,7 @@ async function callOpenAIGroundedProvider({ apiKey, model, systemPrompt, message
     instructions: systemPrompt,
     input,
     tools: [{ type: isReasoningPlanner ? 'web_search' : 'web_search_preview', ...(isReasoningPlanner ? {} : { search_context_size: 'medium' }) }],
-    tool_choice: 'required',
+    tool_choice: 'auto',
     store: false
   };
   if (isReasoningPlanner) body.reasoning = { effort: 'medium' };
@@ -341,13 +341,12 @@ async function callOpenAIGroundedProvider({ apiKey, model, systemPrompt, message
     .map(part => part.text || '')
     .join('\n') || '').trim();
   const groundingUsed = Boolean(rawResponse.output?.some(item => item?.type === 'web_search_call' && item?.status === 'completed'));
-  if (!reply || !groundingUsed) {
-    const error = providerError('openai', 422, !reply ? 'Resposta vazia da OpenAI.' : 'A resposta não utilizou pesquisa na web.',
-      !reply ? 'EMPTY_RESPONSE' : 'GROUNDING_NOT_USED');
+  if (!reply) {
+    const error = providerError('openai', 422, 'Resposta vazia da OpenAI.', 'EMPTY_RESPONSE');
     error.retryable = false;
     throw error;
   }
-  return { reply, rawResponse, usage: normalizeOpenAIResponsesUsage(rawResponse), groundingUsed: true };
+  return { reply, rawResponse, usage: normalizeOpenAIResponsesUsage(rawResponse), groundingUsed };
 }
 
 async function retryWithBackoff(fn, retries = 1, delayMs = 300) {
@@ -501,7 +500,8 @@ async function routeAIRequest({ task = 'chat', messages = [], tripContext = null
       provider = 'openai'; modelUsed = classification.useGrounding ? AI_MODELS.groundedFallback : AI_MODELS.planner; usedFallback = true;
       try {
         const call = await retryWithBackoff(() => callOpenAIGroundedProvider({ apiKey: openaiKey,
-          model: modelUsed, systemPrompt: fullSystemPrompt, messages: history.messages, temperature }), 1, 300);
+          model: modelUsed, systemPrompt: fullSystemPrompt, messages: history.messages, temperature,
+          useGrounding: classification.useGrounding }), 1, 300);
         result = call.result; attempts += call.attempts;
       } catch (error) { attempts += error.attempts || 1; if (!terminalError) terminalError = error; }
     }
